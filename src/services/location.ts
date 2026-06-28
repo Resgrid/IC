@@ -1,0 +1,422 @@
+import * as Location from 'expo-location';
+import * as TaskManager from 'expo-task-manager';
+import { AppState, type AppStateStatus } from 'react-native';
+
+import { setUnitLocation } from '@/api/units/unitLocation';
+import { registerLocationServiceUpdater } from '@/lib/hooks/use-background-geolocation';
+import { logger } from '@/lib/logging';
+import { isWeb } from '@/lib/platform';
+import { loadBackgroundGeolocationState } from '@/lib/storage/background-geolocation';
+import { SaveUnitLocationInput } from '@/models/v4/unitLocation/saveUnitLocationInput';
+import { useCoreStore } from '@/stores/app/core-store';
+import { useLocationStore } from '@/stores/app/location-store';
+
+const LOCATION_TASK_NAME = 'location-updates';
+
+// Helper function to send location to API
+const sendLocationToAPI = async (location: Location.LocationObject): Promise<void> => {
+  try {
+    const { activeUnitId } = useCoreStore.getState();
+
+    if (!activeUnitId) {
+      logger.warn({
+        message: 'No active unit selected, skipping location API call',
+      });
+      return;
+    }
+
+    const locationInput = new SaveUnitLocationInput();
+    locationInput.UnitId = activeUnitId;
+    locationInput.Timestamp = new Date(location.timestamp).toISOString();
+    locationInput.Latitude = location.coords.latitude.toString();
+    locationInput.Longitude = location.coords.longitude.toString();
+    locationInput.Accuracy = location.coords.accuracy?.toString() || '0';
+    locationInput.Altitude = location.coords.altitude?.toString() || '0';
+    locationInput.AltitudeAccuracy = location.coords.altitudeAccuracy?.toString() || '0';
+    locationInput.Speed = location.coords.speed?.toString() || '0';
+    locationInput.Heading = location.coords.heading?.toString() || '0';
+
+    const result = await setUnitLocation(locationInput);
+
+    logger.info({
+      message: 'Location successfully sent to API',
+      context: {
+        unitId: activeUnitId,
+        resultId: result.Id,
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      },
+    });
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to send location to API',
+      context: {
+        error: error instanceof Error ? error.message : String(error),
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      },
+    });
+  }
+};
+
+// Define the background task (native only — TaskManager is unsupported on web)
+if (!isWeb) {
+  TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
+    if (error) {
+      logger.error({
+        message: 'Location task error',
+        context: { error },
+      });
+      return;
+    }
+    if (data) {
+      const { locations } = data as { locations: Location.LocationObject[] };
+      const location = locations[0];
+      if (location) {
+        logger.info({
+          message: 'Background location update received',
+          context: {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            heading: location.coords.heading,
+          },
+        });
+
+        // Update local store
+        useLocationStore.getState().setLocation(location);
+
+        // Send to API
+        await sendLocationToAPI(location);
+      }
+    }
+  });
+}
+
+class LocationService {
+  private static instance: LocationService;
+  private locationSubscription: Location.LocationSubscription | null = null;
+  private backgroundSubscription: Location.LocationSubscription | null = null;
+  private appStateSubscription: { remove: () => void } | null = null;
+  private isBackgroundGeolocationEnabled = false;
+
+  private constructor() {
+    this.initializeAppStateListener();
+    // Register this service's update function to avoid circular dependency
+    registerLocationServiceUpdater(this.updateBackgroundGeolocationSetting.bind(this));
+  }
+
+  static getInstance(): LocationService {
+    if (!LocationService.instance) {
+      LocationService.instance = new LocationService();
+    }
+    return LocationService.instance;
+  }
+
+  private initializeAppStateListener(): void {
+    this.appStateSubscription = AppState.addEventListener('change', this.handleAppStateChange);
+  }
+
+  private handleAppStateChange = async (nextAppState: AppStateStatus): Promise<void> => {
+    logger.info({
+      message: 'Location service handling app state change',
+      context: { nextAppState, backgroundEnabled: this.isBackgroundGeolocationEnabled },
+    });
+
+    if (nextAppState === 'background' && this.isBackgroundGeolocationEnabled) {
+      await this.startBackgroundUpdates();
+    } else if (nextAppState === 'active') {
+      await this.stopBackgroundUpdates();
+    }
+  };
+
+  async requestPermissions(requestBackground = false): Promise<boolean> {
+    const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
+
+    let backgroundStatus = 'undetermined';
+    if (requestBackground) {
+      const result = await Location.requestBackgroundPermissionsAsync();
+      backgroundStatus = result.status;
+    }
+
+    logger.info({
+      message: 'Location permissions requested',
+      context: {
+        foregroundStatus,
+        backgroundStatus: requestBackground ? backgroundStatus : 'not requested',
+        backgroundRequested: requestBackground,
+      },
+    });
+
+    // Only require foreground permissions for basic functionality
+    // Background permissions are optional and will be handled separately
+    return foregroundStatus === 'granted';
+  }
+
+  async startLocationUpdates(): Promise<void> {
+    // On web, use a lightweight browser geolocation watcher instead of expo-location/TaskManager
+    if (isWeb) {
+      if (!('geolocation' in navigator)) {
+        logger.warn({ message: 'Geolocation API not available in this browser' });
+        return;
+      }
+
+      if (!this.locationSubscription) {
+        const watchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            const loc: Location.LocationObject = {
+              coords: {
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                altitude: pos.coords.altitude ?? 0,
+                accuracy: pos.coords.accuracy ?? 0,
+                altitudeAccuracy: pos.coords.altitudeAccuracy ?? 0,
+                heading: pos.coords.heading ?? 0,
+                speed: pos.coords.speed ?? 0,
+              },
+              timestamp: pos.timestamp,
+            };
+            useLocationStore.getState().setLocation(loc);
+            sendLocationToAPI(loc);
+          },
+          (err) => {
+            logger.warn({ message: 'Web geolocation error', context: { code: err.code, msg: err.message } });
+          },
+          { enableHighAccuracy: false, maximumAge: 15000, timeout: 30000 }
+        );
+        // Store a compatible subscription object
+        this.locationSubscription = { remove: () => navigator.geolocation.clearWatch(watchId) } as unknown as Location.LocationSubscription;
+        logger.info({ message: 'Foreground location updates started' });
+      }
+      return;
+    }
+
+    // Load background geolocation setting first
+    this.isBackgroundGeolocationEnabled = await loadBackgroundGeolocationState();
+
+    // Only request background permissions if the user has enabled background geolocation
+    const hasPermissions = await this.requestPermissions(this.isBackgroundGeolocationEnabled);
+    if (!hasPermissions) {
+      throw new Error('Location permissions not granted');
+    }
+
+    // Check if we have background permissions for background tracking
+    const { status: backgroundStatus } = await Location.getBackgroundPermissionsAsync();
+    const hasBackgroundPermissions = backgroundStatus === 'granted';
+
+    // Only register background task if both setting is enabled AND we have background permissions
+    const shouldEnableBackground = this.isBackgroundGeolocationEnabled && hasBackgroundPermissions;
+
+    if (shouldEnableBackground) {
+      // Check if task is already registered for background updates
+      const isTaskRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+      if (!isTaskRegistered) {
+        await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 15000,
+          distanceInterval: 10,
+          foregroundService: {
+            notificationTitle: 'Location Tracking',
+            notificationBody: 'Tracking your location in the background',
+          },
+        });
+        logger.info({
+          message: 'Background location task registered',
+        });
+      }
+    } else if (this.isBackgroundGeolocationEnabled && !hasBackgroundPermissions) {
+      logger.warn({
+        message: 'Background geolocation enabled but permissions denied, running in foreground-only mode',
+        context: {
+          backgroundStatus,
+          settingEnabled: this.isBackgroundGeolocationEnabled,
+        },
+      });
+    }
+
+    // Start foreground updates (idempotent - check if already subscribed)
+    if (!this.locationSubscription) {
+      this.locationSubscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 15000,
+          distanceInterval: 10,
+        },
+        (location) => {
+          logger.info({
+            message: 'Foreground location update received',
+            context: {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+              heading: location.coords.heading,
+            },
+          });
+          useLocationStore.getState().setLocation(location);
+          sendLocationToAPI(location); // Send to API for foreground updates
+        }
+      );
+    } else {
+      logger.info({
+        message: 'Foreground location subscription already active, skipping duplicate subscription',
+      });
+    }
+
+    logger.info({
+      message: 'Foreground location updates started',
+      context: {
+        backgroundEnabled: shouldEnableBackground,
+        backgroundPermissions: hasBackgroundPermissions,
+        backgroundSetting: this.isBackgroundGeolocationEnabled,
+      },
+    });
+  }
+
+  async startBackgroundUpdates(): Promise<void> {
+    if (isWeb) return; // Background location not supported on web
+    if (this.backgroundSubscription || !this.isBackgroundGeolocationEnabled) {
+      return;
+    }
+
+    // Check if OS-managed background task is already registered
+    const isTaskRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+    if (isTaskRegistered) {
+      logger.info({
+        message: 'OS-managed background location task is registered, skipping watchPositionAsync subscription',
+      });
+      useLocationStore.getState().setBackgroundEnabled(true);
+      return;
+    }
+
+    logger.info({
+      message: 'Starting background location updates',
+    });
+
+    this.backgroundSubscription = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.Balanced,
+        timeInterval: 60000,
+        distanceInterval: 20,
+      },
+      (location) => {
+        logger.info({
+          message: 'Background location update received',
+          context: {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+            heading: location.coords.heading,
+          },
+        });
+        useLocationStore.getState().setLocation(location);
+        sendLocationToAPI(location); // Send to API for background updates
+      }
+    );
+
+    useLocationStore.getState().setBackgroundEnabled(true);
+  }
+
+  async stopBackgroundUpdates(): Promise<void> {
+    if (isWeb) return;
+    if (this.backgroundSubscription) {
+      logger.info({
+        message: 'Stopping background location updates',
+      });
+      await this.backgroundSubscription.remove();
+      this.backgroundSubscription = null;
+    }
+    useLocationStore.getState().setBackgroundEnabled(false);
+  }
+
+  async updateBackgroundGeolocationSetting(enabled: boolean): Promise<void> {
+    if (isWeb) return; // Background geolocation not applicable on web
+    this.isBackgroundGeolocationEnabled = enabled;
+
+    if (enabled) {
+      // Request background permissions when enabling background geolocation
+      const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
+      const hasBackgroundPermissions = backgroundStatus === 'granted';
+
+      if (!hasBackgroundPermissions) {
+        logger.warn({
+          message: 'Cannot enable background geolocation: background permissions not granted',
+          context: { backgroundStatus },
+        });
+        return;
+      }
+
+      // Register the task if not already registered
+      const isTaskRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+      if (!isTaskRegistered) {
+        await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 15000,
+          distanceInterval: 10,
+          foregroundService: {
+            notificationTitle: 'Location Tracking',
+            notificationBody: 'Tracking your location in the background',
+          },
+        });
+        logger.info({
+          message: 'Background location task registered after setting change',
+        });
+      }
+
+      // Start background updates if app is currently backgrounded
+      if (AppState.currentState === 'background') {
+        // Check if OS-managed background task is already registered before starting watchPositionAsync
+        const isTaskRegisteredForWatch = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+        if (isTaskRegisteredForWatch) {
+          logger.info({
+            message: 'OS-managed background location task is registered, skipping watchPositionAsync subscription in updateBackgroundGeolocationSetting',
+          });
+          useLocationStore.getState().setBackgroundEnabled(true);
+        } else {
+          await this.startBackgroundUpdates();
+        }
+      }
+    } else {
+      // Stop background updates and unregister task
+      await this.stopBackgroundUpdates();
+      const isTaskRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+      if (isTaskRegistered) {
+        await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+        logger.info({
+          message: 'Background location task unregistered after setting change',
+        });
+      }
+    }
+  }
+
+  async stopLocationUpdates(): Promise<void> {
+    if (this.locationSubscription) {
+      if (isWeb) {
+        // On web the subscription is our own shim wrapping clearWatch
+        (this.locationSubscription as any).remove();
+      } else {
+        await this.locationSubscription.remove();
+      }
+      this.locationSubscription = null;
+    }
+
+    if (!isWeb) {
+      await this.stopBackgroundUpdates();
+
+      // Check if task is registered before stopping
+      const isTaskRegistered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
+      if (isTaskRegistered) {
+        await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+      }
+    }
+
+    logger.info({
+      message: 'All location updates stopped',
+    });
+  }
+
+  cleanup(): void {
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove();
+      this.appStateSubscription = null;
+    }
+  }
+}
+
+export const locationService = LocationService.getInstance();

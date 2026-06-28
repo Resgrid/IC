@@ -1,0 +1,257 @@
+import notifee from '@notifee/react-native';
+import { Platform } from 'react-native';
+
+import { logger } from '../lib/logging';
+import { callKeepService } from './callkeep.service';
+import { notificationSoundService } from './notification-sound.service';
+import { pushNotificationService } from './push-notification';
+
+/**
+ * Global app initialization service that handles one-time setup operations
+ * This service should be called during app startup to ensure all critical
+ * services are properly initialized before they're needed.
+ */
+class AppInitializationService {
+  private static instance: AppInitializationService | null = null;
+  private isInitialized = false;
+  private initializationPromise: Promise<void> | null = null;
+
+  private constructor() {}
+
+  static getInstance(): AppInitializationService {
+    if (!AppInitializationService.instance) {
+      AppInitializationService.instance = new AppInitializationService();
+    }
+    return AppInitializationService.instance;
+  }
+
+  /**
+   * Initialize all global services
+   * This method is idempotent and safe to call multiple times
+   */
+  async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      logger.debug({
+        message: 'App initialization already completed, skipping',
+      });
+      return;
+    }
+
+    // If initialization is already in progress, wait for it to complete
+    if (this.initializationPromise) {
+      logger.debug({
+        message: 'App initialization already in progress, waiting for completion',
+      });
+      return this.initializationPromise;
+    }
+
+    // Start initialization process
+    this.initializationPromise = this._doInitialization();
+
+    try {
+      await this.initializationPromise;
+      this.isInitialized = true;
+      logger.info({
+        message: 'App initialization completed successfully',
+      });
+    } catch (error) {
+      logger.error({
+        message: 'App initialization failed',
+        context: { error },
+      });
+      // Reset the promise so initialization can be retried
+      this.initializationPromise = null;
+      throw error;
+    }
+  }
+
+  /**
+   * Internal initialization logic
+   */
+  private async _doInitialization(): Promise<void> {
+    logger.info({
+      message: 'Starting app initialization',
+    });
+
+    // Register the Notifee foreground service handler for Android.
+    // Per Notifee documentation this MUST be called at the JS root level before
+    // any component rendering — calling it lazily inside a store action causes
+    // the Android foreground service to start without a registered JS handler,
+    // which silently prevents the PTT/voice call from working in production.
+    this._registerAndroidForegroundService();
+
+    // Initialize CallKeep for iOS background audio support
+    await this._initializeCallKeep();
+
+    // Initialize Notification Sound Service
+    await this._initializeNotificationSoundService();
+
+    // Initialize Push Notification Service
+    await this._initializePushNotifications();
+
+    // Add other global initialization tasks here as needed
+    // e.g., analytics, crash reporting, background services, etc.
+  }
+
+  /**
+   * Register the Notifee foreground service task handler for Android.
+   * This keeps the voice channel alive when the app is in the background.
+   * Must be called synchronously before any React component renders.
+   */
+  private _registerAndroidForegroundService(): void {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    try {
+      notifee.registerForegroundService((_notification) => {
+        // Return a never-resolving Promise to keep the foreground service alive.
+        // The service is stopped explicitly by calling notifee.stopForegroundService()
+        // when the voice call is disconnected.
+        return new Promise<void>(() => {
+          logger.debug({
+            message: 'Android LiveKit foreground service handler running',
+          });
+        });
+      });
+
+      logger.info({
+        message: 'Android foreground service handler registered at startup',
+      });
+    } catch (error) {
+      logger.error({
+        message: 'Failed to register Android foreground service handler',
+        context: { error },
+      });
+    }
+  }
+
+  /**
+   * Initialize CallKeep service for iOS and Android
+   */
+  private async _initializeCallKeep(): Promise<void> {
+    if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+      logger.debug({
+        message: 'CallKeep initialization skipped - not supported platform',
+        context: { platform: Platform.OS },
+      });
+      return;
+    }
+
+    try {
+      await callKeepService.setup({
+        appName: 'Resgrid Unit',
+        maximumCallGroups: 1,
+        maximumCallsPerCallGroup: 1,
+        includesCallsInRecents: false,
+        supportsVideo: false,
+      });
+
+      logger.info({
+        message: 'CallKeep initialized successfully',
+      });
+    } catch (error) {
+      logger.error({
+        message: 'Failed to initialize CallKeep',
+        context: { error },
+      });
+      // Don't throw here - CallKeep failure shouldn't prevent app startup
+      // but LiveKit calls may not work properly in the background
+    }
+  }
+
+  /**
+   * Initialize Notification Sound Service
+   */
+  private async _initializeNotificationSoundService(): Promise<void> {
+    // Notification sounds are native-only
+    if (Platform.OS === 'web') {
+      logger.debug({ message: 'Notification sound service skipped on web' });
+      return;
+    }
+
+    try {
+      await notificationSoundService.initialize();
+
+      logger.info({
+        message: 'Notification Sound Service initialized successfully',
+      });
+    } catch (error) {
+      logger.error({
+        message: 'Failed to initialize Notification Sound Service',
+        context: { error },
+      });
+      // Don't throw here - sound service failure shouldn't prevent app startup
+      // but notification sounds may not play properly
+    }
+  }
+
+  /**
+   * Initialize Push Notification Service
+   */
+  private async _initializePushNotifications(): Promise<void> {
+    // Push notifications are native-only
+    if (Platform.OS === 'web') {
+      logger.debug({ message: 'Push notification service skipped on web' });
+      return;
+    }
+
+    try {
+      await pushNotificationService.initialize();
+
+      logger.info({
+        message: 'Push Notification Service initialized successfully',
+      });
+    } catch (error) {
+      logger.error({
+        message: 'Failed to initialize Push Notification Service',
+        context: { error },
+      });
+      // Don't throw here - push notification failure shouldn't prevent app startup
+      // but notifications may not work properly
+    }
+  }
+
+  /**
+   * Check if the service has been initialized
+   */
+  isAppInitialized(): boolean {
+    return this.isInitialized;
+  }
+
+  /**
+   * Reset initialization state (for testing purposes)
+   */
+  reset(): void {
+    this.isInitialized = false;
+    this.initializationPromise = null;
+    logger.debug({
+      message: 'App initialization service reset',
+    });
+  }
+
+  /**
+   * Clean up resources
+   */
+  async cleanup(): Promise<void> {
+    try {
+      // Cleanup CallKeep
+      await callKeepService.cleanup();
+
+      this.isInitialized = false;
+      this.initializationPromise = null;
+
+      logger.info({
+        message: 'App initialization service cleaned up',
+      });
+    } catch (error) {
+      logger.error({
+        message: 'Error during app initialization service cleanup',
+        context: { error },
+      });
+    }
+  }
+}
+
+// Export singleton instance
+export const appInitializationService = AppInitializationService.getInstance();

@@ -1,0 +1,157 @@
+import { create } from 'zustand';
+
+import { getCallPriorities } from '@/api/calls/callPriorities';
+import { getCallExtraData, getCalls } from '@/api/calls/calls';
+import { getCallTypes } from '@/api/calls/callTypes';
+import { getNewCallData } from '@/api/dispatch/dispatch';
+import { type CallPriorityResultData } from '@/models/v4/callPriorities/callPriorityResultData';
+import { type CallResultData } from '@/models/v4/calls/callResultData';
+import { type DispatchedEventResultData } from '@/models/v4/calls/dispatchedEventResultData';
+import { type CallTypeResultData } from '@/models/v4/callTypes/callTypeResultData';
+import { type PoiResultData, type PoiTypeResultData } from '@/models/v4/mapping/poiResultData';
+
+interface CallsState {
+  calls: CallResultData[];
+  callPriorities: CallPriorityResultData[];
+  callTypes: CallTypeResultData[];
+  destinationPois: PoiResultData[];
+  poiTypes: PoiTypeResultData[];
+  callDispatches: Record<string, DispatchedEventResultData[]>;
+  isLoading: boolean;
+  isInitialized: boolean;
+  isCallFormDataLoaded: boolean;
+  error: string | null;
+  lastFetchedAt: number;
+  fetchCalls: () => Promise<void>;
+  fetchCallPriorities: () => Promise<void>;
+  fetchCallTypes: () => Promise<void>;
+  fetchCallFormData: () => Promise<void>;
+  fetchCallDispatches: (callIds: string[]) => Promise<void>;
+  init: () => Promise<void>;
+}
+
+export const useCallsStore = create<CallsState>((set, get) => ({
+  calls: [],
+  callPriorities: [],
+  callTypes: [],
+  destinationPois: [],
+  poiTypes: [],
+  callDispatches: {},
+  isLoading: false,
+  isInitialized: false,
+  isCallFormDataLoaded: false,
+  error: null,
+  lastFetchedAt: 0,
+  init: async () => {
+    // Prevent re-initialization during tree remounts
+    if (get().isInitialized || get().isLoading) {
+      return;
+    }
+    set({ isLoading: true, error: null });
+    const callsResponse = await getCalls();
+    const callPrioritiesResponse = await getCallPriorities();
+    const callTypesResponse = await getCallTypes();
+    set({
+      calls: Array.isArray(callsResponse.Data) ? callsResponse.Data : [],
+      callPriorities: Array.isArray(callPrioritiesResponse.Data) ? callPrioritiesResponse.Data : [],
+      callTypes: Array.isArray(callTypesResponse.Data) ? callTypesResponse.Data : [],
+      isLoading: false,
+      isInitialized: true,
+      lastFetchedAt: Date.now(),
+    });
+  },
+  fetchCalls: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await getCalls();
+      const newCalls = Array.isArray(response.Data) ? response.Data : [];
+
+      // Evict dispatches for calls no longer in the active list to prevent unbounded memory growth
+      const activeIds = new Set(newCalls.map((c) => c.CallId));
+      const existing = get().callDispatches;
+      const pruned: Record<string, DispatchedEventResultData[]> = {};
+      for (const id in existing) {
+        if (activeIds.has(id)) {
+          pruned[id] = existing[id];
+        }
+      }
+
+      set({ calls: newCalls, callDispatches: pruned, isLoading: false, lastFetchedAt: Date.now() });
+    } catch (error) {
+      set({ error: 'Failed to fetch calls', isLoading: false });
+    }
+  },
+  fetchCallPriorities: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await getCallPriorities();
+      set({ callPriorities: Array.isArray(response.Data) ? response.Data : [], isLoading: false });
+    } catch (error) {
+      set({ error: 'Failed to fetch call priorities', isLoading: false });
+    }
+  },
+  fetchCallTypes: async () => {
+    // Only fetch if we don't have call types in the store
+    const { callTypes } = get();
+    if (callTypes.length > 0) {
+      return;
+    }
+
+    set({ isLoading: true, error: null });
+    try {
+      const response = await getCallTypes();
+      set({ callTypes: Array.isArray(response.Data) ? response.Data : [], isLoading: false });
+    } catch (error) {
+      set({ error: 'Failed to fetch call types', isLoading: false });
+    }
+  },
+  fetchCallFormData: async () => {
+    if (get().isCallFormDataLoaded) {
+      return;
+    }
+
+    set({ isLoading: true, error: null });
+    try {
+      const response = await getNewCallData();
+      const data = response.Data;
+      set({
+        callPriorities: Array.isArray(data?.Priorities) ? data.Priorities : [],
+        callTypes: Array.isArray(data?.CallTypes) ? data.CallTypes : [],
+        destinationPois: Array.isArray(data?.DestinationPois) ? data.DestinationPois : [],
+        poiTypes: Array.isArray(data?.PoiTypes) ? data.PoiTypes : [],
+        isCallFormDataLoaded: true,
+        isLoading: false,
+      });
+    } catch (error) {
+      set({ error: 'Failed to fetch call form data', isLoading: false });
+    }
+  },
+  fetchCallDispatches: async (callIds: string[]) => {
+    const existing = get().callDispatches;
+    // Only fetch for call IDs that aren't already cached
+    const uncachedIds = callIds.filter((id) => !(id in existing));
+    if (uncachedIds.length === 0) return;
+
+    try {
+      const results = await Promise.all(
+        uncachedIds.map(async (callId) => {
+          try {
+            const result = await getCallExtraData(callId);
+            const dispatches = result?.Data?.Dispatches ?? [];
+            return { callId, dispatches: dispatches as DispatchedEventResultData[] };
+          } catch {
+            return { callId, dispatches: [] as DispatchedEventResultData[] };
+          }
+        })
+      );
+
+      const newDispatches: Record<string, DispatchedEventResultData[]> = {};
+      for (const { callId, dispatches } of results) {
+        newDispatches[callId] = dispatches;
+      }
+      set({ callDispatches: { ...get().callDispatches, ...newDispatches } });
+    } catch (error) {
+      console.warn('Failed to fetch call dispatches:', error);
+    }
+  },
+}));
