@@ -11,7 +11,6 @@ import { Loading } from '@/components/common/loading';
 import MapPins from '@/components/maps/map-pins';
 import Mapbox from '@/components/maps/mapbox';
 import PinDetailModal from '@/components/maps/pin-detail-modal';
-import { StopMarker } from '@/components/routes/stop-marker';
 import { FocusAwareStatusBar } from '@/components/ui/focus-aware-status-bar';
 import { WeatherAlertBanner } from '@/components/weather-alerts/weather-alert-banner';
 import { useAnalytics } from '@/hooks/use-analytics';
@@ -24,7 +23,6 @@ import { locationService } from '@/services/location';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useLocationStore } from '@/stores/app/location-store';
 import { useMapsStore } from '@/stores/maps/store';
-import { useRoutesStore } from '@/stores/routes/store';
 import { useToastStore } from '@/stores/toast/store';
 import { useWeatherAlertsStore } from '@/stores/weather-alerts/store';
 
@@ -71,13 +69,8 @@ function MapContent() {
     setIsBannerDismissed(false);
   }, [extremeAlerts.length]);
 
-  // Route overlay state
+  // Active unit (used to gate custom map-layer loading)
   const activeUnitId = useCoreStore((state) => state.activeUnitId);
-  const activeInstance = useRoutesStore((state) => state.activeInstance);
-  const instanceStops = useRoutesStore((state) => state.instanceStops);
-  const fetchActiveRoute = useRoutesStore((state) => state.fetchActiveRoute);
-  const fetchStopsForInstance = useRoutesStore((state) => state.fetchStopsForInstance);
-  const [showRouteOverlay, setShowRouteOverlay] = useState(true);
 
   // Map layers state
   const activeLayers = useMapsStore((state) => state.activeLayers);
@@ -117,20 +110,12 @@ function MapContent() {
     };
   }, [locationLatitude, locationLongitude, isMapLocked]);
 
-  // Fetch active route overlay data
+  // Fetch custom map-layer config when an active unit is set
   useEffect(() => {
     if (activeUnitId) {
-      fetchActiveRoute(activeUnitId);
       fetchActiveLayers();
     }
-  }, [activeUnitId, fetchActiveRoute, fetchActiveLayers]);
-
-  // Fetch stops when active instance changes
-  useEffect(() => {
-    if (activeInstance?.RouteInstanceId) {
-      fetchStopsForInstance(activeInstance.RouteInstanceId);
-    }
-  }, [activeInstance?.RouteInstanceId, fetchStopsForInstance]);
+  }, [activeUnitId, fetchActiveLayers]);
 
   // Fetch GeoJSON for enabled layers
   useEffect(() => {
@@ -140,54 +125,6 @@ function MapContent() {
       }
     });
   }, [activeLayers, layerToggles, cachedGeoJSON, fetchLayerGeoJSON]);
-
-  // Parse route geometry for overlay
-  const routeOverlayGeoJSON = useMemo(() => {
-    if (!showRouteOverlay || !activeInstance) return null;
-    const geometry = activeInstance.ActualRouteGeometry || '';
-    if (!geometry) return null;
-    try {
-      const parsed = JSON.parse(geometry);
-      if (parsed.type === 'Feature' || parsed.type === 'FeatureCollection') return parsed;
-      if (parsed.type === 'LineString' || parsed.type === 'MultiLineString') {
-        return { type: 'Feature' as const, properties: {}, geometry: parsed };
-      }
-      if (Array.isArray(parsed)) {
-        return { type: 'Feature' as const, properties: {}, geometry: { type: 'LineString', coordinates: parsed } };
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }, [showRouteOverlay, activeInstance]);
-
-  // Get remaining stops for route overlay
-  const remainingStops = useMemo(() => {
-    if (!showRouteOverlay || !activeInstance) return [];
-    return instanceStops.filter((s) => s.Status === 0 || s.Status === 1);
-  }, [showRouteOverlay, activeInstance, instanceStops]);
-
-  // Next stop for geofence circle
-  const nextStop = useMemo(() => {
-    return remainingStops.find((s) => s.Status === 0 || s.Status === 1) || null;
-  }, [remainingStops]);
-
-  // Geofence circle GeoJSON
-  const geofenceGeoJSON = useMemo((): GeoJSON.Feature<GeoJSON.Polygon> | null => {
-    if (!nextStop || !nextStop.GeofenceRadiusMeters) return null;
-    const points = 64;
-    const coords: number[][] = [];
-    const radiusDeg = nextStop.GeofenceRadiusMeters / 111320;
-    for (let i = 0; i <= points; i++) {
-      const angle = (i / points) * 2 * Math.PI;
-      coords.push([nextStop.Longitude + radiusDeg * Math.cos(angle), nextStop.Latitude + radiusDeg * Math.sin(angle)]);
-    }
-    return {
-      type: 'Feature',
-      properties: {},
-      geometry: { type: 'Polygon', coordinates: [coords] },
-    };
-  }, [nextStop]);
 
   // Update map style when theme changes
   useEffect(() => {
@@ -540,53 +477,6 @@ function MapContent() {
             </Mapbox.PointAnnotation>
           ) : null}
           <MapPins pins={mapPins} onPinPress={handlePinPress} />
-
-          {/* Active route polyline overlay */}
-          {routeOverlayGeoJSON ? (
-            <Mapbox.ShapeSource id="active-route-line" shape={routeOverlayGeoJSON}>
-              <Mapbox.LineLayer
-                id="active-route-line-layer"
-                style={{
-                  lineColor: activeInstance?.RouteColor || '#3b82f6',
-                  lineWidth: 4,
-                  lineJoin: 'round',
-                  lineCap: 'round',
-                }}
-              />
-            </Mapbox.ShapeSource>
-          ) : null}
-
-          {/* Geofence circle around next stop */}
-          {geofenceGeoJSON ? (
-            <Mapbox.ShapeSource id="geofence-circle" shape={geofenceGeoJSON}>
-              <Mapbox.FillLayer
-                id="geofence-fill"
-                style={{
-                  fillColor: '#3b82f6',
-                  fillOpacity: 0.1,
-                }}
-              />
-              <Mapbox.LineLayer
-                id="geofence-outline"
-                style={{
-                  lineColor: '#3b82f6',
-                  lineWidth: 1.5,
-                  lineDasharray: [2, 2],
-                }}
-              />
-            </Mapbox.ShapeSource>
-          ) : null}
-
-          {/* Route stop markers */}
-          {showRouteOverlay
-            ? remainingStops.map((stop) =>
-                stop.Latitude && stop.Longitude ? (
-                  <Mapbox.PointAnnotation key={`route-stop-${stop.RouteInstanceStopId}`} id={`route-stop-${stop.RouteInstanceStopId}`} coordinate={[stop.Longitude, stop.Latitude]}>
-                    <StopMarker stopOrder={stop.StopOrder} status={stop.Status} />
-                  </Mapbox.PointAnnotation>
-                ) : null
-              )
-            : null}
 
           {/* Custom map layer overlays */}
           {activeLayers.map((layer) =>

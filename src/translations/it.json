@@ -479,6 +479,28 @@
     "invalid_url": "Inserisci un URL valido che inizia con http:// o https://",
     "required": "Questo campo è obbligatorio"
   },
+  "incidents": {
+    "accountability": "Accountability",
+    "commander": "Commander",
+    "establish": "Establish Command",
+    "establish_failed": "Failed to establish command",
+    "establishing": "Establishing command…",
+    "lanes": "Command Structure",
+    "loading": "Loading command board…",
+    "no_command": "No command established",
+    "no_command_description": "No incident command has been established for this incident yet.",
+    "no_incidents": "No active incidents",
+    "no_incidents_description": "There are no active incident commands right now.",
+    "no_lanes": "No command structure yet",
+    "no_objectives": "No objectives yet",
+    "objectives": "Objectives",
+    "par_critical": "Critical",
+    "par_warning": "Warning",
+    "resources": "Resources",
+    "title": "Incidents",
+    "unassigned": "Unassigned",
+    "unnamed": "Incident"
+  },
   "livekit": {
     "audio_devices": "Dispositivi audio",
     "audio_settings": "Impostazioni audio",
@@ -909,6 +931,7 @@
   "tabs": {
     "calls": "Chiamate",
     "contacts": "Contatti",
+    "incidents": "Incidents",
     "map": "Mappa",
     "notes": "Note",
     "protocols": "Protocolli",

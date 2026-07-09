@@ -4,7 +4,7 @@ import { NovuProvider } from '@novu/react-native';
 import Countly from 'countly-sdk-react-native-bridge';
 import * as NavigationBar from 'expo-navigation-bar';
 import { Redirect, SplashScreen, Tabs } from 'expo-router';
-import { CloudAlert, Map, Megaphone, Menu, Navigation, Settings } from 'lucide-react-native';
+import { CloudAlert, LayoutDashboard, Map, Megaphone, Menu, Settings } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Platform, StyleSheet, useWindowDimensions } from 'react-native';
@@ -341,7 +341,7 @@ export default function TabLayout() {
   // Memoize per-screen tab bar icon renderers to prevent new functions every render
   const mapIcon = useCallback(({ color }: { color: string }) => <Icon as={Map} stroke={color} className="text-primary-500 dark:text-primary-400" />, []);
   const callsIcon = useCallback(({ color }: { color: string }) => <Icon as={Megaphone} stroke={color} className="text-primary-500 dark:text-primary-400" />, []);
-  const routesIcon = useCallback(({ color }: { color: string }) => <Icon as={Navigation} stroke={color} className="text-primary-500 dark:text-primary-400" />, []);
+  const incidentsIcon = useCallback(({ color }: { color: string }) => <Icon as={LayoutDashboard} stroke={color} className="text-primary-500 dark:text-primary-400" />, []);
   const weatherAlertsIcon = useCallback(({ color }: { color: string }) => <Icon as={CloudAlert} stroke={color} className="text-primary-500 dark:text-primary-400" />, []);
   const settingsIcon = useCallback(({ color }: { color: string }) => <Icon as={Settings} stroke={color} />, []);
 
@@ -375,21 +375,19 @@ export default function TabLayout() {
     [t, callsIcon, headerRightNotification]
   );
 
-  // routes + weather-alerts are kept as routes but HIDDEN from the IC shell tab bar (href: null).
-  // They are apparatus/Unit-centric and still referenced by the map home + maps components, so the
-  // route files remain to avoid broken navigation; physical removal can follow in a toolchain-verified pass.
-  const routesOptions = useMemo(
+  const incidentsOptions = useMemo(
     () => ({
-      href: null,
-      title: t('tabs.routes'),
+      title: t('tabs.incidents'),
       headerShown: true as const,
-      tabBarIcon: routesIcon,
-      tabBarButtonTestID: 'routes-tab' as const,
+      tabBarIcon: incidentsIcon,
+      tabBarButtonTestID: 'incidents-tab' as const,
       headerRight: headerRightNotification,
     }),
-    [t, routesIcon, headerRightNotification]
+    [t, incidentsIcon, headerRightNotification]
   );
 
+  // weather-alerts is kept (relevant to IC scene safety) but HIDDEN from the tab bar (href: null);
+  // it is reachable from the map-home weather banner. IC shell tabs: Map, Calls, Settings.
   const weatherAlertsOptions = useMemo(
     () => ({
       href: null,
@@ -458,10 +456,10 @@ export default function TabLayout() {
 
             <Tabs.Screen name="calls" options={callsOptions} />
 
-            {/* routes + weather-alerts are registered so their route files resolve, but hidden from the
-                tab bar (href: null in their options). IC shell shows: Map, Calls, Settings. */}
-            <Tabs.Screen name="routes" options={routesOptions} />
+            <Tabs.Screen name="incidents" options={incidentsOptions} />
 
+            {/* weather-alerts is registered so its route file resolves, but hidden from the
+                tab bar (href: null). IC shell shows: Map, Calls, Settings. */}
             <Tabs.Screen name="weather-alerts" options={weatherAlertsOptions} />
 
             <Tabs.Screen name="settings" options={settingsOptions} />
