@@ -10,7 +10,6 @@ import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import { useCoreStore } from '@/stores/app/core-store';
 import { useLocationStore } from '@/stores/app/location-store';
 import type { CheckInResult } from '@/stores/check-in-timers/store';
 import { useCheckInTimerStore } from '@/stores/check-in-timers/store';
@@ -34,22 +33,20 @@ interface CheckInBottomSheetProps {
 
 export const CheckInBottomSheet: React.FC<CheckInBottomSheetProps> = ({ isOpen, onClose, callId }) => {
   const { t } = useTranslation();
-  const activeUnit = useCoreStore((state) => state.activeUnit);
   const latitude = useLocationStore((state) => state.latitude);
   const longitude = useLocationStore((state) => state.longitude);
   const performCheckInAction = useCheckInTimerStore((state) => state.performCheckIn);
   const isCheckingIn = useCheckInTimerStore((state) => state.isCheckingIn);
   const showToast = useToastStore((state) => state.showToast);
 
-  const defaultType = activeUnit ? 1 : 0;
-  const [selectedType, setSelectedType] = useState(defaultType);
+  // IC users always check in as personnel — there is no unit context in this app.
+  const [selectedType, setSelectedType] = useState(0);
   const [note, setNote] = useState('');
 
   const handleConfirm = useCallback(async () => {
     const input: PerformCheckInInput = {
       CallId: callId,
       CheckInType: selectedType,
-      UnitId: activeUnit ? parseInt(activeUnit.UnitId, 10) : undefined,
       Latitude: latitude?.toString(),
       Longitude: longitude?.toString(),
       Note: note || undefined,
@@ -68,7 +65,7 @@ export const CheckInBottomSheet: React.FC<CheckInBottomSheetProps> = ({ isOpen, 
     } else {
       showToast('error', t('check_in.check_in_error'));
     }
-  }, [callId, selectedType, activeUnit, latitude, longitude, note, performCheckInAction, showToast, t, onClose]);
+  }, [callId, selectedType, latitude, longitude, note, performCheckInAction, showToast, t, onClose]);
 
   return (
     <CustomBottomSheet isOpen={isOpen} onClose={onClose} snapPoints={[67]} isLoading={isCheckingIn} loadingText={t('common.submitting')}>

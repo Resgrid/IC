@@ -1,7 +1,8 @@
 import { useRouter } from 'expo-router';
-import { Bell, ChevronRight, MapPin, Users } from 'lucide-react-native';
+import { ChevronRight, ClipboardList, MapPin, Users } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Image, Pressable, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { runOnJS, useAnimatedReaction, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
@@ -19,18 +20,18 @@ type OnboardingItemProps = {
 
 const SLIDES = [
   {
-    title: 'Resgrid Unit',
-    description: "Track your unit's location and status in real-time with our advanced mapping and AVL system",
+    titleKey: 'onboarding.boardTitle',
+    descriptionKey: 'onboarding.boardDescription',
+    icon: <ClipboardList size={80} color="#FF7B1A" />,
+  },
+  {
+    titleKey: 'onboarding.awarenessTitle',
+    descriptionKey: 'onboarding.awarenessDescription',
     icon: <MapPin size={80} color="#FF7B1A" />,
   },
   {
-    title: 'Instant Notifications',
-    description: 'Receive immediate alerts for emergencies and important updates from your department',
-    icon: <Bell size={80} color="#FF7B1A" />,
-  },
-  {
-    title: 'Interact with Calls',
-    description: 'Seamlessly view call information and interact with your team members for efficient emergency response',
+    titleKey: 'onboarding.coordinateTitle',
+    descriptionKey: 'onboarding.coordinateDescription',
     icon: <Users size={80} color="#FF7B1A" />,
   },
 ];
@@ -57,6 +58,7 @@ const Pagination: React.FC<{ currentIndex: number; length: number }> = ({ curren
 );
 
 export default function Onboarding() {
+  const { t } = useTranslation();
   const [_, setIsFirstTime] = useIsFirstTime();
   const setIsOnboarding = useAuthStore((state) => state.setIsOnboarding);
   const router = useRouter();
@@ -167,9 +169,17 @@ export default function Onboarding() {
 
       <View className="flex-1 justify-center" onLayout={handleContainerLayout}>
         <GestureDetector gesture={panGesture}>
-          <Animated.View style={[carouselStyle, { flexDirection: 'row', width: containerWidthState * SLIDE_COUNT }]}>
+          <Animated.View
+            style={[
+              carouselStyle,
+              {
+                flexDirection: 'row',
+                width: containerWidthState * SLIDE_COUNT,
+              },
+            ]}
+          >
             {SLIDES.map((slide) => (
-              <OnboardingSlide key={slide.title} {...slide} slideWidth={containerWidthState} />
+              <OnboardingSlide key={slide.titleKey} title={t(slide.titleKey)} description={t(slide.descriptionKey)} icon={slide.icon} slideWidth={containerWidthState} />
             ))}
           </Animated.View>
         </GestureDetector>
@@ -181,18 +191,18 @@ export default function Onboarding() {
         {currentIndex < SLIDE_COUNT - 1 ? (
           <View className="flex-row items-center justify-between">
             <Pressable onPress={skip}>
-              <Text className="text-gray-500">Skip</Text>
+              <Text className="text-gray-500">{t('onboarding.skip')}</Text>
             </Pressable>
 
             <Pressable className="flex-row items-center rounded-lg bg-primary-500 px-6 py-3" onPress={nextSlide}>
-              <Text className="mr-1 text-base font-semibold text-white dark:text-black">Next</Text>
+              <Text className="mr-1 text-base font-semibold text-white dark:text-black">{t('onboarding.next')}</Text>
               <ChevronRight size={20} color={colorScheme === 'dark' ? 'black' : 'white'} />
             </Pressable>
           </View>
         ) : (
           <Animated.View style={buttonAnimatedStyle}>
             <Pressable className="w-full items-center rounded-lg bg-primary-500 py-3" onPress={finish}>
-              <Text className="text-base font-semibold text-white dark:text-black">Let's Get Started</Text>
+              <Text className="text-base font-semibold text-white dark:text-black">{t('onboarding.getStarted')}</Text>
             </Pressable>
           </Animated.View>
         )}

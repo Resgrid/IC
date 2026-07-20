@@ -402,7 +402,7 @@ describe('LocationService', () => {
       expect(mockLocation.startLocationUpdatesAsync).not.toHaveBeenCalled();
     });
 
-    it('should handle location updates and send to store and API', async () => {
+    it('should handle location updates and store them locally without calling the unit AVL API', async () => {
       await locationService.startLocationUpdates();
 
       // Get the callback function passed to watchPositionAsync
@@ -410,7 +410,7 @@ describe('LocationService', () => {
       await locationCallback(mockLocationObject);
 
       expect(mockLocationStoreState.setLocation).toHaveBeenCalledWith(mockLocationObject);
-      expect(mockSetUnitLocation).toHaveBeenCalledWith(expect.any(SaveUnitLocationInput));
+      expect(mockSetUnitLocation).not.toHaveBeenCalled();
       expect(mockLogger.info).toHaveBeenCalledWith({
         message: 'Foreground location update received',
         context: {
@@ -474,7 +474,7 @@ describe('LocationService', () => {
       });
     });
 
-    it('should handle background location updates and send to API', async () => {
+    it('should handle background location updates and store them locally without calling the unit AVL API', async () => {
       await locationService.startBackgroundUpdates();
 
       // Get the callback function
@@ -482,112 +482,17 @@ describe('LocationService', () => {
       await locationCallback(mockLocationObject);
 
       expect(mockLocationStoreState.setLocation).toHaveBeenCalledWith(mockLocationObject);
-      expect(mockSetUnitLocation).toHaveBeenCalledWith(expect.any(SaveUnitLocationInput));
+      expect(mockSetUnitLocation).not.toHaveBeenCalled();
     });
   });
 
   describe('API Integration', () => {
-    it('should send location data to API with correct format', async () => {
-      await locationService.startLocationUpdates();
-      const locationCallback = mockLocation.watchPositionAsync.mock.calls[0][1] as Function;
-      await locationCallback(mockLocationObject);
-
-      expect(mockSetUnitLocation).toHaveBeenCalledWith(
-        expect.objectContaining({
-          UnitId: 'unit-123',
-          Latitude: mockLocationObject.coords.latitude.toString(),
-          Longitude: mockLocationObject.coords.longitude.toString(),
-          Accuracy: mockLocationObject.coords.accuracy?.toString(),
-          Altitude: mockLocationObject.coords.altitude?.toString(),
-          AltitudeAccuracy: mockLocationObject.coords.altitudeAccuracy?.toString(),
-          Speed: mockLocationObject.coords.speed?.toString(),
-          Heading: mockLocationObject.coords.heading?.toString(),
-          Timestamp: expect.any(String),
-        })
-      );
-    });
-
-    it('should handle null values in location data', async () => {
-      const locationWithNulls: Location.LocationObject = {
-        coords: {
-          latitude: 37.7749,
-          longitude: -122.4194,
-          altitude: null,
-          accuracy: null,
-          altitudeAccuracy: null,
-          heading: null,
-          speed: null,
-        },
-        timestamp: Date.now(),
-      };
-
-      await locationService.startLocationUpdates();
-      const locationCallback = mockLocation.watchPositionAsync.mock.calls[0][1] as Function;
-      await locationCallback(locationWithNulls);
-
-      expect(mockSetUnitLocation).toHaveBeenCalledWith(
-        expect.objectContaining({
-          Accuracy: '0',
-          Altitude: '0',
-          AltitudeAccuracy: '0',
-          Speed: '0',
-          Heading: '0',
-        })
-      );
-    });
-
-    it('should skip API call if no active unit is selected', async () => {
-      // Change the core store state for this test
-      mockCoreStoreState.activeUnitId = null;
-
+    it('should never send location to the unit AVL API (IC app has no unit context)', async () => {
       await locationService.startLocationUpdates();
       const locationCallback = mockLocation.watchPositionAsync.mock.calls[0][1] as Function;
       await locationCallback(mockLocationObject);
 
       expect(mockSetUnitLocation).not.toHaveBeenCalled();
-      expect(mockLogger.warn).toHaveBeenCalledWith({
-        message: 'No active unit selected, skipping location API call',
-      });
-
-      // Reset for other tests
-      mockCoreStoreState.activeUnitId = 'unit-123';
-    });
-
-    it('should handle API errors gracefully', async () => {
-      const apiError = new Error('API Error');
-      mockSetUnitLocation.mockRejectedValue(apiError);
-
-      await locationService.startLocationUpdates();
-      const locationCallback = mockLocation.watchPositionAsync.mock.calls[0][1] as Function;
-      await locationCallback(mockLocationObject);
-
-      expect(mockLogger.warn).toHaveBeenCalledWith({
-        message: 'Failed to send location to API',
-        context: {
-          error: 'API Error',
-          latitude: mockLocationObject.coords.latitude,
-          longitude: mockLocationObject.coords.longitude,
-        },
-      });
-    });
-
-    it('should log successful API calls', async () => {
-      // Reset mock to resolved value
-      mockSetUnitLocation.mockResolvedValue(mockApiResponse);
-
-      await locationService.startLocationUpdates();
-      const locationCallback = mockLocation.watchPositionAsync.mock.calls[0][1] as Function;
-      await locationCallback(mockLocationObject);
-
-      expect(mockLogger.info).toHaveBeenCalledWith({
-        message: 'Location successfully sent to API',
-        context: {
-          unitId: 'unit-123',
-          resultId: mockApiResponse.Id,
-          latitude: mockLocationObject.coords.latitude,
-          longitude: mockLocationObject.coords.longitude,
-        },
-      });
     });
   });
 
@@ -740,7 +645,7 @@ describe('LocationService', () => {
       await locationCallback(mockLocationObject);
 
       expect(mockLocationStoreState.setLocation).toHaveBeenCalledWith(mockLocationObject);
-      expect(mockSetUnitLocation).toHaveBeenCalledWith(expect.any(SaveUnitLocationInput));
+      expect(mockSetUnitLocation).not.toHaveBeenCalled();
     });
 
     it('should not enable background geolocation when permissions are denied', async () => {

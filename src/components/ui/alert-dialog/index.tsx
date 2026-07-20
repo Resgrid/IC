@@ -13,6 +13,13 @@ const AnimatedPressable = createMotionAnimatedComponent(Pressable);
 
 const SCOPE = 'ALERT_DIALOG';
 
+// @legendapp/motion animations don't run on web — AnimatePresence would keep the
+// dialog mounted forever (and entrance animations freeze at their initial frame).
+// On web, swap in a plain passthrough so open/close mount/unmount instantly.
+const PassthroughPresence = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
+
+const isWebPlatform = Platform.OS === 'web';
+
 const UIAccessibleAlertDialog = createAlertDialog({
   Root: Platform.OS === 'web' ? withStyleContext(View, SCOPE) : withStyleContextAndStates(View, SCOPE),
   Body: ScrollView,
@@ -21,7 +28,7 @@ const UIAccessibleAlertDialog = createAlertDialog({
   Header: View,
   Footer: View,
   Backdrop: AnimatedPressable,
-  AnimatePresence: AnimatePresence,
+  AnimatePresence: isWebPlatform ? (PassthroughPresence as typeof AnimatePresence) : AnimatePresence,
 });
 
 cssInterop(UIAccessibleAlertDialog, { className: 'style' });
@@ -106,10 +113,7 @@ const AlertDialogContent = React.forwardRef<React.ElementRef<typeof UIAccessible
     <UIAccessibleAlertDialog.Content
       pointerEvents="auto"
       ref={ref}
-      initial={{
-        scale: 0.9,
-        opacity: 0,
-      }}
+      initial={isWebPlatform ? { scale: 1, opacity: 1 } : { scale: 0.9, opacity: 0 }}
       animate={{
         scale: 1,
         opacity: 1,
@@ -191,9 +195,7 @@ const AlertDialogBackdrop = React.forwardRef<React.ElementRef<typeof UIAccessibl
   return (
     <UIAccessibleAlertDialog.Backdrop
       ref={ref}
-      initial={{
-        opacity: 0,
-      }}
+      initial={isWebPlatform ? { opacity: 0.5 } : { opacity: 0 }}
       animate={{
         opacity: 0.5,
       }}

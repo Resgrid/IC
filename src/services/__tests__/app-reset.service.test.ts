@@ -18,7 +18,6 @@ jest.mock('@/lib/storage', () => ({
 
 // Mock storage/app functions
 jest.mock('@/lib/storage/app', () => ({
-  removeActiveUnitId: jest.fn(),
   removeActiveCallId: jest.fn(),
   removeDeviceUuid: jest.fn(),
 }));
@@ -137,13 +136,6 @@ jest.mock('@/stores/security/store', () => ({
   },
 }));
 
-jest.mock('@/stores/status/store', () => ({
-  useStatusBottomSheetStore: {
-    setState: jest.fn(),
-    getState: jest.fn(),
-  },
-}));
-
 jest.mock('@/stores/units/store', () => ({
   useUnitsStore: {
     setState: jest.fn(),
@@ -177,7 +169,6 @@ const mockStorage = jest.requireMock('@/lib/storage').storage;
 const mockStorageApp = jest.requireMock('@/lib/storage/app');
 
 // Mock function references for store methods
-const mockStatusReset = jest.fn();
 const mockOfflineQueueClear = jest.fn();
 const mockLoadingReset = jest.fn();
 const mockAudioCleanup = jest.fn().mockResolvedValue(undefined);
@@ -192,7 +183,6 @@ describe('app-reset.service', () => {
     const { useAudioStreamStore } = jest.requireMock('@/stores/app/audio-stream-store');
     const { useLoadingStore } = jest.requireMock('@/stores/app/loading-store');
     const { useOfflineQueueStore } = jest.requireMock('@/stores/offline-queue/store');
-    const { useStatusBottomSheetStore } = jest.requireMock('@/stores/status/store');
 
     useLiveKitStore.getState.mockReturnValue({
       isConnected: false,
@@ -211,18 +201,11 @@ describe('app-reset.service', () => {
       clearAllEvents: mockOfflineQueueClear,
     });
 
-    useStatusBottomSheetStore.getState.mockReturnValue({
-      reset: mockStatusReset,
-    });
   });
 
   describe('Initial State Constants', () => {
     it('should export INITIAL_CORE_STATE with correct shape', () => {
       expect(INITIAL_CORE_STATE).toEqual({
-        activeUnitId: null,
-        activeUnit: null,
-        activeUnitStatus: null,
-        activeUnitStatusType: null,
         activeCallId: null,
         activeCall: null,
         activePriority: null,
@@ -231,7 +214,6 @@ describe('app-reset.service', () => {
         isInitialized: false,
         isInitializing: false,
         error: null,
-        activeStatuses: null,
       });
     });
 
@@ -385,7 +367,6 @@ describe('app-reset.service', () => {
     it('should call all remove functions', () => {
       clearAppStorageItems();
 
-      expect(mockStorageApp.removeActiveUnitId).toHaveBeenCalled();
       expect(mockStorageApp.removeActiveCallId).toHaveBeenCalled();
       expect(mockStorageApp.removeDeviceUuid).toHaveBeenCalled();
     });
@@ -413,7 +394,6 @@ describe('app-reset.service', () => {
       expect(useCoreStore.setState).toHaveBeenCalledWith(INITIAL_CORE_STATE);
       expect(useCallsStore.setState).toHaveBeenCalledWith(INITIAL_CALLS_STATE);
       expect(useUnitsStore.setState).toHaveBeenCalledWith(INITIAL_UNITS_STATE);
-      expect(mockStatusReset).toHaveBeenCalled();
       expect(mockOfflineQueueClear).toHaveBeenCalled();
       expect(mockLoadingReset).toHaveBeenCalled();
       expect(mockAudioCleanup).toHaveBeenCalled();
@@ -454,7 +434,6 @@ describe('app-reset.service', () => {
       await clearAllAppData();
 
       // Should clear app storage items
-      expect(mockStorageApp.removeActiveUnitId).toHaveBeenCalled();
       expect(mockStorageApp.removeActiveCallId).toHaveBeenCalled();
       expect(mockStorageApp.removeDeviceUuid).toHaveBeenCalled();
 

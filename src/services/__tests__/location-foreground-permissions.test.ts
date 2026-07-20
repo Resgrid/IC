@@ -301,14 +301,8 @@ describe('LocationService - Foreground-Only Permissions', () => {
       // Should update the store
       expect(mockLocationStoreState.setLocation).toHaveBeenCalledWith(mockLocationObject);
       
-      // Should send to API
-      expect(mockSetUnitLocation).toHaveBeenCalledWith(
-        expect.objectContaining({
-          UnitId: 'unit-123',
-          Latitude: mockLocationObject.coords.latitude.toString(),
-          Longitude: mockLocationObject.coords.longitude.toString(),
-        })
-      );
+      // IC app never reports unit AVL — location stays local
+      expect(mockSetUnitLocation).not.toHaveBeenCalled();
       
       // Should log the location update
       expect(mockLogger.info).toHaveBeenCalledWith({

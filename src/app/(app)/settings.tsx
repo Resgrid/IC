@@ -13,7 +13,6 @@ import { LoginInfoBottomSheet } from '@/components/settings/login-info-bottom-sh
 import { ServerUrlBottomSheet } from '@/components/settings/server-url-bottom-sheet';
 import { ThemeItem } from '@/components/settings/theme-item';
 import { ToggleItem } from '@/components/settings/toggle-item';
-import { UnitSelectionBottomSheet } from '@/components/settings/unit-selection-bottom-sheet';
 import { FocusAwareStatusBar, ScrollView } from '@/components/ui';
 import { AlertDialog, AlertDialogBackdrop, AlertDialogBody, AlertDialogContent, AlertDialogFooter, AlertDialogHeader } from '@/components/ui/alert-dialog';
 import { Box } from '@/components/ui/box';
@@ -28,9 +27,7 @@ import { logger } from '@/lib/logging';
 import { getBaseApiUrl } from '@/lib/storage/app';
 import { openLinkInBrowser } from '@/lib/utils';
 import { clearAllAppData } from '@/services/app-reset.service';
-import { useCoreStore } from '@/stores/app/core-store';
 import { useServerUrlStore } from '@/stores/app/server-url-store';
-import { useUnitsStore } from '@/stores/units/store';
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -40,16 +37,8 @@ export default function Settings() {
   const [showLoginInfo, setShowLoginInfo] = React.useState(false);
   const { login, status, isAuthenticated } = useAuth();
   const [showServerUrl, setShowServerUrl] = React.useState(false);
-  const [showUnitSelection, setShowUnitSelection] = React.useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
-  const activeUnit = useCoreStore((state) => state.activeUnit);
-  const units = useUnitsStore((state) => state.units);
   const serverUrl = useServerUrlStore((s) => s.url);
-
-  const activeUnitName = React.useMemo(() => {
-    if (!activeUnit) return t('settings.none_selected');
-    return activeUnit?.Name || t('common.unknown');
-  }, [activeUnit, t]);
 
   /**
    * Handles logout confirmation - clears all data and signs out
@@ -57,9 +46,7 @@ export default function Settings() {
   const handleLogoutConfirm = useCallback(async () => {
     setShowLogoutConfirm(false);
 
-    trackEvent('user_logout_confirmed', {
-      hadActiveUnit: !!activeUnit,
-    });
+    trackEvent('user_logout_confirmed', {});
 
     // Clear all app data first using the centralized service
     try {
@@ -73,7 +60,7 @@ export default function Settings() {
 
     // Then sign out
     await signOut();
-  }, [signOut, trackEvent, activeUnit]);
+  }, [signOut, trackEvent]);
 
   const handleLoginInfoSubmit = async (data: { username: string; password: string }) => {
     logger.info({
@@ -92,11 +79,8 @@ export default function Settings() {
 
   // Track when settings view is rendered
   useEffect(() => {
-    trackEvent('settings_view_rendered', {
-      hasActiveUnit: !!activeUnit,
-      unitName: activeUnit?.Name || 'none',
-    });
-  }, [trackEvent, activeUnit]);
+    trackEvent('settings_view_rendered', {});
+  }, [trackEvent]);
 
   return (
     <Box className={`flex-1 ${colorScheme === 'dark' ? 'bg-neutral-950' : 'bg-neutral-50'}`}>
@@ -119,7 +103,6 @@ export default function Settings() {
             <VStack space="sm">
               <Item text={t('settings.server')} value={serverUrl || getBaseApiUrl()} onPress={() => setShowServerUrl(true)} textStyle="text-info-600" />
               <Item text={t('settings.login_info')} onPress={() => setShowLoginInfo(true)} textStyle="text-info-600" />
-              <Item text={t('settings.active_unit')} value={activeUnitName} onPress={() => setShowUnitSelection(true)} textStyle="text-info-600" />
               <Item text={t('settings.logout')} onPress={() => setShowLogoutConfirm(true)} textStyle="text-error-600" />
             </VStack>
           </Card>
@@ -152,7 +135,6 @@ export default function Settings() {
 
       <LoginInfoBottomSheet isOpen={showLoginInfo} onClose={() => setShowLoginInfo(false)} onSubmit={handleLoginInfoSubmit} />
       <ServerUrlBottomSheet isOpen={showServerUrl} onClose={() => setShowServerUrl(false)} />
-      <UnitSelectionBottomSheet isOpen={showUnitSelection} onClose={() => setShowUnitSelection(false)} />
 
       {/* Logout Confirmation Dialog */}
       <AlertDialog isOpen={showLogoutConfirm} onClose={() => setShowLogoutConfirm(false)}>

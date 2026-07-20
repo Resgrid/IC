@@ -112,12 +112,12 @@ export default function MapsHome() {
   );
 
   const renderLayerToggle = (layer: ActiveLayerSummary) => (
-    <HStack key={layer.LayerId} className="items-center justify-between py-2">
+    <HStack key={layer.Id} className="items-center justify-between py-2">
       <HStack className="flex-1 items-center" space="sm">
         <Box className="size-3 rounded-full" style={{ backgroundColor: layer.Color || '#6B7280' }} />
         <Text className="text-sm text-gray-700 dark:text-gray-300">{layer.Name}</Text>
       </HStack>
-      <Switch size="sm" value={layerToggles[layer.LayerId] ?? false} onToggle={() => toggleLayer(layer.LayerId)} />
+      <Switch size="sm" value={layerToggles[layer.Id] ?? false} onToggle={() => toggleLayer(layer.Id)} />
     </HStack>
   );
 

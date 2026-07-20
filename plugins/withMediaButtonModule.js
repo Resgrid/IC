@@ -382,10 +382,10 @@ class MediaButtonPackage : ReactPackage {
  * - Kotlin DSL: namespace = "com.example.app"
  *
  * @param {string} projectRoot - The project root directory
- * @param {string} fallback - Fallback package name if not found (default: 'com.resgrid.unit')
+ * @param {string} fallback - Fallback package name if not found (default: 'com.resgrid.command')
  * @returns {string} The resolved namespace or fallback
  */
-function resolveBasePackageName(projectRoot, fallback = 'com.resgrid.unit') {
+function resolveBasePackageName(projectRoot, fallback = 'com.resgrid.command') {
   // Regex that accepts optional equals sign for both Groovy and Kotlin DSL
   const namespaceRegex = /namespace\s*(?:=)?\s*['"]([^'"]+)['"]/;
 

@@ -17,24 +17,24 @@ cat > "${HTML_DIR}/env-config.js" << EOF
 // This file is generated at container startup and injects environment variables
 window.__ENV__ = {
   APP_ENV: "$(js_escape "${APP_ENV:-production}")",
-  NAME: "$(js_escape "${UNIT_NAME:-Resgrid Unit}")",
-  SCHEME: "$(js_escape "${UNIT_SCHEME:-ResgridUnit}")",
-  BUNDLE_ID: "$(js_escape "${UNIT_BUNDLE_ID:-com.resgrid.unit}")",
-  PACKAGE: "$(js_escape "${UNIT_PACKAGE:-com.resgrid.unit}")",
-  VERSION: "$(js_escape "${UNIT_VERSION:-0.0.1}")",
+  NAME: "$(js_escape "${IC_NAME:-Resgrid IC}")",
+  SCHEME: "$(js_escape "${IC_SCHEME:-ResgridIC}")",
+  BUNDLE_ID: "$(js_escape "${IC_BUNDLE_ID:-com.resgrid.command}")",
+  PACKAGE: "$(js_escape "${IC_PACKAGE:-com.resgrid.command}")",
+  VERSION: "$(js_escape "${IC_VERSION:-0.0.1}")",
   ANDROID_VERSION_CODE: 1,
-  BASE_API_URL: "$(js_escape "${UNIT_BASE_API_URL:-https://api.resgrid.com}")",
-  API_VERSION: "$(js_escape "${UNIT_API_VERSION:-v4}")",
-  RESGRID_API_URL: "$(js_escape "${UNIT_RESGRID_API_URL:-/api/v4}")",
-  CHANNEL_HUB_NAME: "$(js_escape "${UNIT_CHANNEL_HUB_NAME:-eventingHub}")",
-  REALTIME_GEO_HUB_NAME: "$(js_escape "${UNIT_REALTIME_GEO_HUB_NAME:-geolocationHub}")",
-  LOGGING_KEY: "$(js_escape "${UNIT_LOGGING_KEY:-}")",
-  APP_KEY: "$(js_escape "${UNIT_APP_KEY:-}")",
-  UNIT_MAPBOX_PUBKEY: "$(js_escape "${UNIT_MAPBOX_PUBKEY:-}")",
+  BASE_API_URL: "$(js_escape "${IC_BASE_API_URL:-https://api.resgrid.com}")",
+  API_VERSION: "$(js_escape "${IC_API_VERSION:-v4}")",
+  RESGRID_API_URL: "$(js_escape "${IC_RESGRID_API_URL:-/api/v4}")",
+  CHANNEL_HUB_NAME: "$(js_escape "${IC_CHANNEL_HUB_NAME:-eventingHub}")",
+  REALTIME_GEO_HUB_NAME: "$(js_escape "${IC_REALTIME_GEO_HUB_NAME:-geolocationHub}")",
+  LOGGING_KEY: "$(js_escape "${IC_LOGGING_KEY:-}")",
+  APP_KEY: "$(js_escape "${IC_APP_KEY:-}")",
+  IC_MAPBOX_PUBKEY: "$(js_escape "${IC_MAPBOX_PUBKEY:-}")",
   IS_MOBILE_APP: "false",
-  SENTRY_DSN: "$(js_escape "${UNIT_SENTRY_DSN:-}")",
-  COUNTLY_APP_KEY: "$(js_escape "${UNIT_COUNTLY_APP_KEY:-}")",
-  COUNTLY_SERVER_URL: "$(js_escape "${UNIT_COUNTLY_SERVER_URL:-}")"
+  SENTRY_DSN: "$(js_escape "${IC_SENTRY_DSN:-}")",
+  COUNTLY_APP_KEY: "$(js_escape "${IC_COUNTLY_APP_KEY:-}")",
+  COUNTLY_SERVER_URL: "$(js_escape "${IC_COUNTLY_SERVER_URL:-}")"
 };
 EOF
 

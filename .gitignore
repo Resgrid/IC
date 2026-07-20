@@ -26,6 +26,8 @@ yarn-error.log
 google-services.json
 GoogleService-Info.plist
 credentials.json
+.env.*
+!.env.example
 Gemfile.lock
 Gemfile
 *.ipa
@@ -38,6 +40,9 @@ Gemfile
 expo-env.d.ts
 # @end expo-cli
 .dual-graph/
+.dual-graph-pro/
 .mcp.json
 opencode.json
 /.dual-graph-pro
+electron-dist/
+/.codex

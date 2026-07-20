@@ -1,14 +1,14 @@
 import { render, waitFor, fireEvent } from '@testing-library/react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 
 import { useWindowDimensions } from 'react-native';
 
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useCoreStore } from '@/stores/app/core-store';
+import { useCommandStore } from '@/stores/command/store';
 import { useCallDetailStore } from '@/stores/calls/detail-store';
 import { useLocationStore } from '@/stores/app/location-store';
-import { useStatusBottomSheetStore } from '@/stores/status/store';
 import { useToastStore } from '@/stores/toast/store';
 import { securityStore } from '@/stores/security/store';
 
@@ -17,6 +17,10 @@ import CallDetail from '../[id]';
 
 
 // Mock UI components that might use NativeWind
+jest.mock('@/components/command/start-command-sheet', () => ({
+  StartCommandSheet: () => null,
+}));
+
 jest.mock('@/components/ui', () => ({
   FocusAwareStatusBar: jest.fn().mockImplementation(() => null),
   SafeAreaView: jest.fn().mockImplementation(({ children }) => children),
@@ -215,16 +219,16 @@ jest.mock('@/stores/app/core-store', () => ({
   useCoreStore: jest.fn(),
 }));
 
+jest.mock('@/stores/command/store', () => ({
+  useCommandStore: jest.fn(),
+}));
+
 jest.mock('@/stores/calls/detail-store', () => ({
   useCallDetailStore: jest.fn(),
 }));
 
 jest.mock('@/stores/app/location-store', () => ({
   useLocationStore: jest.fn(),
-}));
-
-jest.mock('@/stores/status/store', () => ({
-  useStatusBottomSheetStore: jest.fn(),
 }));
 
 jest.mock('@/stores/toast/store', () => ({
@@ -262,10 +266,6 @@ jest.mock('../../../components/calls/call-notes-modal', () => {
 
 jest.mock('../../../components/calls/close-call-bottom-sheet', () => ({
   CloseCallBottomSheet: () => null,
-}));
-
-jest.mock('../../../components/status/status-bottom-sheet', () => ({
-  StatusBottomSheet: () => null,
 }));
 
 jest.mock('@/components/maps/static-map', () => {
@@ -429,9 +429,9 @@ const mockTrackEvent = jest.fn();
 const mockUseAnalytics = useAnalytics as jest.MockedFunction<typeof useAnalytics>;
 const mockUseLocalSearchParams = useLocalSearchParams as jest.MockedFunction<typeof useLocalSearchParams>;
 const mockUseCoreStore = useCoreStore as jest.MockedFunction<typeof useCoreStore>;
+const mockUseCommandStore = useCommandStore as unknown as jest.Mock;
 const mockUseCallDetailStore = useCallDetailStore as jest.MockedFunction<typeof useCallDetailStore>;
 const mockUseLocationStore = useLocationStore as jest.MockedFunction<typeof useLocationStore>;
-const mockUseStatusBottomSheetStore = useStatusBottomSheetStore as jest.MockedFunction<typeof useStatusBottomSheetStore>;
 const mockUseToastStore = useToastStore as jest.MockedFunction<typeof useToastStore>;
 const mockSecurityStore = securityStore as jest.MockedFunction<typeof securityStore>;
 
@@ -448,26 +448,11 @@ describe('CallDetail', () => {
 
   const defaultCoreStore = {
     activeCall: null,
-    activeUnit: { UnitId: 'test-unit-id', Name: 'Unit 1' },
-    activeStatuses: {
-      UnitType: '1',
-      StatusId: '1',
-      Statuses: [
-        { Id: 1, Type: 1, StateId: 1, Text: 'Available', BColor: '#449d44', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-        { Id: 2, Type: 1, StateId: 2, Text: 'En Route', BColor: '#f8ac59', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-        { Id: 3, Type: 1, StateId: 3, Text: 'On Scene', BColor: '#ed5565', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-      ],
-    },
   };
 
   const defaultLocationStore = {
     latitude: 40.7128,
     longitude: -74.0060,
-  };
-
-  const defaultStatusBottomSheetStore = {
-    setIsOpen: jest.fn(),
-    setSelectedCall: jest.fn(),
   };
 
   const defaultSecurityStore = {
@@ -509,11 +494,9 @@ describe('CallDetail', () => {
       return defaultCoreStore;
     });
 
-    mockUseStatusBottomSheetStore.mockImplementation((selector: any) => {
-      if (selector) {
-        return selector(defaultStatusBottomSheetStore);
-      }
-      return defaultStatusBottomSheetStore;
+    mockUseCommandStore.mockImplementation((selector: any) => {
+      const state = { boards: {}, activeCallId: null };
+      return selector ? selector(state) : state;
     });
 
     mockUseCallDetailStore.mockImplementation((selector: any) => {
@@ -668,7 +651,7 @@ describe('CallDetail', () => {
     });
   });
 
-  describe('Set Active functionality', () => {
+  describe('Start Command functionality', () => {
     const mockCall = {
       CallId: 'test-call-id',
       Name: 'Test Call',
@@ -683,10 +666,7 @@ describe('CallDetail', () => {
       FileCount: 0,
     };
 
-    it('should show "Set Active" button when call is not the active call', () => {
-      const mockSetIsOpen = jest.fn();
-      const mockSetSelectedCall = jest.fn();
-
+    const setCallDetail = () => {
       mockUseCallDetailStore.mockImplementation((selector: any) => {
         const store = {
           call: mockCall,
@@ -697,569 +677,81 @@ describe('CallDetail', () => {
           fetchCallDetail: jest.fn(),
           reset: jest.fn(),
         };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
+        return selector ? selector(store) : store;
       });
+    };
 
-      mockUseCoreStore.mockImplementation((selector: any) => {
-        const store = {
-          activeCall: { CallId: 'different-call-id' }, // Different call is active
-          activeUnit: { UnitId: 'test-unit-id', Name: 'Unit 1' }, // Active unit exists
-          activeStatuses: {
-            UnitType: '1',
-            StatusId: '1',
-            Statuses: [
-              { Id: 1, Type: 1, StateId: 1, Text: 'Available', BColor: '#449d44', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-              { Id: 2, Type: 1, StateId: 2, Text: 'En Route', BColor: '#f8ac59', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-            ],
-          },
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
+    it('shows the Start Command button when the call has no command board', () => {
+      setCallDetail();
 
-      mockUseStatusBottomSheetStore.mockImplementation((selector: any) => {
-        const store = {
-          setIsOpen: mockSetIsOpen,
-          setSelectedCall: mockSetSelectedCall,
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      const { getByText, getAllByText, debug, getByTestId } = render(<CallDetail />);
-
-      // Debug the rendered elements
-      debug();
-
-      // Should show "Set Active" button - try finding by testID first
-      const setActiveButton = getByTestId('button-call_detail.set_active');
-      expect(setActiveButton).toBeTruthy();
+      const { getByTestId, toJSON } = render(<CallDetail />);
+      expect(getByTestId('start-command-button')).toBeTruthy();
+      expect(JSON.stringify(toJSON())).toContain('command.start_command');
     });
 
-    it('should not show "Set Active" button when call is already the active call', () => {
-      mockUseCallDetailStore.mockImplementation((selector: any) => {
-        const store = {
-          call: mockCall,
-          callExtraData: null,
-          callPriority: null,
-          isLoading: false,
-          error: null,
-          fetchCallDetail: jest.fn(),
-          reset: jest.fn(),
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
+    it('shows Open Command Board and the Active Command badge when this call is the active board', () => {
+      setCallDetail();
+      mockUseCommandStore.mockImplementation((selector: any) => {
+        const state = { boards: { 'test-call-id': { callId: 'test-call-id' } }, activeCallId: 'test-call-id' };
+        return selector ? selector(state) : state;
       });
 
-      mockUseCoreStore.mockImplementation((selector: any) => {
-        const store = {
-          activeCall: { CallId: 'test-call-id' }, // Same call is active
-          activeUnit: { UnitId: 'test-unit-id', Name: 'Unit 1' }, // Active unit exists
-          activeStatuses: {
-            UnitType: '1',
-            StatusId: '1',
-            Statuses: [
-              { Id: 1, Type: 1, StateId: 1, Text: 'Available', BColor: '#449d44', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-              { Id: 2, Type: 1, StateId: 2, Text: 'En Route', BColor: '#f8ac59', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-            ],
-          },
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      const { queryByText } = render(<CallDetail />);
-
-      // Should not show "Set Active" button
-      expect(queryByText('call_detail.set_active')).toBeNull();
+      const { getByTestId, toJSON } = render(<CallDetail />);
+      expect(getByTestId('start-command-button')).toBeTruthy();
+      const json = JSON.stringify(toJSON());
+      expect(json).toContain('command.open_board');
+      expect(json).toContain('command.active_badge');
     });
 
-    it('should not show "Set Active" button when there is no active unit', () => {
-      mockUseCallDetailStore.mockImplementation((selector: any) => {
-        const store = {
-          call: mockCall,
-          callExtraData: null,
-          callPriority: null,
-          isLoading: false,
-          error: null,
-          fetchCallDetail: jest.fn(),
-          reset: jest.fn(),
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      mockUseCoreStore.mockImplementation((selector: any) => {
-        const store = {
-          activeCall: { CallId: 'different-call-id' }, // Different call is active
-          activeUnit: null, // No active unit
-          activeStatuses: {
-            UnitType: '1',
-            StatusId: '1',
-            Statuses: [
-              { Id: 1, Type: 1, StateId: 1, Text: 'Available', BColor: '#449d44', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-              { Id: 2, Type: 1, StateId: 2, Text: 'En Route', BColor: '#f8ac59', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-            ],
-          },
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      const { queryByText, queryByTestId } = render(<CallDetail />);
-
-      // Should not show "Set Active" button when no active unit
-      expect(queryByText('call_detail.set_active')).toBeNull();
-      expect(queryByTestId('button-call_detail.set_active')).toBeNull();
-    });
-
-    it('should open status bottom sheet when "Set Active" button is pressed', async () => {
-      const mockSetIsOpen = jest.fn();
-      const mockSetSelectedCall = jest.fn();
-      const mockSetActiveCall = jest.fn().mockResolvedValue(undefined);
+    it('starts command for the call and navigates to the command board', async () => {
+      const mockSetActiveCall = jest.fn(() => Promise.resolve());
       const mockShowToast = jest.fn();
+      const mockPush = jest.fn();
 
-      mockUseCallDetailStore.mockImplementation((selector: any) => {
-        const store = {
-          call: mockCall,
-          callExtraData: null,
-          callPriority: null,
-          isLoading: false,
-          error: null,
-          fetchCallDetail: jest.fn(),
-          reset: jest.fn(),
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
+      setCallDetail();
+      // Existing board → button starts directly (no template picker)
+      mockUseCommandStore.mockImplementation((selector: any) => {
+        const state = { boards: { 'test-call-id': { callId: 'test-call-id' } }, activeCallId: null };
+        return selector ? selector(state) : state;
       });
-
-      mockUseCoreStore.mockImplementation((selector: any) => {
-        const store = {
-          activeCall: { CallId: 'different-call-id' }, // Different call is active
-          activeUnit: { UnitId: 'test-unit-id', Name: 'Unit 1' }, // Active unit exists
-          activeStatuses: {
-            UnitType: '1',
-            StatusId: '1',
-            Statuses: [
-              { Id: 1, Type: 1, StateId: 1, Text: 'Available', BColor: '#449d44', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-              { Id: 2, Type: 1, StateId: 2, Text: 'En Route', BColor: '#f8ac59', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-            ],
-          },
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      // Mock the core store getState method
-      useCoreStore.getState = jest.fn().mockReturnValue({
-        setActiveCall: mockSetActiveCall,
-      });
-
-      mockUseStatusBottomSheetStore.mockImplementation((selector: any) => {
-        const store = {
-          setIsOpen: mockSetIsOpen,
-          setSelectedCall: mockSetSelectedCall,
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
+      (mockUseCommandStore as any).getState = jest.fn(() => ({ startCommand: mockSetActiveCall }));
       mockUseToastStore.mockImplementation((selector: any) => {
         const store = { showToast: mockShowToast };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
+        return selector ? selector(store) : store;
+      });
+      (useRouter as jest.Mock).mockReturnValue({ back: jest.fn(), push: mockPush });
+
+      const { getByTestId } = render(<CallDetail />);
+      fireEvent.press(getByTestId('start-command-button'));
+
+      await waitFor(() => {
+        expect(mockSetActiveCall).toHaveBeenCalledWith(mockCall.CallId, null);
+        expect(mockShowToast).toHaveBeenCalledWith('success', 'command.start_success');
+        expect(mockPush).toHaveBeenCalledWith('/command');
+      });
+    });
+
+    it('shows an error toast when starting command fails', async () => {
+      const mockSetActiveCall = jest.fn(() => Promise.reject(new Error('boom')));
+      const mockShowToast = jest.fn();
+
+      setCallDetail();
+      // Existing board → button starts directly (no template picker)
+      mockUseCommandStore.mockImplementation((selector: any) => {
+        const state = { boards: { 'test-call-id': { callId: 'test-call-id' } }, activeCallId: null };
+        return selector ? selector(state) : state;
+      });
+      (mockUseCommandStore as any).getState = jest.fn(() => ({ startCommand: mockSetActiveCall }));
+      mockUseToastStore.mockImplementation((selector: any) => {
+        const store = { showToast: mockShowToast };
+        return selector ? selector(store) : store;
       });
 
       const { getByTestId } = render(<CallDetail />);
-
-      // Press the "Set Active" button
-      const setActiveButton = getByTestId('button-call_detail.set_active');
-      expect(setActiveButton).toBeTruthy();
-      fireEvent.press(setActiveButton);
+      fireEvent.press(getByTestId('start-command-button'));
 
       await waitFor(() => {
-        // Should call setActiveCall with the call ID
-        expect(mockSetActiveCall).toHaveBeenCalledWith(mockCall.CallId);
-
-        // Should call setSelectedCall with the current call
-        expect(mockSetSelectedCall).toHaveBeenCalledWith(mockCall);
-
-        // Should call setIsOpen with true but no pre-selected status (for status selection)
-        expect(mockSetIsOpen).toHaveBeenCalledWith(true);
-
-        // Should show success toast
-        expect(mockShowToast).toHaveBeenCalledWith('success', 'call_detail.set_active_success');
-      });
-    });
-
-    it('should show loading state when setting call as active', async () => {
-      const mockSetIsOpen = jest.fn();
-      const mockSetSelectedCall = jest.fn();
-      let resolveSetActiveCall: () => void;
-      const mockSetActiveCall = jest.fn().mockImplementation(() => {
-        return new Promise<void>((resolve) => {
-          resolveSetActiveCall = resolve;
-        });
-      });
-      const mockShowToast = jest.fn();
-
-      mockUseCallDetailStore.mockImplementation((selector: any) => {
-        const store = {
-          call: mockCall,
-          callExtraData: null,
-          callPriority: null,
-          isLoading: false,
-          error: null,
-          fetchCallDetail: jest.fn(),
-          reset: jest.fn(),
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      mockUseCoreStore.mockImplementation((selector: any) => {
-        const store = {
-          activeCall: { CallId: 'different-call-id' },
-          activeUnit: { UnitId: 'test-unit-id', Name: 'Unit 1' }, // Active unit exists
-          activeStatuses: {
-            UnitType: '1',
-            StatusId: '1',
-            Statuses: [
-              { Id: 1, Type: 1, StateId: 1, Text: 'Available', BColor: '#449d44', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-              { Id: 2, Type: 1, StateId: 2, Text: 'En Route', BColor: '#f8ac59', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-            ],
-          },
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      useCoreStore.getState = jest.fn().mockReturnValue({
-        setActiveCall: mockSetActiveCall,
-      });
-
-      mockUseStatusBottomSheetStore.mockImplementation((selector: any) => {
-        const store = {
-          setIsOpen: mockSetIsOpen,
-          setSelectedCall: mockSetSelectedCall,
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      mockUseToastStore.mockImplementation((selector: any) => {
-        const store = { showToast: mockShowToast };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      const { getByTestId } = render(<CallDetail />);
-
-      const setActiveButton = getByTestId('button-call_detail.set_active');
-      expect(setActiveButton).toBeTruthy();
-
-      // Button should be enabled initially
-      expect(setActiveButton.props.disabled).toBe(false);
-
-      // Press the button
-      fireEvent.press(setActiveButton);
-
-      // Button should be disabled during loading
-      await waitFor(() => {
-        expect(setActiveButton.props.disabled).toBe(true);
-      });
-
-      // Resolve the promise to complete the operation
-      resolveSetActiveCall!();
-
-      // Button should be enabled again after completion
-      await waitFor(() => {
-        expect(setActiveButton.props.disabled).toBe(false);
-      });
-    });
-
-    it('should disable button during loading and re-enable after error', async () => {
-      const mockSetIsOpen = jest.fn();
-      const mockSetSelectedCall = jest.fn();
-      const mockSetActiveCall = jest.fn().mockRejectedValue(new Error('Network error'));
-      const mockShowToast = jest.fn();
-
-      mockUseCallDetailStore.mockImplementation((selector: any) => {
-        const store = {
-          call: mockCall,
-          callExtraData: null,
-          callPriority: null,
-          isLoading: false,
-          error: null,
-          fetchCallDetail: jest.fn(),
-          reset: jest.fn(),
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      mockUseCoreStore.mockImplementation((selector: any) => {
-        const store = {
-          activeCall: { CallId: 'different-call-id' },
-          activeUnit: { UnitId: 'test-unit-id', Name: 'Unit 1' }, // Active unit exists
-          activeStatuses: {
-            UnitType: '1',
-            StatusId: '1',
-            Statuses: [
-              { Id: 1, Type: 1, StateId: 1, Text: 'Available', BColor: '#449d44', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-              { Id: 2, Type: 1, StateId: 2, Text: 'En Route', BColor: '#f8ac59', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-            ],
-          },
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      useCoreStore.getState = jest.fn().mockReturnValue({
-        setActiveCall: mockSetActiveCall,
-      });
-
-      mockUseStatusBottomSheetStore.mockImplementation((selector: any) => {
-        const store = {
-          setIsOpen: mockSetIsOpen,
-          setSelectedCall: mockSetSelectedCall,
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      mockUseToastStore.mockImplementation((selector: any) => {
-        const store = { showToast: mockShowToast };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      const { getByTestId } = render(<CallDetail />);
-
-      const setActiveButton = getByTestId('button-call_detail.set_active');
-      expect(setActiveButton).toBeTruthy();
-
-      // Button should be enabled initially
-      expect(setActiveButton.props.disabled).toBe(false);
-
-      // Press the button
-      fireEvent.press(setActiveButton);
-
-      // Wait for the error to be handled and button to be re-enabled
-      await waitFor(() => {
-        expect(mockShowToast).toHaveBeenCalledWith('error', 'call_detail.set_active_error');
-        expect(setActiveButton.props.disabled).toBe(false);
-      });
-    });
-
-    it('should handle error when setting call as active fails', async () => {
-      const mockSetIsOpen = jest.fn();
-      const mockSetSelectedCall = jest.fn();
-      const mockSetActiveCall = jest.fn().mockRejectedValue(new Error('Network error'));
-      const mockShowToast = jest.fn();
-
-      mockUseCallDetailStore.mockImplementation((selector: any) => {
-        const store = {
-          call: mockCall,
-          callExtraData: null,
-          callPriority: null,
-          isLoading: false,
-          error: null,
-          fetchCallDetail: jest.fn(),
-          reset: jest.fn(),
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      mockUseCoreStore.mockImplementation((selector: any) => {
-        const store = {
-          activeCall: { CallId: 'different-call-id' }, // Different call is active
-          activeUnit: { UnitId: 'test-unit-id', Name: 'Unit 1' }, // Active unit exists
-          activeStatuses: {
-            UnitType: '1',
-            StatusId: '1',
-            Statuses: [
-              { Id: 1, Type: 1, StateId: 1, Text: 'Available', BColor: '#449d44', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-              { Id: 2, Type: 1, StateId: 2, Text: 'En Route', BColor: '#f8ac59', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-            ],
-          },
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      // Mock the core store getState method to return a failing setActiveCall
-      useCoreStore.getState = jest.fn().mockReturnValue({
-        setActiveCall: mockSetActiveCall,
-      });
-
-      mockUseStatusBottomSheetStore.mockImplementation((selector: any) => {
-        const store = {
-          setIsOpen: mockSetIsOpen,
-          setSelectedCall: mockSetSelectedCall,
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      mockUseToastStore.mockImplementation((selector: any) => {
-        const store = { showToast: mockShowToast };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      const { getByTestId } = render(<CallDetail />);
-
-      // Press the "Set Active" button
-      const setActiveButton = getByTestId('button-call_detail.set_active');
-      expect(setActiveButton).toBeTruthy();
-      fireEvent.press(setActiveButton);
-
-      await waitFor(() => {
-        // Should call setActiveCall with the call ID
-        expect(mockSetActiveCall).toHaveBeenCalledWith(mockCall.CallId);
-
-        // Should show error toast
-        expect(mockShowToast).toHaveBeenCalledWith('error', 'call_detail.set_active_error');
-
-        // Should not open status bottom sheet when there's an error
-        expect(mockSetSelectedCall).not.toHaveBeenCalled();
-        expect(mockSetIsOpen).not.toHaveBeenCalled();
-      });
-    });
-
-    it('should select the first available status if no "En Route" status is found', async () => {
-      const mockSetIsOpen = jest.fn();
-      const mockSetSelectedCall = jest.fn();
-      const mockSetActiveCall = jest.fn().mockResolvedValue(undefined);
-      const mockShowToast = jest.fn();
-
-      mockUseCallDetailStore.mockImplementation((selector: any) => {
-        const store = {
-          call: mockCall,
-          callExtraData: null,
-          callPriority: null,
-          isLoading: false,
-          error: null,
-          fetchCallDetail: jest.fn(),
-          reset: jest.fn(),
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      mockUseCoreStore.mockImplementation((selector: any) => {
-        const store = {
-          activeCall: { CallId: 'different-call-id' }, // Different call is active
-          activeUnit: { UnitId: 'test-unit-id', Name: 'Unit 1' }, // Active unit exists
-          activeStatuses: {
-            UnitType: '1',
-            StatusId: '1',
-            Statuses: [
-              { Id: 1, Type: 1, StateId: 1, Text: 'Available', BColor: '#449d44', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-              { Id: 3, Type: 1, StateId: 3, Text: 'On Scene', BColor: '#ed5565', Color: '#fff', Gps: false, Note: 0, Detail: 0 },
-            ],
-          },
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      // Mock the core store getState method
-      useCoreStore.getState = jest.fn().mockReturnValue({
-        setActiveCall: mockSetActiveCall,
-      });
-
-      mockUseStatusBottomSheetStore.mockImplementation((selector: any) => {
-        const store = {
-          setIsOpen: mockSetIsOpen,
-          setSelectedCall: mockSetSelectedCall,
-        };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      mockUseToastStore.mockImplementation((selector: any) => {
-        const store = { showToast: mockShowToast };
-        if (selector) {
-          return selector(store);
-        }
-        return store;
-      });
-
-      const { getByTestId } = render(<CallDetail />);
-
-      // Press the "Set Active" button
-      const setActiveButton = getByTestId('button-call_detail.set_active');
-      expect(setActiveButton).toBeTruthy();
-      fireEvent.press(setActiveButton);
-
-      await waitFor(() => {
-        // Should call setActiveCall with the call ID
-        expect(mockSetActiveCall).toHaveBeenCalledWith(mockCall.CallId);
-
-        // Should call setSelectedCall with the current call
-        expect(mockSetSelectedCall).toHaveBeenCalledWith(mockCall);
-
-        // Should call setIsOpen with true but no pre-selected status (for status selection)
-        expect(mockSetIsOpen).toHaveBeenCalledWith(true);
-
-        // Should show success toast
-        expect(mockShowToast).toHaveBeenCalledWith('success', 'call_detail.set_active_success');
+        expect(mockShowToast).toHaveBeenCalledWith('error', 'command.start_error');
       });
     });
   });

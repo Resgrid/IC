@@ -34,11 +34,11 @@ require('dotenv').config({
 
 // TODO: Replace these values with your own
 
-const BUNDLE_ID = 'com.resgrid.ic'; // ios bundle id
-const PACKAGE = 'com.resgrid.ic'; // android package name
+const BUNDLE_ID = 'com.resgrid.command'; // ios bundle id
+const PACKAGE = 'com.resgrid.command'; // android package name
 const NAME = 'Resgrid IC'; // app name
 const EXPO_ACCOUNT_OWNER = 'resgrid'; // expo account owner
-const EAS_PROJECT_ID = '6beb03e6-f639-4f35-bef7-5cfb5f173218'; // TODO(IC): replace with the IC app's OWN EAS project id (this is still the Unit project id)
+const EAS_PROJECT_ID = 'b29e7235-267a-494d-8b59-466701ada204'; // Resgrid IC EAS project id
 const SCHEME = 'ResgridIC'; // app scheme
 
 /**

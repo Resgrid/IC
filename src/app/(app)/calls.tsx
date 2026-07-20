@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Pressable, RefreshControl, View } from 'react-native';
 
 import { CallCard } from '@/components/calls/call-card';
+import { StartCommandSheet } from '@/components/command/start-command-sheet';
 import { Loading } from '@/components/common/loading';
 import ZeroState from '@/components/common/zero-state';
 import { Box } from '@/components/ui/box';
@@ -14,9 +15,12 @@ import { FlatList } from '@/components/ui/flat-list';
 import { FocusAwareStatusBar } from '@/components/ui/focus-aware-status-bar';
 import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
 import { useAnalytics } from '@/hooks/use-analytics';
+import { logger } from '@/lib/logging';
 import { type CallResultData } from '@/models/v4/calls/callResultData';
 import { useCallsStore } from '@/stores/calls/store';
+import { useCommandStore } from '@/stores/command/store';
 import { securityStore } from '@/stores/security/store';
+import { useToastStore } from '@/stores/toast/store';
 
 export default function Calls() {
   const calls = useCallsStore((state) => state.calls);
@@ -27,9 +31,43 @@ export default function Calls() {
   const fetchCallDispatches = useCallsStore((state) => state.fetchCallDispatches);
   const callDispatches = useCallsStore((state) => state.callDispatches);
   const canUserCreateCalls = securityStore((state) => state.rights?.CanCreateCalls);
+  const commandBoards = useCommandStore((state) => state.boards);
+  const activeBoardCallId = useCommandStore((state) => state.activeCallId);
+  const showToast = useToastStore((state) => state.showToast);
   const { t } = useTranslation();
   const { trackEvent } = useAnalytics();
   const [searchQuery, setSearchQuery] = useState('');
+  const [templatePickerCall, setTemplatePickerCall] = useState<CallResultData | null>(null);
+
+  const startCommandForCall = useCallback(
+    async (call: CallResultData, commandDefinitionId: number | null) => {
+      try {
+        await useCommandStore.getState().startCommand(call.CallId, commandDefinitionId);
+        showToast('success', t('command.start_success'));
+        router.push('/command');
+      } catch (error) {
+        logger.error({
+          message: 'Failed to start command for call',
+          context: { error, callId: call.CallId },
+        });
+        showToast('error', t('command.start_error'));
+      }
+    },
+    [showToast, t]
+  );
+
+  // Opens an existing board directly; for a new command, offer the department's
+  // command templates (ICS structures, event/security staffing plans, ...) first.
+  const handleStartCommand = useCallback(
+    (call: CallResultData) => {
+      if (useCommandStore.getState().boards[call.CallId]) {
+        startCommandForCall(call, null);
+        return;
+      }
+      setTemplatePickerCall(call);
+    },
+    [startCommandForCall]
+  );
 
   // Fetch data when screen comes into focus
   useFocusEffect(
@@ -78,7 +116,9 @@ export default function Calls() {
       return <Loading text={t('calls.loading')} />;
     }
 
-    if (error) {
+    // Only surface a fetch error when there is no cached data to show —
+    // offline the list keeps rendering the last synced calls.
+    if (error && filteredCalls.length === 0) {
       return <ZeroState heading={t('common.errorOccurred')} description={error} isError={true} />;
     }
 
@@ -88,7 +128,14 @@ export default function Calls() {
         data={filteredCalls}
         renderItem={({ item }: { item: CallResultData }) => (
           <Pressable onPress={() => router.push(`/call/${item.CallId}`)}>
-            <CallCard call={item} priority={useCallsStore.getState().callPriorities.find((p: { Id: number }) => p.Id === item.Priority)} dispatches={callDispatches[item.CallId]} />
+            <CallCard
+              call={item}
+              priority={useCallsStore.getState().callPriorities.find((p: { Id: number }) => p.Id === item.Priority)}
+              dispatches={callDispatches[item.CallId]}
+              isCommandCall={item.CallId === activeBoardCallId}
+              hasCommand={!!commandBoards[item.CallId]}
+              onStartCommand={() => handleStartCommand(item)}
+            />
           </Pressable>
         )}
         keyExtractor={(item: CallResultData) => item.CallId}
@@ -118,6 +165,13 @@ export default function Calls() {
 
         {/* Main content */}
         <Box className="flex-1">{renderContent()}</Box>
+
+        {/* Command template picker for starting a new board */}
+        <StartCommandSheet
+          isOpen={templatePickerCall !== null}
+          onClose={() => setTemplatePickerCall(null)}
+          onStart={(commandDefinitionId) => (templatePickerCall ? startCommandForCall(templatePickerCall, commandDefinitionId) : undefined)}
+        />
 
         {/* FAB button for creating new call - only show if user has permission */}
         {canUserCreateCalls ? (

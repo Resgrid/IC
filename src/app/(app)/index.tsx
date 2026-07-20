@@ -1,5 +1,5 @@
 import { router, Stack, useFocusEffect } from 'expo-router';
-import { NavigationIcon } from 'lucide-react-native';
+import { Layers as LayersIcon, NavigationIcon } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getMapDataAndMarkers } from '@/api/mapping/mapping';
 import { Loading } from '@/components/common/loading';
+import { MapLayersSheet } from '@/components/maps/map-layers-sheet';
 import MapPins from '@/components/maps/map-pins';
 import Mapbox from '@/components/maps/mapbox';
 import PinDetailModal from '@/components/maps/pin-detail-modal';
@@ -15,6 +16,8 @@ import { FocusAwareStatusBar } from '@/components/ui/focus-aware-status-bar';
 import { WeatherAlertBanner } from '@/components/weather-alerts/weather-alert-banner';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useAppLifecycle } from '@/hooks/use-app-lifecycle';
+import { useCommandMapOverlay } from '@/hooks/use-command-map-overlay';
+import { useMapGeolocationUpdates } from '@/hooks/use-map-geolocation-updates';
 import { useMapSignalRUpdates } from '@/hooks/use-map-signalr-updates';
 import { Env } from '@/lib/env';
 import { logger } from '@/lib/logging';
@@ -69,8 +72,11 @@ function MapContent() {
     setIsBannerDismissed(false);
   }, [extremeAlerts.length]);
 
-  // Active unit (used to gate custom map-layer loading)
-  const activeUnitId = useCoreStore((state) => state.activeUnitId);
+  // Route overlay state
+  const activeInstance = useRoutesStore((state) => state.activeInstance);
+  const instanceStops = useRoutesStore((state) => state.instanceStops);
+  const fetchStopsForInstance = useRoutesStore((state) => state.fetchStopsForInstance);
+  const [showRouteOverlay, setShowRouteOverlay] = useState(true);
 
   // Map layers state
   const activeLayers = useMapsStore((state) => state.activeLayers);
@@ -88,6 +94,13 @@ function MapContent() {
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   useMapSignalRUpdates(setMapPins);
+  // Live unit/personnel position deltas from the GeolocationHub — moves markers in place
+  useMapGeolocationUpdates(setMapPins);
+
+  // Lane label + color enrichment for resources on the active command board
+  const commandOverlay = useCommandMapOverlay();
+
+  const [isLayersSheetOpen, setIsLayersSheetOpen] = useState(false);
 
   // Stable initial camera settings so the native Camera renders at the
   // correct position from the very first frame (fixes Android/iOS centering).
@@ -110,18 +123,23 @@ function MapContent() {
     };
   }, [locationLatitude, locationLongitude, isMapLocked]);
 
-  // Fetch custom map-layer config when an active unit is set
+  // Fetch map layers (department-level, no unit context needed)
   useEffect(() => {
-    if (activeUnitId) {
-      fetchActiveLayers();
+    fetchActiveLayers();
+  }, [fetchActiveLayers]);
+
+  // Fetch stops when active instance changes
+  useEffect(() => {
+    if (activeInstance?.RouteInstanceId) {
+      fetchStopsForInstance(activeInstance.RouteInstanceId);
     }
-  }, [activeUnitId, fetchActiveLayers]);
+  }, [activeInstance?.RouteInstanceId, fetchStopsForInstance]);
 
   // Fetch GeoJSON for enabled layers
   useEffect(() => {
     activeLayers.forEach((layer) => {
-      if (layerToggles[layer.LayerId] && !cachedGeoJSON[layer.LayerId]) {
-        fetchLayerGeoJSON(layer.LayerId);
+      if (layerToggles[layer.Id] && !cachedGeoJSON[layer.Id]) {
+        fetchLayerGeoJSON(layer.Id, layer.LayerSource);
       }
     });
   }, [activeLayers, layerToggles, cachedGeoJSON, fetchLayerGeoJSON]);
@@ -476,21 +494,21 @@ function MapContent() {
               </Animated.View>
             </Mapbox.PointAnnotation>
           ) : null}
-          <MapPins pins={mapPins} onPinPress={handlePinPress} />
+          <MapPins pins={mapPins} commandOverlay={commandOverlay} onPinPress={handlePinPress} />
 
           {/* Custom map layer overlays */}
           {activeLayers.map((layer) =>
-            layerToggles[layer.LayerId] && cachedGeoJSON[layer.LayerId] ? (
-              <Mapbox.ShapeSource key={`layer-${layer.LayerId}`} id={`layer-${layer.LayerId}`} shape={cachedGeoJSON[layer.LayerId]}>
+            layerToggles[layer.Id] && cachedGeoJSON[layer.Id] ? (
+              <Mapbox.ShapeSource key={`layer-${layer.Id}`} id={`layer-${layer.Id}`} shape={cachedGeoJSON[layer.Id]}>
                 <Mapbox.FillLayer
-                  id={`fill-${layer.LayerId}`}
+                  id={`fill-${layer.Id}`}
                   style={{
                     fillColor: layer.Color || '#3b82f6',
                     fillOpacity: 0.2,
                   }}
                 />
                 <Mapbox.LineLayer
-                  id={`line-${layer.LayerId}`}
+                  id={`line-${layer.Id}`}
                   style={{
                     lineColor: layer.Color || '#3b82f6',
                     lineWidth: 1,
@@ -508,6 +526,11 @@ function MapContent() {
           </View>
         ) : null}
 
+        {/* Layers / maps browser control */}
+        <TouchableOpacity style={[styles.layersButton, themedStyles.recenterButton]} onPress={() => setIsLayersSheetOpen(true)} testID="layers-button">
+          <LayersIcon size={20} color="#ffffff" />
+        </TouchableOpacity>
+
         {/* Recenter Button - only show when map is not locked and user has moved the map */}
         {showRecenterButton ? (
           <TouchableOpacity style={[styles.recenterButton, themedStyles.recenterButton]} onPress={handleRecenterMap} testID="recenter-button">
@@ -518,6 +541,9 @@ function MapContent() {
 
       {/* Pin Detail Modal */}
       <PinDetailModal pin={selectedPin} isOpen={isPinDetailModalOpen} onClose={handleClosePinDetail} onSetAsCurrentCall={handleSetAsCurrentCall} />
+
+      {/* Layer toggles + custom/indoor maps browser */}
+      <MapLayersSheet isOpen={isLayersSheetOpen} onClose={() => setIsLayersSheetOpen(false)} />
     </>
   );
 }
@@ -578,6 +604,18 @@ const styles = StyleSheet.create({
   recenterButton: {
     position: 'absolute',
     bottom: 20,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#3b82f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    // elevation and shadow properties are handled by themedStyles
+  },
+  layersButton: {
+    position: 'absolute',
+    bottom: 76,
     right: 20,
     width: 48,
     height: 48,

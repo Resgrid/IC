@@ -1,0 +1,675 @@
+name: React Native CI/CD
+
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - 'docs/**'
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      buildType:
+        type: choice
+        description: 'Build type to run'
+        options:
+          - dev
+          - prod-apk
+          - prod-aab
+          - ios-dev
+          - ios-adhoc
+          - ios-prod
+          - all
+      platform:
+        type: choice
+        description: 'Platform to build'
+        default: 'all'
+        options:
+          - android
+          - ios
+          - all
+
+# Set minimal permissions by default
+permissions:
+  contents: read
+
+env:
+  EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+  EXPO_APPLE_ID: ${{ secrets.EXPO_APPLE_ID }}
+  EXPO_APPLE_PASSWORD: ${{ secrets.EXPO_APPLE_PASSWORD }}
+  EXPO_TEAM_ID: ${{ secrets.EXPO_TEAM_ID }}
+  CREDENTIALS_JSON_BASE64: ${{ secrets.CREDENTIALS_JSON_BASE64 }}
+  POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+  IC_BASE_API_URL: ${{ secrets.IC_BASE_API_URL }}
+  IC_LOGGING_KEY: ${{ secrets.IC_LOGGING_KEY }}
+  IC_MAPBOX_DLKEY: ${{ secrets.IC_MAPBOX_DLKEY }}
+  IC_MAPBOX_PUBKEY: ${{ secrets.IC_MAPBOX_PUBKEY }}
+  IC_SENTRY_DSN: ${{ secrets.IC_SENTRY_DSN }}
+  IC_ANDROID_KS: ${{ secrets.IC_ANDROID_KS }}
+  IC_GOOGLE_SERVICES: ${{ secrets.IC_GOOGLE_SERVICES }}
+  IC_IOS_GOOGLE_SERVICES: ${{ secrets.IC_IOS_GOOGLE_SERVICES }}
+  MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+  APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+  APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+  APPLE_APIKEY: ${{ secrets.APPLE_APIKEY }}
+  MATCH_IC_BUNDLEID: ${{ secrets.MATCH_IC_BUNDLEID }}
+  MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+  MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+  EXPO_ACCOUNT_OWNER: ${{ secrets.EXPO_ACCOUNT_OWNER }}
+  BUNDLE_ID: ${{ secrets.MATCH_IC_BUNDLEID }}
+  EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
+  SCHEME: ${{ secrets.SCHEME }}
+  IC_IOS_CERT: ${{ secrets.IC_IOS_CERT }}
+  EXPO_ASC_API_KEY_PATH: ${{ secrets.EXPO_ASC_API_KEY_PATH }}
+  EXPO_ASC_KEY_ID: ${{ secrets.EXPO_ASC_KEY_ID }}
+  EXPO_ASC_ISSUER_ID: ${{ secrets.EXPO_ASC_ISSUER_ID }}
+  EXPO_APPLE_TEAM_ID: ${{ secrets.EXPO_TEAM_ID }}
+  EXPO_APPLE_TEAM_TYPE: ${{ secrets.EXPO_APPLE_TEAM_TYPE }}
+  IC_COUNTLY_APP_KEY: ${{ secrets.IC_COUNTLY_APP_KEY }}
+  IC_COUNTLY_SERVER_URL: ${{ secrets.IC_COUNTLY_SERVER_URL }}
+  IC_APP_KEY: ${{ secrets.IC_APP_KEY }}
+  APP_KEY: ${{ secrets.APP_KEY }}
+  NODE_OPTIONS: --openssl-legacy-provider
+  CHANGERAWR_API_KEY: ${{ secrets.CHANGERAWR_API_KEY }}
+  CHANGERAWR_API_URL: ${{ secrets.CHANGERAWR_API_URL }}
+  YARN_PRODUCTION: 'false'
+
+jobs:
+  check-skip:
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    steps:
+      - name: Skip CI check
+        run: echo "Proceeding with workflow"
+
+  test:
+    needs: check-skip
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🏗 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+
+      - name: 📦 Setup yarn cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/yarn
+            node_modules
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: 📦 Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: 🧪 Run Checks and Tests
+        run: yarn check-all
+
+  build-mobile:
+    needs: test
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write # Required for creating releases
+    strategy:
+      matrix:
+        platform: [android, ios]
+    runs-on: ${{ matrix.platform == 'ios' && 'macos-26' || 'ubuntu-latest' }}
+    environment: RNBuild
+    steps:
+      - name: 🏗 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🧹 Free up disk space (Android)
+        if: matrix.platform == 'android'
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+
+          # Remove unnecessary large packages
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/lib/jvm/temurin-11-jdk-amd64
+
+          # Remove Docker images
+          docker system prune -af || true
+
+          # Remove cached apt packages
+          sudo apt-get clean || true
+          sudo rm -rf /var/lib/apt/lists/*
+
+          # Remove swap
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
+
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: 🏗 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Setup yarn cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/yarn
+            node_modules
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: 📦 Install dependencies
+        run: |
+          yarn install --frozen-lockfile
+
+      - name: 📋 Create Google Json File
+        if: ${{ matrix.platform == 'android' }}
+        run: |
+          echo $IC_GOOGLE_SERVICES | base64 -d > google-services.json
+
+      - name: 📋 Create Google Json File for iOS
+        if: ${{ matrix.platform == 'ios' }}
+        run: |
+          echo $IC_IOS_GOOGLE_SERVICES | base64 -d > GoogleService-Info.plist
+
+      - name: 📋 Update package.json Versions
+        run: |
+          # Ensure jq exists on both Linux and macOS
+          if ! command -v jq >/dev/null 2>&1; then
+            echo "Installing jq..."
+            if [[ "$RUNNER_OS" == "Linux" ]]; then
+              sudo apt-get update && sudo apt-get install -y jq
+            elif [[ "$RUNNER_OS" == "macOS" ]]; then
+              brew update && brew install jq
+            else
+              echo "Unsupported OS for auto-install of jq" >&2; exit 1
+            fi
+          fi
+
+          # Fix the main entry in package.json
+          if [ -f ./package.json ]; then
+            # Create a backup
+            cp package.json package.json.bak
+            # Update the package.json
+            jq '.version = "1.${{ github.run_number }}"' package.json > package.json.tmp && mv package.json.tmp package.json
+            jq '.versionCode = "1${{ github.run_number }}"' package.json > package.json.tmp && mv package.json.tmp package.json
+            echo "Updated package.json versions"
+            cat package.json | grep "version"
+            cat package.json | grep "versionCode"
+          else
+            echo "package.json not found"
+            exit 1
+          fi
+
+      - name: 📱 Setup EAS build cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.eas-build-local
+          key: ${{ runner.os }}-eas-build-local-${{ hashFiles('**/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-eas-build-local-
+
+      - name: 🔄 Verify EAS CLI installation
+        run: |
+          echo "EAS CLI version:"
+          eas --version
+
+      - name: 📋 Create iOS Cert
+        run: |
+          echo $IC_IOS_CERT | base64 -d > AuthKey_HRBP5FNJN6.p8
+
+      - name: 📋 Restore gradle.properties
+        env:
+          GRADLE_PROPERTIES: ${{ secrets.GRADLE_PROPERTIES }}
+        shell: bash
+        run: |
+          mkdir -p ~/.gradle/
+          echo ${GRADLE_PROPERTIES} > ~/.gradle/gradle.properties
+
+      - name: 📱 Build Development APK
+        if: (matrix.platform == 'android' && (github.event.inputs.buildType == 'all' || github.event_name == 'push' || github.event.inputs.buildType == 'dev'))
+        run: |
+          # Build with increased memory limit
+          export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
+          eas build --platform android --profile development --local --non-interactive --output=./ResgridIC-dev.apk
+        env:
+          NODE_ENV: development
+
+      - name: 📱 Build Production APK
+        if: (matrix.platform == 'android' && (github.event.inputs.buildType == 'all' || github.event_name == 'push' || github.event.inputs.buildType == 'prod-apk'))
+        run: |
+          export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
+          eas build --platform android --profile production-apk --local --non-interactive --output=./ResgridIC-prod.apk
+        env:
+          NODE_ENV: production
+
+      - name: 📱 Build Production AAB
+        if: (matrix.platform == 'android' && (github.event.inputs.buildType == 'all' || github.event_name == 'push' || github.event.inputs.buildType == 'prod-aab'))
+        run: |
+          export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
+          eas build --platform android --profile production --local --non-interactive --output=./ResgridIC-prod.aab
+        env:
+          NODE_ENV: production
+
+      - name: 📱 Build iOS Development
+        if: (matrix.platform == 'ios' && (github.event.inputs.buildType == 'all' || github.event_name == 'push' || github.event.inputs.buildType == 'ios-dev'))
+        run: |
+          export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
+          eas build --platform ios --profile development --local --non-interactive --output=./ResgridIC-ios-dev.ipa
+        env:
+          NODE_ENV: development
+
+      - name: 📱 Build iOS Ad-Hoc
+        if: (matrix.platform == 'ios' && (github.event.inputs.buildType == 'all' || github.event_name == 'push' || github.event.inputs.buildType == 'ios-adhoc'))
+        run: |
+          export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
+          eas build --platform ios --profile internal --local --non-interactive --output=./ResgridIC-ios-adhoc.ipa
+        env:
+          NODE_ENV: production
+
+      - name: 📱 Build iOS Production
+        if: (matrix.platform == 'ios' && (github.event.inputs.buildType == 'all' || github.event_name == 'push' || github.event.inputs.buildType == 'ios-prod'))
+        run: |
+          export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
+          eas build --platform ios --profile production --local --non-interactive --output=./ResgridIC-ios-prod.ipa
+        env:
+          NODE_ENV: production
+
+      - name: 📦 Upload build artifacts to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-builds-${{ matrix.platform }}
+          path: |
+            ./ResgridIC-dev.apk
+            ./ResgridIC-prod.apk
+            ./ResgridIC-prod.aab
+            ./ResgridIC-ios-dev.ipa
+            ./ResgridIC-ios-adhoc.ipa
+            ./ResgridIC-ios-prod.ipa
+          retention-days: 7
+
+      - name: 📦 Setup Firebase CLI
+        uses: w9jds/setup-firebase@main
+        with:
+          tools-version: 11.9.0
+          firebase_token: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: 📦 Upload Android artifact to Firebase App Distribution
+        if: (matrix.platform == 'android')
+        run: |
+          firebase appdistribution:distribute ./ResgridIC-prod.apk --app ${{ secrets.FIREBASE_ANDROID_APP_ID }} --groups "testers"
+
+      - name: 📦 Upload iOS artifact to Firebase App Distribution
+        if: (matrix.platform == 'ios')
+        run: |
+          firebase appdistribution:distribute ./ResgridIC-ios-adhoc.ipa --app ${{ secrets.FIREBASE_IOS_APP_ID }} --groups "testers"
+
+      - name: 📋 Prepare Release Notes file
+        if: ${{ matrix.platform == 'android' }}
+        run: ./scripts/extract-release-notes.sh "1.${{ github.run_number }}" "${{ github.event_name }}" "${{ github.repository }}" "${{ github.sha }}" "${{ github.token }}"
+
+      - name: 📝 Send Release Notes to Changerawr
+        if: ${{ matrix.platform == 'android' }}
+        run: |
+          set -eo pipefail
+
+          # Check if required secrets are set
+          if [ -z "$CHANGERAWR_API_URL" ] || [ -z "$CHANGERAWR_API_KEY" ]; then
+            echo "⚠️  Changerawr API credentials not configured, skipping release notes submission"
+            exit 0
+          fi
+
+          # Read release notes
+          RELEASE_NOTES=$(cat RELEASE_NOTES.md)
+          VERSION="1.${{ github.run_number }}"
+
+          # Prepare JSON payload
+          PAYLOAD=$(jq -n \
+            --arg version "$VERSION" \
+            --arg notes "$RELEASE_NOTES" \
+            '{
+              "version": $version,
+              "title": ("Release v" + $version),
+              "content": $notes
+            }')
+
+          echo "Sending release notes to Changerawr..."
+
+          # Send to Changerawr API
+          RESPONSE=$(curl -X POST "$CHANGERAWR_API_URL" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $CHANGERAWR_API_KEY" \
+            -d "$PAYLOAD" \
+            -w "\n%{http_code}" \
+            -s)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "✅ Successfully sent release notes to Changerawr (HTTP $HTTP_CODE)"
+            echo "Response: $RESPONSE_BODY"
+          else
+            echo "⚠️  Failed to send release notes to Changerawr (HTTP $HTTP_CODE)"
+            echo "Response: $RESPONSE_BODY"
+            # Don't fail the build, just warn
+          fi
+
+      - name: �📦 Create Release
+        if: ${{ matrix.platform == 'android' && (github.event.inputs.buildType == 'all' || github.event_name == 'push' || github.event.inputs.buildType == 'prod-apk') }}
+        uses: ncipollo/release-action@v1
+        with:
+          tag: '1.${{ github.run_number }}'
+          commit: ${{ github.sha }}
+          makeLatest: true
+          allowUpdates: true
+          name: '1.${{ github.run_number }}'
+          artifacts: './ResgridIC-prod.apk'
+          bodyFile: 'RELEASE_NOTES.md'
+  build-web:
+    needs: test
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    environment: RNBuild
+    steps:
+      - name: 🏗 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+
+      - name: 📦 Setup yarn cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/yarn
+            node_modules
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: 📦 Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: 🌐 Build Web Application
+        run: |
+          export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
+          yarn web:build
+        env:
+          NODE_ENV: production
+          APP_ENV: production
+          # Unset IC_* env vars for web build to use defaults from env.js
+          # Actual values will be injected at Docker container runtime via envsubst
+          IC_BASE_API_URL: ''
+          IC_API_VERSION: ''
+          IC_RESGRID_API_URL: ''
+          IC_CHANNEL_HUB_NAME: ''
+          IC_REALTIME_GEO_HUB_NAME: ''
+          IC_LOGGING_KEY: ''
+          IC_APP_KEY: ''
+          IC_MAPBOX_PUBKEY: ''
+          IC_MAPBOX_DLKEY: ''
+          IC_SENTRY_DSN: ''
+          IC_COUNTLY_APP_KEY: ''
+          IC_COUNTLY_SERVER_URL: ''
+
+      - name: 📦 Upload web build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: dist/
+          retention-days: 7
+
+  build-docker:
+    needs: build-web
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      packages: write # Required for pushing to GHCR
+    runs-on: ubuntu-latest
+    environment: RNBuild
+    steps:
+      - name: 🏗 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: � Check Docker Hub credentials availability
+        id: docker-creds
+        run: |
+          if [[ -n "${{ secrets.DOCKER_USERNAME }}" && -n "${{ secrets.DOCKER_PASSWORD }}" ]]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🐳 Log in to Docker Hub
+        if: steps.docker-creds.outputs.available == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: 🐳 Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📋 Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: resgridllc/ic
+          tags: |
+            type=raw,value=1.${{ github.run_number }}
+            type=raw,value=latest
+            type=sha,prefix={{branch}}-
+
+      - name: 🐳 Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=1.${{ github.run_number }}
+          platforms: linux/amd64,linux/arm64
+
+  build-electron:
+    needs: test
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write # Required for creating releases
+    strategy:
+      matrix:
+        os: [windows-latest, macos-15, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    environment: RNBuild
+    steps:
+      - name: 🏗 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'yarn'
+
+      - name: 📦 Setup yarn cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/yarn
+            node_modules
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: 📦 Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: 📋 Update package.json Versions
+        shell: bash
+        run: |
+          # Ensure jq exists on all platforms
+          if ! command -v jq > /dev/null 2>&1; then
+            echo "Installing jq..."
+            if [[ "$RUNNER_OS" == "Linux" ]]; then
+              sudo apt-get update && sudo apt-get install -y jq
+            elif [[ "$RUNNER_OS" == "macOS" ]]; then
+              brew update && brew install jq
+            elif [[ "$RUNNER_OS" == "Windows" ]]; then
+              choco install jq -y
+            else
+              echo "Unsupported OS for auto-install of jq" >&2; exit 1
+            fi
+          fi
+
+          # Update the package.json with 3-octet version for Electron (electron-builder requires semantic versioning)
+          if [ -f ./package.json ]; then
+            cp package.json package.json.bak
+            jq '.version = "1.${{ github.run_number }}.0"' package.json > package.json.tmp && mv package.json.tmp package.json
+            echo "Updated package.json version for Electron build"
+            cat package.json | grep "version"
+          else
+            echo "package.json not found"
+            exit 1
+          fi
+
+      - name: 🖥️ Build Electron (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          $env:NODE_OPTIONS = "--openssl-legacy-provider --max_old_space_size=4096"
+          yarn electron:build:win
+        env:
+          NODE_ENV: production
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🖥️ Build Electron (macOS)
+        if: matrix.os == 'macos-15'
+        run: |
+          export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
+          yarn electron:build:mac
+        env:
+          NODE_ENV: production
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🖥️ Build Electron (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          export NODE_OPTIONS="--openssl-legacy-provider --max_old_space_size=4096"
+          yarn electron:build:linux
+        env:
+          NODE_ENV: production
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📦 Upload Electron artifacts (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-windows
+          path: |
+            electron-dist/*.exe
+            electron-dist/*.msi
+          retention-days: 7
+
+      - name: 📦 Upload Electron artifacts (macOS)
+        if: matrix.os == 'macos-15'
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-macos
+          path: |
+            electron-dist/*.dmg
+            electron-dist/*.zip
+          retention-days: 7
+
+      - name: 📦 Upload Electron artifacts (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-linux
+          path: |
+            electron-dist/*.AppImage
+            electron-dist/*.deb
+            electron-dist/*.rpm
+          retention-days: 7
+
+  release-electron:
+    needs: build-electron
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')) || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write # Required for creating releases
+    runs-on: ubuntu-latest
+    environment: RNBuild
+    steps:
+      - name: 🏗 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📋 Prepare Release Notes file
+        run: ./scripts/extract-release-notes.sh "1.${{ github.run_number }}" "${{ github.event_name }}" "${{ github.repository }}" "${{ github.sha }}" "${{ github.token }}"
+
+      - name: 📥 Download all Electron artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: electron-artifacts/
+          pattern: electron-*
+          merge-multiple: false
+
+      - name: 📦 Prepare Electron release artifacts
+        run: |
+          # Find all matching Electron artifacts and check for existence
+          if [ -z "$(find electron-artifacts/ -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.zip" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \) -print -quit)" ]; then
+            echo "Error: No Electron artifacts found in electron-artifacts/ directory."
+            exit 1
+          fi
+
+          # Create release-artifacts directory and copy files using null-delimited find/xargs
+          mkdir -p release-artifacts
+          find electron-artifacts/ -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.zip" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" \) -print0 | xargs -0 cp -t release-artifacts/
+
+          echo "Release artifacts prepared:"
+          ls -lh release-artifacts/
+
+      - name: 📦 Create GitHub Release with Electron builds
+        uses: ncipollo/release-action@v1
+        with:
+          tag: '1.${{ github.run_number }}'
+          commit: ${{ github.sha }}
+          makeLatest: true
+          allowUpdates: true
+          name: '1.${{ github.run_number }}'
+          artifacts: 'release-artifacts/*'
+          bodyFile: 'RELEASE_NOTES.md'

@@ -6,18 +6,8 @@ jest.mock('@/api/config', () => ({
   getConfig: jest.fn(),
 }));
 
-jest.mock('@/api/satuses/statuses', () => ({
-  getAllUnitStatuses: jest.fn(),
-}));
-
-jest.mock('@/api/units/unitStatuses', () => ({
-  getUnitStatus: jest.fn(),
-}));
-
 jest.mock('@/lib/storage/app', () => ({
-  getActiveUnitId: jest.fn(),
   getActiveCallId: jest.fn(),
-  setActiveUnitId: jest.fn(),
   setActiveCallId: jest.fn(),
 }));
 
@@ -39,16 +29,6 @@ jest.mock('@/stores/calls/store', () => ({
   },
 }));
 
-jest.mock('@/stores/units/store', () => ({
-  useUnitsStore: {
-    getState: jest.fn(() => ({
-      fetchUnits: jest.fn(),
-      units: [],
-      unitStatuses: [],
-    })),
-  },
-}));
-
 // Mock the storage layer used by zustand persist
 jest.mock('@/lib/storage', () => ({
   zustandStorage: {
@@ -60,11 +40,10 @@ jest.mock('@/lib/storage', () => ({
 
 // Import after mocks
 import { useCoreStore } from '../core-store';
-import { getActiveUnitId, getActiveCallId } from '@/lib/storage/app';
+import { getActiveCallId } from '@/lib/storage/app';
 import { getConfig } from '@/api/config';
 import { GetConfigResultData } from '@/models/v4/configs/getConfigResultData';
 
-const mockGetActiveUnitId = getActiveUnitId as jest.MockedFunction<typeof getActiveUnitId>;
 const mockGetActiveCallId = getActiveCallId as jest.MockedFunction<typeof getActiveCallId>;
 const mockGetConfig = getConfig as jest.MockedFunction<typeof getConfig>;
 
@@ -75,11 +54,6 @@ describe('Core Store', () => {
 
     // Reset store state by creating a fresh instance
     useCoreStore.setState({
-      activeUnitId: null,
-      activeUnit: null,
-      activeUnitStatus: null,
-      activeUnitStatusType: null,
-      activeStatuses: null,
       activeCallId: null,
       activeCall: null,
       activePriority: null,
@@ -93,7 +67,6 @@ describe('Core Store', () => {
 
   describe('Initialization', () => {
     it('should prevent multiple simultaneous initializations', async () => {
-      mockGetActiveUnitId.mockReturnValue(null);
       mockGetActiveCallId.mockReturnValue(null);
       mockGetConfig.mockResolvedValue({
         Data: {
@@ -125,7 +98,6 @@ describe('Core Store', () => {
     });
 
     it('should skip initialization if already initialized', async () => {
-      mockGetActiveUnitId.mockReturnValue(null);
       mockGetActiveCallId.mockReturnValue(null);
       mockGetConfig.mockResolvedValue({
         Data: {
@@ -155,8 +127,7 @@ describe('Core Store', () => {
       expect(mockGetConfig).not.toHaveBeenCalled();
     });
 
-    it('should handle initialization with no active unit or call', async () => {
-      mockGetActiveUnitId.mockReturnValue(null);
+    it('should handle initialization with no active call', async () => {
       mockGetActiveCallId.mockReturnValue(null);
       mockGetConfig.mockResolvedValue({
         Data: {
@@ -180,9 +151,8 @@ describe('Core Store', () => {
     });
 
     it('should fetch config first during initialization', async () => {
-      mockGetActiveUnitId.mockReturnValue(null);
       mockGetActiveCallId.mockReturnValue(null);
-      
+
       const mockConfigData = {
         EventingUrl: 'https://eventing.example.com/',
         GoogleMapsKey: 'test-google-key',
@@ -206,9 +176,8 @@ describe('Core Store', () => {
     });
 
     it('should handle config fetch errors during initialization', async () => {
-      mockGetActiveUnitId.mockReturnValue(null);
       mockGetActiveCallId.mockReturnValue(null);
-      
+
       const configError = new Error('Failed to fetch config');
       mockGetConfig.mockRejectedValue(configError);
 
@@ -292,8 +261,6 @@ describe('Core Store', () => {
     it('should have correct initial state', () => {
       const { result } = renderHook(() => useCoreStore());
 
-      expect(result.current.activeUnitId).toBe(null);
-      expect(result.current.activeUnit).toBe(null);
       expect(result.current.activeCallId).toBe(null);
       expect(result.current.activeCall).toBe(null);
       expect(result.current.config).toBe(null);
@@ -307,8 +274,6 @@ describe('Core Store', () => {
       const { result } = renderHook(() => useCoreStore());
 
       expect(typeof result.current.init).toBe('function');
-      expect(typeof result.current.setActiveUnit).toBe('function');
-      expect(typeof result.current.setActiveUnitWithFetch).toBe('function');
       expect(typeof result.current.setActiveCall).toBe('function');
       expect(typeof result.current.fetchConfig).toBe('function');
     });

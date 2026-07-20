@@ -2,16 +2,45 @@ import { AppState, type AppStateStatus } from 'react-native';
 
 import { saveCallImage } from '@/api/calls/callFiles';
 import { performCheckIn } from '@/api/check-in-timers/check-in-timers';
+import {
+  assignResource,
+  closeCommand,
+  completeObjective,
+  deleteCommandNode,
+  establishCommand,
+  getCommandBoard,
+  moveResource,
+  releaseResource,
+  saveCommandNode,
+  saveObjective,
+} from '@/api/incidentCommand/incidentCommand';
+import { createAdHocPersonnel, createAdHocUnit, releaseAdHocPersonnel, releaseAdHocUnit } from '@/api/incidentCommand/incidentResources';
+import { assignIncidentRole, removeIncidentRole } from '@/api/incidentCommand/incidentRoles';
 import { setUnitLocation } from '@/api/units/unitLocation';
 import { saveUnitStatus } from '@/api/units/unitStatuses';
 import { logger } from '@/lib/logging';
 import {
+  type QueuedAssignCommandResourceEvent,
+  type QueuedAssignIncidentRoleEvent,
   type QueuedCallImageUploadEvent,
   type QueuedCheckInEvent,
+  type QueuedCloseCommandEvent,
+  type QueuedCompleteObjectiveEvent,
+  type QueuedCreateAdHocPersonnelEvent,
+  type QueuedCreateAdHocUnitEvent,
+  type QueuedDeleteCommandNodeEvent,
+  type QueuedEstablishCommandEvent,
   type QueuedEvent,
   QueuedEventStatus,
   QueuedEventType,
   type QueuedLocationUpdateEvent,
+  type QueuedMoveCommandResourceEvent,
+  type QueuedReleaseAdHocPersonnelEvent,
+  type QueuedReleaseAdHocUnitEvent,
+  type QueuedReleaseCommandResourceEvent,
+  type QueuedRemoveIncidentRoleEvent,
+  type QueuedSaveCommandNodeEvent,
+  type QueuedSaveObjectiveEvent,
   type QueuedUnitStatusEvent,
 } from '@/models/offline-queue/queued-event';
 import { SaveUnitLocationInput } from '@/models/v4/unitLocation/saveUnitLocationInput';
@@ -23,6 +52,7 @@ class OfflineEventManager {
   private processingInterval: ReturnType<typeof setInterval> | null = null;
   private isProcessing = false;
   private appStateSubscription: { remove: () => void } | null = null;
+  private reconnectUnsubscribe: (() => void) | null = null;
   private readonly PROCESSING_INTERVAL = 10000; // 10 seconds
   private readonly MAX_CONCURRENT_EVENTS = 3;
 
@@ -48,8 +78,59 @@ class OfflineEventManager {
     // Initialize network listener
     useOfflineQueueStore.getState().initializeNetworkListener();
 
+    // Drain the queue as soon as connectivity is restored (in addition to the interval)
+    this.initializeReconnectListener();
+
     // Start processing when app becomes active
     this.handleAppStateChange(AppState.currentState);
+  }
+
+  /**
+   * Manually trigger a sync (user-initiated "Sync Now"):
+   * push all pending queued writes, then pull the latest command-board state.
+   */
+  public async syncNow(): Promise<void> {
+    logger.info({
+      message: 'Manual sync requested',
+    });
+    await this.processQueuedEvents();
+    await this.pullCommandSync();
+  }
+
+  /**
+   * Pull the latest incident-command state from the server (Sync Bundle).
+   */
+  private async pullCommandSync(): Promise<void> {
+    try {
+      // Late import via require to avoid a module cycle
+      const { useCommandStore } = require('@/stores/command/store');
+      await useCommandStore.getState().syncFromServer();
+    } catch (error) {
+      logger.warn({
+        message: 'Command sync pull failed',
+        context: { error },
+      });
+    }
+  }
+
+  /**
+   * Subscribe to network state changes and process the queue immediately
+   * when the device transitions from offline to online.
+   */
+  private initializeReconnectListener(): void {
+    if (this.reconnectUnsubscribe) {
+      return;
+    }
+    this.reconnectUnsubscribe = useOfflineQueueStore.subscribe((state, prevState) => {
+      const wasOffline = !prevState.isConnected || !prevState.isNetworkReachable;
+      const isOnline = state.isConnected && state.isNetworkReachable;
+      if (wasOffline && isOnline) {
+        logger.info({
+          message: 'Connectivity restored — processing offline queue and pulling command sync',
+        });
+        this.processQueuedEvents().then(() => this.pullCommandSync());
+      }
+    });
   }
 
   /**
@@ -181,6 +262,130 @@ class OfflineEventManager {
     return useOfflineQueueStore.getState().addEvent(QueuedEventType.CHECK_IN, data);
   }
 
+  // ---- Incident command (ICS) event processors ----
+  // After each successful replay the command store refreshes the affected board
+  // so the local optimistic state converges to the server state.
+
+  private async refreshCommandBoard(callId: string): Promise<void> {
+    try {
+      // Late import via require to avoid a module cycle (store → queue store; manager → store)
+      const { useCommandStore } = require('@/stores/command/store');
+      await useCommandStore.getState().refreshBoard(callId);
+    } catch {
+      // Refresh is best-effort — the next sync pass converges the state
+    }
+  }
+
+  private async processEstablishCommandEvent(event: QueuedEstablishCommandEvent): Promise<void> {
+    const callId = parseInt(event.data.callId, 10);
+    await establishCommand({ CallId: Number.isNaN(callId) ? 0 : callId, CommandDefinitionId: event.data.commandDefinitionId ?? null });
+    await this.refreshCommandBoard(event.data.callId);
+  }
+
+  private async processCloseCommandEvent(event: QueuedCloseCommandEvent): Promise<void> {
+    await closeCommand(event.data.incidentCommandId);
+  }
+
+  private async processAssignIncidentRoleEvent(event: QueuedAssignIncidentRoleEvent): Promise<void> {
+    const callId = parseInt(event.data.callId, 10);
+    await assignIncidentRole({
+      CallId: Number.isNaN(callId) ? 0 : callId,
+      RoleType: event.data.roleType,
+      UserId: event.data.userId,
+    });
+    await this.refreshCommandBoard(event.data.callId);
+  }
+
+  private async processRemoveIncidentRoleEvent(event: QueuedRemoveIncidentRoleEvent): Promise<void> {
+    await removeIncidentRole(event.data.incidentRoleAssignmentId);
+  }
+
+  private async processCreateAdHocUnitEvent(event: QueuedCreateAdHocUnitEvent): Promise<void> {
+    const callId = parseInt(event.data.callId, 10);
+    await createAdHocUnit({ CallId: Number.isNaN(callId) ? 0 : callId, Name: event.data.name, Type: event.data.type });
+    await this.refreshCommandBoard(event.data.callId);
+  }
+
+  private async processReleaseAdHocUnitEvent(event: QueuedReleaseAdHocUnitEvent): Promise<void> {
+    await releaseAdHocUnit(event.data.incidentAdHocUnitId);
+  }
+
+  private async processCreateAdHocPersonnelEvent(event: QueuedCreateAdHocPersonnelEvent): Promise<void> {
+    const callId = parseInt(event.data.callId, 10);
+    await createAdHocPersonnel({ CallId: Number.isNaN(callId) ? 0 : callId, Name: event.data.name, Role: event.data.role, ExternalAgencyName: event.data.agency });
+    await this.refreshCommandBoard(event.data.callId);
+  }
+
+  private async processReleaseAdHocPersonnelEvent(event: QueuedReleaseAdHocPersonnelEvent): Promise<void> {
+    await releaseAdHocPersonnel(event.data.incidentAdHocPersonnelId);
+  }
+
+  /** Resolve the server-side IncidentCommandId for a call (needed when the write was queued offline). */
+  private async resolveIncidentCommandId(callId: string): Promise<string> {
+    const board = await getCommandBoard(callId);
+    const incidentCommandId = board.Data?.Command?.IncidentCommandId;
+    if (!incidentCommandId) {
+      throw new Error(`No active incident command found for call ${callId}`);
+    }
+    return incidentCommandId;
+  }
+
+  private async processSaveCommandNodeEvent(event: QueuedSaveCommandNodeEvent): Promise<void> {
+    const callId = parseInt(event.data.callId, 10);
+    const incidentCommandId = await this.resolveIncidentCommandId(event.data.callId);
+    await saveCommandNode({
+      IncidentCommandId: incidentCommandId,
+      CallId: Number.isNaN(callId) ? 0 : callId,
+      Name: event.data.name,
+      NodeType: event.data.nodeType,
+      Color: event.data.color,
+      MinUnits: event.data.limits?.minUnits ?? 0,
+      MaxUnits: event.data.limits?.maxUnits ?? 0,
+      MinUnitPersonnel: event.data.limits?.minUnitPersonnel ?? 0,
+      MaxUnitPersonnel: event.data.limits?.maxUnitPersonnel ?? 0,
+      MinTimeInRole: event.data.limits?.minTimeInRole ?? 0,
+      MaxTimeInRole: event.data.limits?.maxTimeInRole ?? 0,
+    });
+    await this.refreshCommandBoard(event.data.callId);
+  }
+
+  private async processDeleteCommandNodeEvent(event: QueuedDeleteCommandNodeEvent): Promise<void> {
+    await deleteCommandNode(event.data.commandStructureNodeId);
+  }
+
+  private async processAssignCommandResourceEvent(event: QueuedAssignCommandResourceEvent): Promise<void> {
+    const callId = parseInt(event.data.callId, 10);
+    const incidentCommandId = await this.resolveIncidentCommandId(event.data.callId);
+    await assignResource({
+      IncidentCommandId: incidentCommandId,
+      CallId: Number.isNaN(callId) ? 0 : callId,
+      CommandStructureNodeId: event.data.commandStructureNodeId,
+      ResourceKind: event.data.resourceKind,
+      ResourceId: event.data.resourceId,
+    });
+    await this.refreshCommandBoard(event.data.callId);
+  }
+
+  private async processMoveCommandResourceEvent(event: QueuedMoveCommandResourceEvent): Promise<void> {
+    await moveResource({ ResourceAssignmentId: event.data.resourceAssignmentId, TargetNodeId: event.data.targetNodeId });
+    await this.refreshCommandBoard(event.data.callId);
+  }
+
+  private async processReleaseCommandResourceEvent(event: QueuedReleaseCommandResourceEvent): Promise<void> {
+    await releaseResource(event.data.resourceAssignmentId);
+  }
+
+  private async processSaveObjectiveEvent(event: QueuedSaveObjectiveEvent): Promise<void> {
+    const callId = parseInt(event.data.callId, 10);
+    const incidentCommandId = await this.resolveIncidentCommandId(event.data.callId);
+    await saveObjective({ IncidentCommandId: incidentCommandId, CallId: Number.isNaN(callId) ? 0 : callId, Name: event.data.name, ObjectiveType: event.data.objectiveType });
+    await this.refreshCommandBoard(event.data.callId);
+  }
+
+  private async processCompleteObjectiveEvent(event: QueuedCompleteObjectiveEvent): Promise<void> {
+    await completeObjective(event.data.tacticalObjectiveId);
+  }
+
   /**
    * Process check-in event
    */
@@ -273,6 +478,51 @@ class OfflineEventManager {
           break;
         case QueuedEventType.CHECK_IN:
           await this.processCheckInEvent(event as QueuedCheckInEvent);
+          break;
+        case QueuedEventType.ESTABLISH_COMMAND:
+          await this.processEstablishCommandEvent(event as QueuedEstablishCommandEvent);
+          break;
+        case QueuedEventType.CLOSE_COMMAND:
+          await this.processCloseCommandEvent(event as QueuedCloseCommandEvent);
+          break;
+        case QueuedEventType.ASSIGN_INCIDENT_ROLE:
+          await this.processAssignIncidentRoleEvent(event as QueuedAssignIncidentRoleEvent);
+          break;
+        case QueuedEventType.REMOVE_INCIDENT_ROLE:
+          await this.processRemoveIncidentRoleEvent(event as QueuedRemoveIncidentRoleEvent);
+          break;
+        case QueuedEventType.CREATE_ADHOC_UNIT:
+          await this.processCreateAdHocUnitEvent(event as QueuedCreateAdHocUnitEvent);
+          break;
+        case QueuedEventType.RELEASE_ADHOC_UNIT:
+          await this.processReleaseAdHocUnitEvent(event as QueuedReleaseAdHocUnitEvent);
+          break;
+        case QueuedEventType.CREATE_ADHOC_PERSONNEL:
+          await this.processCreateAdHocPersonnelEvent(event as QueuedCreateAdHocPersonnelEvent);
+          break;
+        case QueuedEventType.RELEASE_ADHOC_PERSONNEL:
+          await this.processReleaseAdHocPersonnelEvent(event as QueuedReleaseAdHocPersonnelEvent);
+          break;
+        case QueuedEventType.SAVE_COMMAND_NODE:
+          await this.processSaveCommandNodeEvent(event as QueuedSaveCommandNodeEvent);
+          break;
+        case QueuedEventType.DELETE_COMMAND_NODE:
+          await this.processDeleteCommandNodeEvent(event as QueuedDeleteCommandNodeEvent);
+          break;
+        case QueuedEventType.ASSIGN_COMMAND_RESOURCE:
+          await this.processAssignCommandResourceEvent(event as QueuedAssignCommandResourceEvent);
+          break;
+        case QueuedEventType.MOVE_COMMAND_RESOURCE:
+          await this.processMoveCommandResourceEvent(event as QueuedMoveCommandResourceEvent);
+          break;
+        case QueuedEventType.RELEASE_COMMAND_RESOURCE:
+          await this.processReleaseCommandResourceEvent(event as QueuedReleaseCommandResourceEvent);
+          break;
+        case QueuedEventType.SAVE_OBJECTIVE:
+          await this.processSaveObjectiveEvent(event as QueuedSaveObjectiveEvent);
+          break;
+        case QueuedEventType.COMPLETE_OBJECTIVE:
+          await this.processCompleteObjectiveEvent(event as QueuedCompleteObjectiveEvent);
           break;
         default:
           throw new Error(`Unknown event type: ${event.type}`);
@@ -409,6 +659,11 @@ class OfflineEventManager {
     if (this.appStateSubscription) {
       this.appStateSubscription.remove();
       this.appStateSubscription = null;
+    }
+
+    if (this.reconnectUnsubscribe) {
+      this.reconnectUnsubscribe();
+      this.reconnectUnsubscribe = null;
     }
 
     logger.info({

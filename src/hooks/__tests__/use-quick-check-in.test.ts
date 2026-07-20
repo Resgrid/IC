@@ -32,14 +32,6 @@ jest.mock('@/stores/check-in-timers/store', () => ({
   ),
 }));
 
-jest.mock('@/stores/app/core-store', () => ({
-  useCoreStore: jest.fn((selector: any) =>
-    selector({
-      activeUnit: { UnitId: '42' },
-    })
-  ),
-}));
-
 jest.mock('@/stores/app/location-store', () => ({
   useLocationStore: jest.fn((selector: any) =>
     selector({
@@ -67,7 +59,7 @@ describe('useQuickCheckIn', () => {
     jest.clearAllMocks();
   });
 
-  it('should auto-detect Unit type when active unit exists', async () => {
+  it('should always check in as personnel (IC app has no unit context)', async () => {
     mockPerformCheckIn.mockResolvedValue('success');
 
     const { result } = renderHook(() => useQuickCheckIn(123));
@@ -79,8 +71,7 @@ describe('useQuickCheckIn', () => {
     expect(mockPerformCheckIn).toHaveBeenCalledWith(
       expect.objectContaining({
         CallId: 123,
-        CheckInType: 1, // Unit type
-        UnitId: 42,
+        CheckInType: 0, // Personnel type
         Latitude: '40.7128',
         Longitude: '-74.006',
       })

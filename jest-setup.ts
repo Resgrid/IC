@@ -255,3 +255,14 @@ jest.mock('zod', () => ({
   },
   __esModule: true,
 }));
+
+// Mock NetInfo globally — the native module isn't available in the Jest environment
+jest.mock('@react-native-community/netinfo', () => ({
+  __esModule: true,
+  default: {
+    addEventListener: jest.fn(() => jest.fn()),
+    fetch: jest.fn(() => Promise.resolve({ isConnected: true, isInternetReachable: true, type: 'wifi', details: {} })),
+  },
+  addEventListener: jest.fn(() => jest.fn()),
+  fetch: jest.fn(() => Promise.resolve({ isConnected: true, isInternetReachable: true, type: 'wifi', details: {} })),
+}));

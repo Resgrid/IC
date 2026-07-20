@@ -223,6 +223,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     './customGradle.plugin.js',
     './customManifest.plugin.js',
     './plugins/withForegroundNotifications.js',
+    './plugins/withNotificationIcon.js',
     './plugins/withNotificationSounds.js',
     './plugins/withMediaButtonModule.js',
     [

@@ -3,6 +3,10 @@ import { router } from 'expo-router';
 import React from 'react';
 
 // Mock Platform before any other imports
+jest.mock('@/components/command/start-command-sheet', () => ({
+  StartCommandSheet: () => null,
+}));
+
 jest.mock('react-native', () => ({
   Platform: {
     OS: 'ios',

@@ -11,12 +11,16 @@ interface PinMarkerProps {
   imagePath?: MapIconKey;
   poiImage?: MapIconKey;
   title: string;
+  /** Command lane name — shown under the title when the resource is on the active board. */
+  laneLabel?: string;
+  /** Command lane color — ring around the icon for at-a-glance lane identification. */
+  accentColor?: string | null;
   size?: number;
   markerRef?: React.ComponentRef<typeof PointAnnotation> | null;
   onPress?: () => void;
 }
 
-const PinMarker: React.FC<PinMarkerProps> = React.memo(({ imagePath, poiImage, title, size = 32, onPress }) => {
+const PinMarker: React.FC<PinMarkerProps> = React.memo(({ imagePath, poiImage, title, laneLabel, accentColor, size = 32, onPress }) => {
   const { colorScheme } = useColorScheme();
 
   // Prefer poiImage (new field) over imagePath (null for POIs after backend fix),
@@ -27,10 +31,15 @@ const PinMarker: React.FC<PinMarkerProps> = React.memo(({ imagePath, poiImage, t
 
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
-      <Image fadeDuration={0} source={icon.uri} style={[styles.image, { width: size, height: size }]} />
+      <Image fadeDuration={0} source={icon.uri} style={[styles.image, { width: size, height: size }, accentColor ? { ...styles.accentRing, borderColor: accentColor, borderRadius: size / 2 } : null]} />
       <Text style={[styles.title, { color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }]} numberOfLines={2}>
         {title}
       </Text>
+      {laneLabel ? (
+        <Text style={[styles.laneLabel, accentColor ? { backgroundColor: accentColor } : null]} numberOfLines={1} testID="pin-lane-label">
+          {laneLabel}
+        </Text>
+      ) : null}
     </TouchableOpacity>
   );
 });
@@ -51,6 +60,21 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     fontSize: 10,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  accentRing: {
+    borderWidth: 3,
+  },
+  laneLabel: {
+    marginTop: 1,
+    overflow: 'hidden',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    backgroundColor: '#6b7280',
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#ffffff',
     textAlign: 'center',
   },
 });

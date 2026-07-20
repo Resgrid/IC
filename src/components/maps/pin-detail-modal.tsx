@@ -4,6 +4,7 @@ import { useColorScheme } from 'nativewind';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { CommandMarkerActions } from '@/components/maps/command-marker-actions';
 import { CustomBottomSheet } from '@/components/ui/bottom-sheet';
 import { Box } from '@/components/ui/box';
 import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
@@ -119,6 +120,9 @@ export const PinDetailModal: React.FC<PinDetailModalProps> = ({ pin, isOpen, onC
               <Text className="text-sm text-gray-600">{t('map.pin_color')}</Text>
             </Box>
           )}
+
+          {/* Move/assign/release against the active command board (units & personnel only) */}
+          <CommandMarkerActions pin={pin} onDone={onClose} />
         </VStack>
 
         <Divider className="my-4" />

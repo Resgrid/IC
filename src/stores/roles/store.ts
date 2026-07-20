@@ -5,12 +5,12 @@ import { getAllUnitRolesAndAssignmentsForDepartment, getRoleAssignmentsForUnit, 
 import { type PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
 import { type ActiveUnitRoleResultData } from '@/models/v4/unitRoles/activeUnitRoleResultData';
 import { type SetUnitRolesInput } from '@/models/v4/unitRoles/setUnitRolesInput';
-import { type UnitRoleResultData } from '@/models/v4/unitRoles/unitRoleResultData';
 
 import { useCoreStore } from '../app/core-store';
 
 interface RolesState {
-  roles: UnitRoleResultData[];
+  /** Department-wide unit roles with their current assignments (FullName empty = open seat). */
+  roles: ActiveUnitRoleResultData[];
   unitRoleAssignments: ActiveUnitRoleResultData[];
   users: PersonnelInfoResultData[];
   isLoading: boolean;
@@ -47,12 +47,6 @@ export const useRolesStore = create<RolesState>((set) => ({
         isLoading: false,
         isInitialized: true,
       });
-
-      const activeUnit = useCoreStore.getState().activeUnit;
-      if (activeUnit) {
-        const unitRoles = await getRoleAssignmentsForUnit(activeUnit.UnitId);
-        set({ unitRoleAssignments: unitRoles.Data });
-      }
     } catch (error) {
       set({
         error: 'Failed to fetch unit roles and assignments',

@@ -1,6 +1,6 @@
 # Docker Deployment Guide
 
-This guide explains how to deploy the Resgrid Unit application using Docker.
+This guide explains how to deploy the Resgrid IC application using Docker.
 
 ## Quick Start
 
@@ -11,14 +11,14 @@ This guide explains how to deploy the Resgrid Unit application using Docker.
 docker pull ghcr.io/resgrid/unit:latest
 
 # Or pull from Docker Hub (if configured)
-docker pull <dockerhub-username>/resgrid-unit:latest
+docker pull <dockerhub-username>/resgrid-ic:latest
 
 # Run the container
 docker run -d \
   -p 8080:80 \
-  -e UNIT_BASE_API_URL="https://api.example.com" \
-  -e UNIT_APP_KEY="your-app-key" \
-  --name resgrid-unit \
+  -e IC_BASE_API_URL="https://api.example.com" \
+  -e IC_APP_KEY="your-app-key" \
+  --name resgrid-ic \
   ghcr.io/resgrid/unit:latest
 ```
 
@@ -26,14 +26,14 @@ docker run -d \
 
 ```bash
 # Build the Docker image
-docker build -t resgrid-unit:latest .
+docker build -t resgrid-ic:latest .
 
 # Run the container
 docker run -d \
   -p 8080:80 \
-  -e UNIT_BASE_API_URL="https://api.example.com" \
-  --name resgrid-unit \
-  resgrid-unit:latest
+  -e IC_BASE_API_URL="https://api.example.com" \
+  --name resgrid-ic \
+  resgrid-ic:latest
 ```
 
 ## Environment Variables
@@ -42,26 +42,26 @@ All configuration is done via environment variables at runtime. The Docker image
 
 ### Required Variables
 
-- `UNIT_BASE_API_URL` - Base URL for the API (e.g., `https://api.resgrid.com`)
+- `IC_BASE_API_URL` - Base URL for the API (e.g., `https://api.resgrid.com`)
 
 ### Optional Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `APP_ENV` | `production` | Application environment |
-| `UNIT_NAME` | `Resgrid Unit` | Application name |
-| `UNIT_SCHEME` | `ResgridUnit` | URL scheme |
-| `UNIT_VERSION` | `0.0.1` | Application version |
-| `UNIT_API_VERSION` | `v4` | API version |
-| `UNIT_RESGRID_API_URL` | `/api/v4` | Resgrid API URL path |
-| `UNIT_CHANNEL_HUB_NAME` | `eventingHub` | SignalR channel hub name |
-| `UNIT_REALTIME_GEO_HUB_NAME` | `geolocationHub` | SignalR geolocation hub name |
-| `UNIT_LOGGING_KEY` | `""` | Logging service key |
-| `UNIT_APP_KEY` | `""` | Application key |
-| `UNIT_MAPBOX_PUBKEY` | `""` | Mapbox public key |
-| `UNIT_SENTRY_DSN` | `""` | Sentry DSN for error tracking |
-| `UNIT_COUNTLY_APP_KEY` | `""` | Countly app key for analytics |
-| `UNIT_COUNTLY_SERVER_URL` | `""` | Countly server URL |
+| `IC_NAME` | `Resgrid IC` | Application name |
+| `IC_SCHEME` | `ResgridIC` | URL scheme |
+| `IC_VERSION` | `0.0.1` | Application version |
+| `IC_API_VERSION` | `v4` | API version |
+| `IC_RESGRID_API_URL` | `/api/v4` | Resgrid API URL path |
+| `IC_CHANNEL_HUB_NAME` | `eventingHub` | SignalR channel hub name |
+| `IC_REALTIME_GEO_HUB_NAME` | `geolocationHub` | SignalR geolocation hub name |
+| `IC_LOGGING_KEY` | `""` | Logging service key |
+| `IC_APP_KEY` | `""` | Application key |
+| `IC_MAPBOX_PUBKEY` | `""` | Mapbox public key |
+| `IC_SENTRY_DSN` | `""` | Sentry DSN for error tracking |
+| `IC_COUNTLY_APP_KEY` | `""` | Countly app key for analytics |
+| `IC_COUNTLY_SERVER_URL` | `""` | Countly server URL |
 
 ## Docker Compose
 
@@ -71,26 +71,26 @@ Create a `docker-compose.yml` file:
 version: '3.8'
 
 services:
-  resgrid-unit:
+  resgrid-ic:
     image: ghcr.io/resgrid/unit:latest
     ports:
       - "8080:80"
     environment:
       - APP_ENV=production
-      - UNIT_NAME=Resgrid Unit
-      - UNIT_SCHEME=ResgridUnit
-      - UNIT_VERSION=7.1
-      - UNIT_BASE_API_URL=https://api.resgrid.com
-      - UNIT_API_VERSION=v4
-      - UNIT_RESGRID_API_URL=/api/v4
-      - UNIT_CHANNEL_HUB_NAME=eventingHub
-      - UNIT_REALTIME_GEO_HUB_NAME=geolocationHub
-      - UNIT_LOGGING_KEY=${UNIT_LOGGING_KEY}
-      - UNIT_APP_KEY=${UNIT_APP_KEY}
-      - UNIT_MAPBOX_PUBKEY=${UNIT_MAPBOX_PUBKEY}
-      - UNIT_SENTRY_DSN=${UNIT_SENTRY_DSN}
-      - UNIT_COUNTLY_APP_KEY=${UNIT_COUNTLY_APP_KEY}
-      - UNIT_COUNTLY_SERVER_URL=${UNIT_COUNTLY_SERVER_URL}
+      - IC_NAME=Resgrid IC
+      - IC_SCHEME=ResgridIC
+      - IC_VERSION=7.1
+      - IC_BASE_API_URL=https://api.resgrid.com
+      - IC_API_VERSION=v4
+      - IC_RESGRID_API_URL=/api/v4
+      - IC_CHANNEL_HUB_NAME=eventingHub
+      - IC_REALTIME_GEO_HUB_NAME=geolocationHub
+      - IC_LOGGING_KEY=${IC_LOGGING_KEY}
+      - IC_APP_KEY=${IC_APP_KEY}
+      - IC_MAPBOX_PUBKEY=${IC_MAPBOX_PUBKEY}
+      - IC_SENTRY_DSN=${IC_SENTRY_DSN}
+      - IC_COUNTLY_APP_KEY=${IC_COUNTLY_APP_KEY}
+      - IC_COUNTLY_SERVER_URL=${IC_COUNTLY_SERVER_URL}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
@@ -111,13 +111,13 @@ docker-compose up -d
 Create a `.env` file (never commit this to version control):
 
 ```env
-UNIT_BASE_API_URL=https://api.resgrid.com
-UNIT_APP_KEY=your-secret-app-key
-UNIT_LOGGING_KEY=your-logging-key
-UNIT_MAPBOX_PUBKEY=your-mapbox-public-key
-UNIT_SENTRY_DSN=your-sentry-dsn
-UNIT_COUNTLY_APP_KEY=your-countly-app-key
-UNIT_COUNTLY_SERVER_URL=https://countly.example.com
+IC_BASE_API_URL=https://api.resgrid.com
+IC_APP_KEY=your-secret-app-key
+IC_LOGGING_KEY=your-logging-key
+IC_MAPBOX_PUBKEY=your-mapbox-public-key
+IC_SENTRY_DSN=your-sentry-dsn
+IC_COUNTLY_APP_KEY=your-countly-app-key
+IC_COUNTLY_SERVER_URL=https://countly.example.com
 ```
 
 Run with the environment file:
@@ -126,7 +126,7 @@ Run with the environment file:
 docker run -d \
   -p 8080:80 \
   --env-file .env \
-  --name resgrid-unit \
+  --name resgrid-ic \
   ghcr.io/resgrid/unit:latest
 ```
 
@@ -138,48 +138,48 @@ Create a `deployment.yaml`:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: resgrid-unit-config
+  name: resgrid-ic-config
 data:
-  UNIT_BASE_API_URL: "https://api.resgrid.com"
-  UNIT_API_VERSION: "v4"
-  UNIT_NAME: "Resgrid Unit"
+  IC_BASE_API_URL: "https://api.resgrid.com"
+  IC_API_VERSION: "v4"
+  IC_NAME: "Resgrid IC"
 
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: resgrid-unit-secrets
+  name: resgrid-ic-secrets
 type: Opaque
 stringData:
-  UNIT_APP_KEY: "your-secret-app-key"
-  UNIT_LOGGING_KEY: "your-logging-key"
-  UNIT_MAPBOX_PUBKEY: "your-mapbox-public-key"
+  IC_APP_KEY: "your-secret-app-key"
+  IC_LOGGING_KEY: "your-logging-key"
+  IC_MAPBOX_PUBKEY: "your-mapbox-public-key"
 
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: resgrid-unit
+  name: resgrid-ic
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: resgrid-unit
+      app: resgrid-ic
   template:
     metadata:
       labels:
-        app: resgrid-unit
+        app: resgrid-ic
     spec:
       containers:
-      - name: resgrid-unit
+      - name: resgrid-ic
         image: ghcr.io/resgrid/unit:latest
         ports:
         - containerPort: 80
         envFrom:
         - configMapRef:
-            name: resgrid-unit-config
+            name: resgrid-ic-config
         - secretRef:
-            name: resgrid-unit-secrets
+            name: resgrid-ic-secrets
         resources:
           requests:
             memory: "128Mi"
@@ -204,14 +204,14 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: resgrid-unit
+  name: resgrid-ic
 spec:
   type: LoadBalancer
   ports:
   - port: 80
     targetPort: 80
   selector:
-    app: resgrid-unit
+    app: resgrid-ic
 ```
 
 Deploy:
@@ -247,25 +247,25 @@ This approach allows the same Docker image to be used across multiple environmen
 ### View container logs
 
 ```bash
-docker logs resgrid-unit
+docker logs resgrid-ic
 ```
 
 ### Verify environment variables are injected
 
 ```bash
-docker exec resgrid-unit cat /usr/share/nginx/html/env-config.js
+docker exec resgrid-ic cat /usr/share/nginx/html/env-config.js
 ```
 
 ### Access container shell
 
 ```bash
-docker exec -it resgrid-unit sh
+docker exec -it resgrid-ic sh
 ```
 
 ### Check nginx configuration
 
 ```bash
-docker exec resgrid-unit cat /etc/nginx/nginx.conf
+docker exec resgrid-ic cat /etc/nginx/nginx.conf
 ```
 
 ## Multi-Architecture Support
@@ -284,14 +284,14 @@ To update to a new version:
 docker pull ghcr.io/resgrid/unit:latest
 
 # Stop and remove the old container
-docker stop resgrid-unit
-docker rm resgrid-unit
+docker stop resgrid-ic
+docker rm resgrid-ic
 
 # Start a new container with the updated image
 docker run -d \
   -p 8080:80 \
   --env-file .env \
-  --name resgrid-unit \
+  --name resgrid-ic \
   ghcr.io/resgrid/unit:latest
 ```
 

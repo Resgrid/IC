@@ -2,6 +2,10 @@ import { render, screen } from '@testing-library/react-native';
 import React from 'react';
 
 // Mock Platform before any other imports
+jest.mock('@/components/command/start-command-sheet', () => ({
+  StartCommandSheet: () => null,
+}));
+
 jest.mock('react-native', () => ({
   Platform: {
     OS: 'ios',
@@ -106,19 +110,12 @@ const mockSecurityStore = {
 
 const mockCoreStore = {
   activeCall: null,
-  activeStatuses: [],
-  activeUnit: null,
   setActiveCall: jest.fn(),
 };
 
 const mockLocationStore = {
   latitude: 40.7589,
   longitude: -73.9851,
-};
-
-const mockStatusBottomSheetStore = {
-  setIsOpen: jest.fn(),
-  setSelectedCall: jest.fn(),
 };
 
 const mockToastStore = {
@@ -140,10 +137,6 @@ jest.mock('@/stores/app/core-store', () => ({
 
 jest.mock('@/stores/app/location-store', () => ({
   useLocationStore: jest.fn(),
-}));
-
-jest.mock('@/stores/status/store', () => ({
-  useStatusBottomSheetStore: jest.fn(),
 }));
 
 jest.mock('@/stores/toast/store', () => ({
@@ -243,10 +236,6 @@ jest.mock('../../../components/calls/close-call-bottom-sheet', () => ({
   CloseCallBottomSheet: () => <div data-testid="close-call-bottom-sheet">Close Call Sheet</div>,
 }));
 
-jest.mock('../../../components/status/status-bottom-sheet', () => ({
-  StatusBottomSheet: () => <div data-testid="status-bottom-sheet">Status Sheet</div>,
-}));
-
 // Mock UI components
 jest.mock('@/components/ui', () => ({
   FocusAwareStatusBar: () => null,
@@ -341,7 +330,6 @@ describe('CallDetail', () => {
   const { securityStore, useSecurityStore } = require('@/stores/security/store');
   const { useCoreStore } = require('@/stores/app/core-store');
   const { useLocationStore } = require('@/stores/app/location-store');
-  const { useStatusBottomSheetStore } = require('@/stores/status/store');
   const { useToastStore } = require('@/stores/toast/store');
 
   beforeEach(() => {
@@ -369,13 +357,6 @@ describe('CallDetail', () => {
         return selector(mockLocationStore);
       }
       return mockLocationStore;
-    });
-
-    useStatusBottomSheetStore.mockImplementation((selector: any) => {
-      if (selector) {
-        return selector(mockStatusBottomSheetStore);
-      }
-      return mockStatusBottomSheetStore;
     });
 
     useToastStore.mockImplementation((selector: any) => {

@@ -38,15 +38,23 @@ jest.mock('@/lib/logging', () => ({
 
 jest.mock('@/lib/storage/app', () => ({
   getDeviceUuid: jest.fn(() => 'test-device-uuid'),
+  getBaseApiUrl: jest.fn(() => 'https://api.mock.com'),
 }));
 
 jest.mock('@/api/devices/push', () => ({
-  registerUnitDevice: jest.fn(),
+  registerDevice: jest.fn(),
+}));
+
+jest.mock('@/lib/auth', () => ({
+  useAuthStore: jest.fn((selector) => {
+    const state = { userId: 'test-user' };
+    return selector ? selector(state) : state;
+  }),
 }));
 
 jest.mock('@/stores/app/core-store', () => ({
   useCoreStore: jest.fn((selector) => {
-    const state = { activeUnitId: 'test-unit' };
+    const state = { activeCall: null };
     return selector ? selector(state) : state;
   }),
 }));
@@ -516,7 +524,7 @@ describe('Push Notification Service Integration', () => {
       mockHasPermission.mockResolvedValueOnce(1); // AUTHORIZED
       mockGetToken.mockResolvedValueOnce('test-fcm-token');
 
-      const token = await pushNotificationService.registerForPushNotifications('unit-123', 'TEST');
+      const token = await pushNotificationService.registerForPushNotifications('user-123', 'TEST');
 
       expect(token).toBe('test-fcm-token');
       expect(mockHasPermission).toHaveBeenCalled();
@@ -528,7 +536,7 @@ describe('Push Notification Service Integration', () => {
       mockFcmRequestPermission.mockResolvedValueOnce(1); // AUTHORIZED
       mockGetToken.mockResolvedValueOnce('test-fcm-token');
 
-      const token = await pushNotificationService.registerForPushNotifications('unit-123', 'TEST');
+      const token = await pushNotificationService.registerForPushNotifications('user-123', 'TEST');
 
       expect(token).toBe('test-fcm-token');
       expect(mockHasPermission).toHaveBeenCalled();
@@ -540,7 +548,7 @@ describe('Push Notification Service Integration', () => {
       mockHasPermission.mockResolvedValueOnce(2); // DENIED
       mockFcmRequestPermission.mockResolvedValueOnce(2); // DENIED
 
-      const token = await pushNotificationService.registerForPushNotifications('unit-123', 'TEST');
+      const token = await pushNotificationService.registerForPushNotifications('user-123', 'TEST');
 
       expect(token).toBeNull();
       expect(mockGetToken).not.toHaveBeenCalled();

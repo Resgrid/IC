@@ -6,7 +6,7 @@ import { useStyleContext, withStyleContext } from '@gluestack-ui/nativewind-util
 import { AnimatePresence, createMotionAnimatedComponent, Motion } from '@legendapp/motion';
 import { cssInterop } from 'nativewind';
 import React from 'react';
-import { Dimensions, Pressable, ScrollView, View } from 'react-native';
+import { Dimensions, Platform, Pressable, ScrollView, View } from 'react-native';
 
 const AnimatedPressable = createMotionAnimatedComponent(Pressable);
 const SCOPE = 'MODAL';
@@ -19,6 +19,11 @@ const sizes: { [key: string]: number } = {
   full: 1,
 };
 
+// @legendapp/motion animations don't run on web — AnimatePresence would keep the
+// drawer mounted forever waiting for an exit animation that never completes.
+// On web, swap in a plain passthrough so open/close mount/unmount instantly.
+const PassthroughPresence = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
+
 const UIDrawer = createDrawer({
   Root: withStyleContext(View, SCOPE),
   Backdrop: AnimatedPressable,
@@ -27,7 +32,7 @@ const UIDrawer = createDrawer({
   CloseButton: Pressable,
   Footer: View,
   Header: View,
-  AnimatePresence: AnimatePresence,
+  AnimatePresence: Platform.OS === 'web' ? (PassthroughPresence as typeof AnimatePresence) : AnimatePresence,
 });
 
 // @ts-ignore - Motion component type compatibility issue
@@ -152,7 +157,11 @@ const Drawer = React.forwardRef<React.ElementRef<typeof UIDrawer>, IDrawerProps>
   return <UIDrawer ref={ref} {...props} pointerEvents="box-none" className={drawerStyle({ size, anchor, class: className })} context={contextValue} />;
 });
 
-const backdropInitial = { opacity: 0 };
+// @legendapp/motion does not run its enter animation on web — components stay stuck
+// at their `initial` values. On web, mount directly in the visible state instead.
+const isWebPlatform = Platform.OS === 'web';
+
+const backdropInitial = isWebPlatform ? { opacity: 0.5 } : { opacity: 0 };
 const backdropAnimate = { opacity: 0.5 };
 const backdropExit = { opacity: 0 };
 const backdropTransition = {
@@ -189,10 +198,13 @@ const DrawerContent = React.forwardRef<React.ElementRef<typeof UIDrawer.Content>
 
   const isHorizontal = parentAnchor === 'left' || parentAnchor === 'right';
 
-  const initialObj = React.useMemo(
-    () => (isHorizontal ? { x: parentAnchor === 'left' ? -drawerWidth : drawerWidth } : { y: parentAnchor === 'top' ? -drawerHeight : drawerHeight }),
-    [isHorizontal, parentAnchor, drawerWidth, drawerHeight]
-  );
+  const initialObj = React.useMemo(() => {
+    // Web: skip the slide-in — motion enter animations don't run there
+    if (isWebPlatform) {
+      return isHorizontal ? { x: 0 } : { y: 0 };
+    }
+    return isHorizontal ? { x: parentAnchor === 'left' ? -drawerWidth : drawerWidth } : { y: parentAnchor === 'top' ? -drawerHeight : drawerHeight };
+  }, [isHorizontal, parentAnchor, drawerWidth, drawerHeight]);
 
   const animateObj = React.useMemo(() => (isHorizontal ? { x: 0 } : { y: 0 }), [isHorizontal]);
 
