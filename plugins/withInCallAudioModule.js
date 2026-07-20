@@ -194,7 +194,7 @@ class InCallAudioPackage : ReactPackage {
 /**
  * Helper to resolve package name
  */
-function resolveBasePackageName(projectRoot, fallback = 'com.resgrid.unit') {
+function resolveBasePackageName(projectRoot, fallback = 'com.resgrid.command') {
   const namespaceRegex = /namespace\s*(?:=)?\s*['"]([^'"]+)['"]/;
 
   const groovyPath = path.join(projectRoot, 'android', 'app', 'build.gradle');

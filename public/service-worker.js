@@ -1,12 +1,12 @@
 /* eslint-disable no-undef */
 /* eslint-disable no-unused-vars */
 /**
- * Service Worker for Resgrid Unit Web Push Notifications
+ * Service Worker for Resgrid IC Web Push Notifications
  * This file handles background push notifications when the app is not in focus
  */
 
 // Cache name for offline support (optional)
-const CACHE_NAME = 'resgrid-unit-v1';
+const CACHE_NAME = 'resgrid-ic-v1';
 
 // Store pending notification data for newly opened windows
 const pendingNotifications = new Map();
@@ -27,7 +27,7 @@ self.addEventListener('push', function (event) {
     }
   }
 
-  const title = data.title || 'Resgrid Unit';
+  const title = data.title || 'Resgrid IC';
   const options = {
     body: data.body || data.message || 'You have a new notification',
     icon: '/icon-192.png',

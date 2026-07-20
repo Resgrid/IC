@@ -1,7 +1,7 @@
 <div align='center'>
 
-<h1>Resgrid Unit Application</h1>
-<p>Resgrid Unit is a tablet and desktop optimized application for use in Appratuses, Vehicles in Teams or Squads</p>
+<h1>Resgrid IC Application</h1>
+<p>Resgrid IC is a tablet and desktop optimized application for use in Appratuses, Vehicles in Teams or Squads</p>
 
 <img src=https://github.com/Resgrid/Unit/blob/8616cdd54ce7e8ccba401053be3fa335ea638d76/imgs/UnitMainScreen.png?raw=true alt="logo" width= height= />
 
@@ -34,7 +34,7 @@
 
 ### :package: Deployment Options
 
-Resgrid Unit can be deployed in multiple ways:
+Resgrid IC can be deployed in multiple ways:
 
 #### 📱 Mobile Applications
 - **Android**: APK and AAB builds for Google Play Store and direct distribution

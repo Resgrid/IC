@@ -3,8 +3,8 @@
  * https://www.electron.build/configuration/configuration
  */
 module.exports = {
-  appId: 'com.resgrid.unit',
-  productName: 'Resgrid Unit',
+  appId: 'com.resgrid.command',
+  productName: 'Resgrid IC',
   copyright: 'Copyright © 2024 Resgrid',
 
   directories: {
@@ -57,7 +57,7 @@ module.exports = {
     installerHeaderIcon: 'assets/icon.ico',
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
-    shortcutName: 'Resgrid Unit',
+    shortcutName: 'Resgrid IC',
     license: 'LICENSE',
   },
 
@@ -74,10 +74,10 @@ module.exports = {
     vendor: 'Resgrid',
     desktop: {
       entry: {
-        Name: 'Resgrid Unit',
-        Comment: 'Resgrid Unit Management Application',
+        Name: 'Resgrid IC',
+        Comment: 'Resgrid Incident Command Application',
         Category: 'Office;Utility;',
-        StartupWMClass: 'resgrid-unit',
+        StartupWMClass: 'resgrid-ic',
       },
     },
   },

@@ -14,6 +14,25 @@ import { Env } from '@/lib/env';
 // Set the access token globally
 mapboxgl.accessToken = Env.IC_MAPBOX_PUBKEY;
 
+// Prototype-level guard: mapbox-gl's pointer handlers (mouseover/mousemove) call
+// Map#unproject synchronously from DOM events. During style load or map teardown the
+// transform's elevation/terrain data can be half-initialized, which throws
+// "Cannot read properties of undefined (reading '0')" deep in pointRayIntersection.
+// The instance-level patch below doesn't cover every internal call path, so guard the
+// prototype once for all instances and return a harmless coordinate on failure.
+const mapPrototype = mapboxgl.Map.prototype as unknown as { unproject: (point: unknown) => unknown; __unprojectGuarded?: boolean };
+if (!mapPrototype.__unprojectGuarded) {
+  mapPrototype.__unprojectGuarded = true;
+  const protoUnproject = mapPrototype.unproject;
+  mapPrototype.unproject = function (point: unknown) {
+    try {
+      return protoUnproject.call(this, point);
+    } catch {
+      return new mapboxgl.LngLat(0, 0);
+    }
+  };
+}
+
 // Context to share map instance with child components
 export const MapContext = React.createContext<any | null>(null);
 
@@ -338,9 +357,28 @@ export const MapView = forwardRef<any, MapViewProps>(
 
       return () => {
         if (map.current) {
-          (map.current as any).__removed = true;
-          map.current.remove();
+          const dyingMap = map.current;
+          (dyingMap as any).__removed = true;
           map.current = null;
+
+          // Stop pointer events from reaching mapbox's DOM handlers while the map is
+          // torn down — a hover racing remove() can otherwise throw from half-destroyed
+          // transform internals.
+          try {
+            const canvas = dyingMap.getCanvas();
+            if (canvas) {
+              canvas.style.pointerEvents = 'none';
+            }
+          } catch {
+            // Canvas may already be gone
+          }
+
+          try {
+            dyingMap.remove();
+          } catch {
+            // remove() can throw if an in-flight interaction is being processed —
+            // the map is discarded either way.
+          }
         }
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps

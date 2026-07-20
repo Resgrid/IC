@@ -1,9 +1,10 @@
-import { AlertTriangle, MapPin, Phone, Timer } from 'lucide-react-native';
+import { AlertTriangle, ClipboardList, MapPin, Phone, Timer } from 'lucide-react-native';
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Animated, ScrollView, StyleSheet } from 'react-native';
 
 import { Box } from '@/components/ui/box';
+import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
 import { HStack } from '@/components/ui/hstack';
 import { HtmlRenderer } from '@/components/ui/html-renderer';
 import { Icon } from '@/components/ui/icon';
@@ -32,9 +33,15 @@ interface CallCardProps {
   showTimerIcon?: boolean;
   isTimerOverdue?: boolean;
   dispatches?: DispatchedEventResultData[];
+  /** When set, renders a "Start Command" / "Open Command Board" action for this call. */
+  onStartCommand?: () => void;
+  /** True when this call's board is the one currently shown on the Command Board tab. */
+  isCommandCall?: boolean;
+  /** True when a command board exists for this call (it may not be the active one). */
+  hasCommand?: boolean;
 }
 
-export const CallCard: React.FC<CallCardProps> = ({ call, priority, showTimerIcon = false, isTimerOverdue = false, dispatches }) => {
+export const CallCard: React.FC<CallCardProps> = ({ call, priority, showTimerIcon = false, isTimerOverdue = false, dispatches, onStartCommand, isCommandCall = false, hasCommand = false }) => {
   const { t } = useTranslation();
   const textColor = invertColor(getColor(call, priority), true);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -179,6 +186,20 @@ export const CallCard: React.FC<CallCardProps> = ({ call, priority, showTimerIco
           <HtmlRenderer html={call.Nature} style={StyleSheet.flatten([styles.container, { height: 80 }])} textColor={textColor} />
         </Box>
       )}
+
+      {/* Start Command action — opens (or creates) the IC board for this call.
+          Multiple boards can exist at once; the active one shows a badge. */}
+      {onStartCommand ? (
+        <Button onPress={onStartCommand} size="sm" className="mt-3 bg-white/80" testID={`start-command-${call.CallId}`}>
+          <ButtonIcon as={ClipboardList} className="text-gray-900" />
+          <ButtonText className="text-gray-900">{hasCommand ? t('command.open_board') : t('command.start_command')}</ButtonText>
+          {isCommandCall ? (
+            <Text className="ml-2 text-xs font-semibold text-primary-600" testID={`command-active-badge-${call.CallId}`}>
+              {t('command.active_badge')}
+            </Text>
+          ) : null}
+        </Button>
+      ) : null}
     </Box>
   );
 };

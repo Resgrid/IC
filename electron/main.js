@@ -148,7 +148,7 @@ ipcMain.handle('show-notification', async (event, { title, body, data }) => {
   }
 
   const notification = new Notification({
-    title: title || 'Resgrid Unit',
+    title: title || 'Resgrid IC',
     body: body || '',
     silent: false,
     icon: path.join(__dirname, '../assets/icon.png'),

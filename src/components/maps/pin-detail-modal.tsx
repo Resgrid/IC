@@ -4,6 +4,7 @@ import { useColorScheme } from 'nativewind';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { CommandMarkerActions } from '@/components/maps/command-marker-actions';
 import { CustomBottomSheet } from '@/components/ui/bottom-sheet';
 import { Box } from '@/components/ui/box';
 import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
@@ -36,7 +37,6 @@ export const PinDetailModal: React.FC<PinDetailModalProps> = ({ pin, isOpen, onC
   if (!pin) return null;
 
   const isCallPin = pin.ImagePath?.toLowerCase() === 'call' || pin.Type === 0;
-  const isPoiPin = pin.Type === 4;
 
   const handleRouteToLocation = async () => {
     if (!pin.Latitude || !pin.Longitude) {
@@ -58,13 +58,6 @@ export const PinDetailModal: React.FC<PinDetailModalProps> = ({ pin, isOpen, onC
   const handleViewCallDetails = () => {
     if (isCallPin && pin.Id) {
       router.push(`/call/${pin.Id}`);
-      onClose();
-    }
-  };
-
-  const handleViewPoiDetails = () => {
-    if (isPoiPin && pin.Id) {
-      router.push(`/routes/poi/${pin.Id}` as any);
       onClose();
     }
   };
@@ -127,6 +120,9 @@ export const PinDetailModal: React.FC<PinDetailModalProps> = ({ pin, isOpen, onC
               <Text className="text-sm text-gray-600">{t('map.pin_color')}</Text>
             </Box>
           )}
+
+          {/* Move/assign/release against the active command board (units & personnel only) */}
+          <CommandMarkerActions pin={pin} onDone={onClose} />
         </VStack>
 
         <Divider className="my-4" />
@@ -153,12 +149,6 @@ export const PinDetailModal: React.FC<PinDetailModalProps> = ({ pin, isOpen, onC
             </>
           )}
 
-          {isPoiPin ? (
-            <Button onPress={handleViewPoiDetails} variant="outline" className="w-full">
-              <ButtonIcon as={MapPinIcon} />
-              <ButtonText>{t('map.view_poi_details')}</ButtonText>
-            </Button>
-          ) : null}
         </VStack>
       </Box>
     </CustomBottomSheet>

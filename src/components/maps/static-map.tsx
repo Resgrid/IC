@@ -39,13 +39,14 @@ const StaticMap: React.FC<StaticMapProps> = ({ latitude, longitude, address, zoo
     <Box style={StyleSheet.flatten([styles.container, { height }])}>
       <Mapbox.MapView style={StyleSheet.flatten([styles.map, { height }])} styleURL={mapStyle} logoEnabled={false} attributionEnabled={false} compassEnabled={true} zoomEnabled={true} rotateEnabled={true}>
         <Mapbox.Camera zoomLevel={zoom} centerCoordinate={[longitude, latitude]} animationMode="flyTo" animationDuration={1000} />
-        {/* Marker pin for the location */}
-        <Mapbox.PointAnnotation id="destinationPoint" coordinate={[longitude, latitude]} title={address || 'Location'}>
+        {/* Marker pin for the location. MarkerView (not PointAnnotation) — custom children
+            inside PointAnnotation don't render reliably on iOS/Android with @rnmapbox/maps. */}
+        <Mapbox.MarkerView id="destinationPoint" coordinate={[longitude, latitude]} anchor={{ x: 0.5, y: 1.0 }} allowOverlap={true}>
           <View style={styles.markerContainer}>
             <View style={styles.markerPin} />
             <View style={styles.markerDot} />
           </View>
-        </Mapbox.PointAnnotation>
+        </Mapbox.MarkerView>
 
         {/* Show user location if requested */}
         {showUserLocation && <Mapbox.UserLocation visible={true} showsUserHeadingIndicator={true} />}

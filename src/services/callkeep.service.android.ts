@@ -78,9 +78,9 @@ export class CallKeepService {
           // Self-managed connection service for VoIP apps
           selfManaged: true,
           foregroundService: {
-            channelId: 'com.resgrid.unit.voip',
+            channelId: 'com.resgrid.command.voip',
             channelName: 'Voice Calls',
-            notificationTitle: 'Resgrid Unit Voice Call',
+            notificationTitle: 'Resgrid IC Voice Call',
             notificationIcon: 'ic_launcher',
           },
         },
@@ -119,7 +119,7 @@ export class CallKeepService {
     if (!this.isSetup) {
       // Auto-setup if not done (defensive programming)
       await this.setup({
-        appName: 'Resgrid Unit',
+        appName: 'Resgrid IC',
         maximumCallGroups: 1,
         maximumCallsPerCallGroup: 1,
         includesCallsInRecents: false,

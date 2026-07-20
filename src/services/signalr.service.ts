@@ -548,7 +548,7 @@ class SignalRService {
     }
   }
 
-  public async invoke(hubName: string, method: string, data: unknown): Promise<void> {
+  public async invoke(hubName: string, method: string, data?: unknown): Promise<void> {
     // Wait for any ongoing connection attempt to complete
     const existingLock = this.connectionLocks.get(hubName);
     if (existingLock) {
@@ -562,7 +562,9 @@ class SignalRService {
     const connection = this.connections.get(hubName);
     if (connection) {
       try {
-        return await connection.invoke(method, data);
+        // Hub methods without parameters must be invoked without a data argument —
+        // SignalR matches server methods by arity.
+        return data === undefined ? await connection.invoke(method) : await connection.invoke(method, data);
       } catch (error) {
         logger.error({
           message: `Error invoking method ${method} from hub: ${hubName}`,

@@ -1,7 +1,9 @@
 import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import Mapbox from '@/components/maps/mapbox';
 import { type MAP_ICONS } from '@/constants/map-icons';
+import { type CommandMarkerInfo } from '@/hooks/use-command-map-overlay';
 import { isPoiMarker } from '@/lib/poi-marker-utils';
 import { type MapMakerInfoData } from '@/models/v4/mapping/getMapDataAndMarkersData';
 
@@ -12,6 +14,8 @@ type MapIconKey = keyof typeof MAP_ICONS;
 
 interface MapPinsProps {
   pins: MapMakerInfoData[];
+  /** Active command board context by marker id — lane label + color enrichment. */
+  commandOverlay?: Record<string, CommandMarkerInfo>;
   onPinPress?: (pin: MapMakerInfoData) => void;
 }
 
@@ -22,12 +26,14 @@ interface MapPinsProps {
  * POI markers use the SVG shape + icon rendering (per the "POI Map Icon Renderer"
  * reference document). Non-POI markers use PNG images from the MAP_ICONS lookup.
  */
-const MapPin = React.memo(({ pin, onPinPress }: { pin: MapMakerInfoData; onPinPress?: (pin: MapMakerInfoData) => void }) => {
+const MapPin = React.memo(({ pin, commandInfo, onPinPress }: { pin: MapMakerInfoData; commandInfo?: CommandMarkerInfo; onPinPress?: (pin: MapMakerInfoData) => void }) => {
+  const { t } = useTranslation();
   const handlePress = useCallback(() => {
     onPinPress?.(pin);
   }, [onPinPress, pin]);
 
   const poi = isPoiMarker(pin);
+  const laneLabel = commandInfo ? commandInfo.laneName || t('command.unassigned') : undefined;
 
   return (
     <Mapbox.MarkerView
@@ -42,7 +48,7 @@ const MapPin = React.memo(({ pin, onPinPress }: { pin: MapMakerInfoData; onPinPr
       {poi ? (
         <PoiMarker poiImage={pin.PoiImage} imagePath={pin.ImagePath} color={pin.Color} marker={pin.Marker} title={pin.Title} size={36} onPress={handlePress} />
       ) : (
-        <PinMarker imagePath={pin.ImagePath as MapIconKey} poiImage={pin.PoiImage as MapIconKey} title={pin.Title} size={32} onPress={handlePress} />
+        <PinMarker imagePath={pin.ImagePath as MapIconKey} poiImage={pin.PoiImage as MapIconKey} title={pin.Title} laneLabel={laneLabel} accentColor={commandInfo?.laneColor} size={32} onPress={handlePress} />
       )}
     </Mapbox.MarkerView>
   );
@@ -50,11 +56,11 @@ const MapPin = React.memo(({ pin, onPinPress }: { pin: MapMakerInfoData; onPinPr
 
 MapPin.displayName = 'MapPin';
 
-const MapPins: React.FC<MapPinsProps> = ({ pins, onPinPress }) => {
+const MapPins: React.FC<MapPinsProps> = ({ pins, commandOverlay, onPinPress }) => {
   return (
     <>
       {pins.map((pin) => (
-        <MapPin key={`pin-${pin.Id}`} pin={pin} onPinPress={onPinPress} />
+        <MapPin key={`pin-${pin.Id}`} pin={pin} commandInfo={commandOverlay?.[pin.Id]} onPinPress={onPinPress} />
       ))}
     </>
   );

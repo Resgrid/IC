@@ -49,10 +49,26 @@ export class CacheManager {
     const cacheItem: CacheItem<T> = JSON.parse(cached);
 
     if (this.isExpired(cacheItem.timestamp, cacheItem.expiresIn)) {
-      storage.delete(key);
+      // Keep the entry on disk — getStale() serves it as an offline fallback.
       return null;
     }
 
+    return cacheItem.data;
+  }
+
+  /**
+   * Returns the cached value even when its TTL has expired.
+   * Used as a fallback when the device is offline or a request fails.
+   */
+  getStale<T>(endpoint: string, params?: Record<string, unknown>): T | null {
+    const key = this.getCacheKey(endpoint, params);
+    const cached = storage.getString(key);
+
+    if (!cached) {
+      return null;
+    }
+
+    const cacheItem: CacheItem<T> = JSON.parse(cached);
     return cacheItem.data;
   }
 

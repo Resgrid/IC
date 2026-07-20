@@ -8,6 +8,7 @@ import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native'
 
 import { VideoFeedTabContent } from '@/components/call-video-feeds/video-feed-tab-content';
 import { CheckInTabContent } from '@/components/check-in-timers/check-in-tab-content';
+import { StartCommandSheet } from '@/components/command/start-command-sheet';
 import { Loading } from '@/components/common/loading';
 import ZeroState from '@/components/common/zero-state';
 // Import a static map component instead of react-native-maps
@@ -24,12 +25,11 @@ import { VStack } from '@/components/ui/vstack';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { logger } from '@/lib/logging';
 import { openMapsWithDirections } from '@/lib/navigation';
-import { useCoreStore } from '@/stores/app/core-store';
 import { useLocationStore } from '@/stores/app/location-store';
 import { useCallDetailStore } from '@/stores/calls/detail-store';
 import { useCheckInTimerStore } from '@/stores/check-in-timers/store';
+import { useCommandStore } from '@/stores/command/store';
 import { securityStore } from '@/stores/security/store';
-import { useStatusBottomSheetStore } from '@/stores/status/store';
 import { useToastStore } from '@/stores/toast/store';
 
 import { useCallDetailMenu } from '../../components/calls/call-detail-menu';
@@ -37,7 +37,6 @@ import CallFilesModal from '../../components/calls/call-files-modal';
 import CallImagesModal from '../../components/calls/call-images-modal';
 import CallNotesModal from '../../components/calls/call-notes-modal';
 import { CloseCallBottomSheet } from '../../components/calls/close-call-bottom-sheet';
-import { StatusBottomSheet } from '../../components/status/status-bottom-sheet';
 
 export default function CallDetail() {
   const { id } = useLocalSearchParams();
@@ -62,16 +61,14 @@ export default function CallDetail() {
   const fetchCallDetail = useCallDetailStore((state) => state.fetchCallDetail);
   const reset = useCallDetailStore((state) => state.reset);
   const canUserCreateCalls = securityStore((state) => state.rights?.CanCreateCalls);
-  const activeCall = useCoreStore((state) => state.activeCall);
-  const activeStatuses = useCoreStore((state) => state.activeStatuses);
-  const activeUnit = useCoreStore((state) => state.activeUnit);
-  const setStatusBottomSheetOpen = useStatusBottomSheetStore((state) => state.setIsOpen);
-  const setSelectedCall = useStatusBottomSheetStore((state) => state.setSelectedCall);
+  const activeBoardCallId = useCommandStore((state) => state.activeCallId);
+  const hasCommandBoard = useCommandStore((state) => !!(callId && state.boards[callId]));
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [isImagesModalOpen, setIsImagesModalOpen] = useState(false);
   const [isFilesModalOpen, setIsFilesModalOpen] = useState(false);
   const [isCloseCallModalOpen, setIsCloseCallModalOpen] = useState(false);
   const [isSettingActive, setIsSettingActive] = useState(false);
+  const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
   const showToast = useToastStore((state) => state.showToast);
   const timerStatuses = useCheckInTimerStore((state) => state.timerStatuses);
   const startPolling = useCheckInTimerStore((state) => state.startPolling);
@@ -110,30 +107,38 @@ export default function CallDetail() {
     setIsCloseCallModalOpen(true);
   }, []);
 
-  const handleSetActive = async () => {
+  const startCommandWithTemplate = async (commandDefinitionId: number | null) => {
     if (!call) return;
 
     setIsSettingActive(true);
 
     try {
-      // Set this call as the active call in the core store
-      await useCoreStore.getState().setActiveCall(call.CallId);
+      // Open (or create) the command board for this call and make it the active board
+      await useCommandStore.getState().startCommand(call.CallId, commandDefinitionId);
 
-      // Pre-select the current call and open the status bottom sheet without a pre-selected status
-      setSelectedCall(call);
-      setStatusBottomSheetOpen(true); // No status provided, will start with status selection
+      showToast('success', t('command.start_success'));
 
-      // Show success message
-      showToast('success', t('call_detail.set_active_success'));
+      // Take the user to the command board for this call
+      router.push('/command');
     } catch (error) {
       logger.error({
-        message: 'Failed to set call as active',
+        message: 'Failed to start command for call',
         context: { error, callId: call.CallId },
       });
-      showToast('error', t('call_detail.set_active_error'));
+      showToast('error', t('command.start_error'));
     } finally {
       setIsSettingActive(false);
     }
+  };
+
+  const handleStartCommand = () => {
+    if (!call) return;
+    // Existing boards open directly; new commands pick a template first
+    if (hasCommandBoard) {
+      startCommandWithTemplate(null);
+      return;
+    }
+    setIsTemplatePickerOpen(true);
   };
 
   // Initialize the call detail menu hook
@@ -491,13 +496,25 @@ export default function CallDetail() {
             <Heading size="md">
               {call.Name} ({call.Number})
             </Heading>
-            {/* Show "Set Active" button if this call is not the active call and there is an active unit */}
-            {activeUnit && activeCall?.CallId !== call.CallId && (
-              <Button variant="solid" size="sm" onPress={handleSetActive} disabled={isSettingActive} className={`${isSettingActive ? 'bg-primary-400 opacity-80' : 'bg-primary-500'} shadow-lg`}>
-                {isSettingActive && <ButtonIcon as={LoaderIcon} className="mr-1 animate-spin text-white" />}
-                <ButtonText className="font-medium text-white">{isSettingActive ? t('call_detail.setting_active') : t('call_detail.set_active')}</ButtonText>
+            {/* Start Command opens (or creates) this call's IC board — multiple boards may exist */}
+            <HStack space="sm" className="items-center">
+              {hasCommandBoard && activeBoardCallId === call.CallId ? (
+                <Box className="rounded-full bg-primary-500 px-3 py-1">
+                  <Text className="text-xs font-semibold text-white">{t('command.active_badge')}</Text>
+                </Box>
+              ) : null}
+              <Button
+                testID="start-command-button"
+                variant="solid"
+                size="sm"
+                onPress={handleStartCommand}
+                disabled={isSettingActive}
+                className={`${isSettingActive ? 'bg-primary-400 opacity-80' : 'bg-primary-500'} shadow-lg`}
+              >
+                {isSettingActive ? <ButtonIcon as={LoaderIcon} className="mr-1 animate-spin text-white" /> : null}
+                <ButtonText className="font-medium text-white">{isSettingActive ? t('command.starting') : hasCommandBoard ? t('command.open_board') : t('command.start_command')}</ButtonText>
               </Button>
-            )}
+            </HStack>
           </HStack>
           <VStack className="space-y-1">
             <ScrollView style={{ height: 180 }} nestedScrollEnabled={true} showsVerticalScrollIndicator={true}>
@@ -568,8 +585,8 @@ export default function CallDetail() {
       {/* Close Call Bottom Sheet */}
       <CloseCallBottomSheet isOpen={isCloseCallModalOpen} onClose={() => setIsCloseCallModalOpen(false)} callId={callId} />
 
-      {/* Status Bottom Sheet */}
-      <StatusBottomSheet />
+      {/* Command template picker for starting a new board */}
+      <StartCommandSheet isOpen={isTemplatePickerOpen} onClose={() => setIsTemplatePickerOpen(false)} onStart={(commandDefinitionId) => startCommandWithTemplate(commandDefinitionId)} />
 
       {/* Call Detail Menu ActionSheet */}
       <CallDetailActionSheet />

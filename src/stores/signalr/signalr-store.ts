@@ -236,6 +236,17 @@ export const useSignalRStore = create<SignalRState>((set, get) => ({
         });
         set({ isGeolocationHubConnected: true, error: null });
       });
+
+      // Join the department group — without this the server never sends
+      // onUnitLocationUpdated / onPersonnelLocationUpdated to this client.
+      try {
+        await signalRService.invoke(Env.REALTIME_GEO_HUB_NAME, 'GeolocationConnect');
+      } catch (invokeError) {
+        logger.warn({
+          message: 'Failed to join geolocation department group',
+          context: { error: invokeError },
+        });
+      }
     } catch (error) {
       const err = error instanceof Error ? error : new Error('Unknown error occurred');
       logger.warn({

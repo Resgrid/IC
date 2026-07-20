@@ -1,5 +1,5 @@
 import { router, Stack, useFocusEffect } from 'expo-router';
-import { NavigationIcon } from 'lucide-react-native';
+import { Layers as LayersIcon, NavigationIcon } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -8,14 +8,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getMapDataAndMarkers } from '@/api/mapping/mapping';
 import { Loading } from '@/components/common/loading';
+import { MapLayersSheet } from '@/components/maps/map-layers-sheet';
 import MapPins from '@/components/maps/map-pins';
 import Mapbox from '@/components/maps/mapbox';
 import PinDetailModal from '@/components/maps/pin-detail-modal';
-import { StopMarker } from '@/components/routes/stop-marker';
 import { FocusAwareStatusBar } from '@/components/ui/focus-aware-status-bar';
 import { WeatherAlertBanner } from '@/components/weather-alerts/weather-alert-banner';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useAppLifecycle } from '@/hooks/use-app-lifecycle';
+import { useCommandMapOverlay } from '@/hooks/use-command-map-overlay';
+import { useMapGeolocationUpdates } from '@/hooks/use-map-geolocation-updates';
 import { useMapSignalRUpdates } from '@/hooks/use-map-signalr-updates';
 import { Env } from '@/lib/env';
 import { logger } from '@/lib/logging';
@@ -24,7 +26,6 @@ import { locationService } from '@/services/location';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useLocationStore } from '@/stores/app/location-store';
 import { useMapsStore } from '@/stores/maps/store';
-import { useRoutesStore } from '@/stores/routes/store';
 import { useToastStore } from '@/stores/toast/store';
 import { useWeatherAlertsStore } from '@/stores/weather-alerts/store';
 
@@ -72,10 +73,8 @@ function MapContent() {
   }, [extremeAlerts.length]);
 
   // Route overlay state
-  const activeUnitId = useCoreStore((state) => state.activeUnitId);
   const activeInstance = useRoutesStore((state) => state.activeInstance);
   const instanceStops = useRoutesStore((state) => state.instanceStops);
-  const fetchActiveRoute = useRoutesStore((state) => state.fetchActiveRoute);
   const fetchStopsForInstance = useRoutesStore((state) => state.fetchStopsForInstance);
   const [showRouteOverlay, setShowRouteOverlay] = useState(true);
 
@@ -95,6 +94,13 @@ function MapContent() {
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   useMapSignalRUpdates(setMapPins);
+  // Live unit/personnel position deltas from the GeolocationHub — moves markers in place
+  useMapGeolocationUpdates(setMapPins);
+
+  // Lane label + color enrichment for resources on the active command board
+  const commandOverlay = useCommandMapOverlay();
+
+  const [isLayersSheetOpen, setIsLayersSheetOpen] = useState(false);
 
   // Stable initial camera settings so the native Camera renders at the
   // correct position from the very first frame (fixes Android/iOS centering).
@@ -117,13 +123,10 @@ function MapContent() {
     };
   }, [locationLatitude, locationLongitude, isMapLocked]);
 
-  // Fetch active route overlay data
+  // Fetch map layers (department-level, no unit context needed)
   useEffect(() => {
-    if (activeUnitId) {
-      fetchActiveRoute(activeUnitId);
-      fetchActiveLayers();
-    }
-  }, [activeUnitId, fetchActiveRoute, fetchActiveLayers]);
+    fetchActiveLayers();
+  }, [fetchActiveLayers]);
 
   // Fetch stops when active instance changes
   useEffect(() => {
@@ -135,59 +138,11 @@ function MapContent() {
   // Fetch GeoJSON for enabled layers
   useEffect(() => {
     activeLayers.forEach((layer) => {
-      if (layerToggles[layer.LayerId] && !cachedGeoJSON[layer.LayerId]) {
-        fetchLayerGeoJSON(layer.LayerId);
+      if (layerToggles[layer.Id] && !cachedGeoJSON[layer.Id]) {
+        fetchLayerGeoJSON(layer.Id, layer.LayerSource);
       }
     });
   }, [activeLayers, layerToggles, cachedGeoJSON, fetchLayerGeoJSON]);
-
-  // Parse route geometry for overlay
-  const routeOverlayGeoJSON = useMemo(() => {
-    if (!showRouteOverlay || !activeInstance) return null;
-    const geometry = activeInstance.ActualRouteGeometry || '';
-    if (!geometry) return null;
-    try {
-      const parsed = JSON.parse(geometry);
-      if (parsed.type === 'Feature' || parsed.type === 'FeatureCollection') return parsed;
-      if (parsed.type === 'LineString' || parsed.type === 'MultiLineString') {
-        return { type: 'Feature' as const, properties: {}, geometry: parsed };
-      }
-      if (Array.isArray(parsed)) {
-        return { type: 'Feature' as const, properties: {}, geometry: { type: 'LineString', coordinates: parsed } };
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }, [showRouteOverlay, activeInstance]);
-
-  // Get remaining stops for route overlay
-  const remainingStops = useMemo(() => {
-    if (!showRouteOverlay || !activeInstance) return [];
-    return instanceStops.filter((s) => s.Status === 0 || s.Status === 1);
-  }, [showRouteOverlay, activeInstance, instanceStops]);
-
-  // Next stop for geofence circle
-  const nextStop = useMemo(() => {
-    return remainingStops.find((s) => s.Status === 0 || s.Status === 1) || null;
-  }, [remainingStops]);
-
-  // Geofence circle GeoJSON
-  const geofenceGeoJSON = useMemo((): GeoJSON.Feature<GeoJSON.Polygon> | null => {
-    if (!nextStop || !nextStop.GeofenceRadiusMeters) return null;
-    const points = 64;
-    const coords: number[][] = [];
-    const radiusDeg = nextStop.GeofenceRadiusMeters / 111320;
-    for (let i = 0; i <= points; i++) {
-      const angle = (i / points) * 2 * Math.PI;
-      coords.push([nextStop.Longitude + radiusDeg * Math.cos(angle), nextStop.Latitude + radiusDeg * Math.sin(angle)]);
-    }
-    return {
-      type: 'Feature',
-      properties: {},
-      geometry: { type: 'Polygon', coordinates: [coords] },
-    };
-  }, [nextStop]);
 
   // Update map style when theme changes
   useEffect(() => {
@@ -539,68 +494,21 @@ function MapContent() {
               </Animated.View>
             </Mapbox.PointAnnotation>
           ) : null}
-          <MapPins pins={mapPins} onPinPress={handlePinPress} />
-
-          {/* Active route polyline overlay */}
-          {routeOverlayGeoJSON ? (
-            <Mapbox.ShapeSource id="active-route-line" shape={routeOverlayGeoJSON}>
-              <Mapbox.LineLayer
-                id="active-route-line-layer"
-                style={{
-                  lineColor: activeInstance?.RouteColor || '#3b82f6',
-                  lineWidth: 4,
-                  lineJoin: 'round',
-                  lineCap: 'round',
-                }}
-              />
-            </Mapbox.ShapeSource>
-          ) : null}
-
-          {/* Geofence circle around next stop */}
-          {geofenceGeoJSON ? (
-            <Mapbox.ShapeSource id="geofence-circle" shape={geofenceGeoJSON}>
-              <Mapbox.FillLayer
-                id="geofence-fill"
-                style={{
-                  fillColor: '#3b82f6',
-                  fillOpacity: 0.1,
-                }}
-              />
-              <Mapbox.LineLayer
-                id="geofence-outline"
-                style={{
-                  lineColor: '#3b82f6',
-                  lineWidth: 1.5,
-                  lineDasharray: [2, 2],
-                }}
-              />
-            </Mapbox.ShapeSource>
-          ) : null}
-
-          {/* Route stop markers */}
-          {showRouteOverlay
-            ? remainingStops.map((stop) =>
-                stop.Latitude && stop.Longitude ? (
-                  <Mapbox.PointAnnotation key={`route-stop-${stop.RouteInstanceStopId}`} id={`route-stop-${stop.RouteInstanceStopId}`} coordinate={[stop.Longitude, stop.Latitude]}>
-                    <StopMarker stopOrder={stop.StopOrder} status={stop.Status} />
-                  </Mapbox.PointAnnotation>
-                ) : null
-              )
-            : null}
+          <MapPins pins={mapPins} commandOverlay={commandOverlay} onPinPress={handlePinPress} />
 
           {/* Custom map layer overlays */}
           {activeLayers.map((layer) =>
-            layerToggles[layer.LayerId] && cachedGeoJSON[layer.LayerId] ? (
-              <Mapbox.ShapeSource key={`layer-${layer.LayerId}`} id={`layer-${layer.LayerId}`} shape={cachedGeoJSON[layer.LayerId]}>
+            layerToggles[layer.Id] && cachedGeoJSON[layer.Id] ? (
+              <Mapbox.ShapeSource key={`layer-${layer.Id}`} id={`layer-${layer.Id}`} shape={cachedGeoJSON[layer.Id]}>
                 <Mapbox.FillLayer
-                  id={`fill-${layer.LayerId}`}
+                  id={`fill-${layer.Id}`}
                   style={{
                     fillColor: layer.Color || '#3b82f6',
                     fillOpacity: 0.2,
                   }}
                 />
                 <Mapbox.LineLayer
-                  id={`line-${layer.LayerId}`}
+                  id={`line-${layer.Id}`}
                   style={{
                     lineColor: layer.Color || '#3b82f6',
                     lineWidth: 1,
@@ -618,6 +526,11 @@ function MapContent() {
           </View>
         ) : null}
 
+        {/* Layers / maps browser control */}
+        <TouchableOpacity style={[styles.layersButton, themedStyles.recenterButton]} onPress={() => setIsLayersSheetOpen(true)} testID="layers-button">
+          <LayersIcon size={20} color="#ffffff" />
+        </TouchableOpacity>
+
         {/* Recenter Button - only show when map is not locked and user has moved the map */}
         {showRecenterButton ? (
           <TouchableOpacity style={[styles.recenterButton, themedStyles.recenterButton]} onPress={handleRecenterMap} testID="recenter-button">
@@ -628,6 +541,9 @@ function MapContent() {
 
       {/* Pin Detail Modal */}
       <PinDetailModal pin={selectedPin} isOpen={isPinDetailModalOpen} onClose={handleClosePinDetail} onSetAsCurrentCall={handleSetAsCurrentCall} />
+
+      {/* Layer toggles + custom/indoor maps browser */}
+      <MapLayersSheet isOpen={isLayersSheetOpen} onClose={() => setIsLayersSheetOpen(false)} />
     </>
   );
 }
@@ -688,6 +604,18 @@ const styles = StyleSheet.create({
   recenterButton: {
     position: 'absolute',
     bottom: 20,
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#3b82f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    // elevation and shadow properties are handled by themedStyles
+  },
+  layersButton: {
+    position: 'absolute',
+    bottom: 76,
     right: 20,
     width: 48,
     height: 48,

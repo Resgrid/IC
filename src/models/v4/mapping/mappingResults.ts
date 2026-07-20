@@ -32,14 +32,16 @@ export class GetGeoJSONResult extends BaseV4Request {
   public Data: FeatureCollection = { type: 'FeatureCollection', features: [] };
 }
 
+/** Mirrors Core ActiveLayerResultData (MappingController.GetAllActiveLayers). */
 export interface ActiveLayerSummary {
-  LayerId: string;
+  Id: string;
   Name: string;
-  Type: string;
+  /** 'maplayer' (vector GeoJSON layer) or 'custommaplayer' (custom-map layer regions). */
+  LayerSource: 'maplayer' | 'custommaplayer' | string;
+  Type: number;
   Color: string;
+  IsSearchable: boolean;
   IsOnByDefault: boolean;
-  Source: 'indoor' | 'custom';
-  MapId: string;
 }
 
 export class GetAllActiveLayersResult extends BaseV4Request {

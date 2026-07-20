@@ -3,13 +3,14 @@
 import { NovuProvider } from '@novu/react-native';
 import Countly from 'countly-sdk-react-native-bridge';
 import * as NavigationBar from 'expo-navigation-bar';
-import { Redirect, SplashScreen, Tabs } from 'expo-router';
-import { CloudAlert, Map, Megaphone, Menu, Navigation, Settings } from 'lucide-react-native';
+import { Redirect, router, SplashScreen, Tabs } from 'expo-router';
+import { ArrowLeft, ClipboardList, LayoutDashboard, CloudAlert, Map, Megaphone, Menu, Navigation, Settings } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Platform, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { OfflineStatusBar } from '@/components/common/offline-status-bar';
 import { NotificationButton } from '@/components/notifications/NotificationButton';
 import { NotificationInbox } from '@/components/notifications/NotificationInbox';
 import Sidebar from '@/components/sidebar/sidebar';
@@ -31,6 +32,7 @@ import { bluetoothAudioService } from '@/services/bluetooth-audio.service';
 import { usePushNotifications } from '@/services/push-notification';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useCallsStore } from '@/stores/calls/store';
+import { useCommandStore } from '@/stores/command/store';
 import { useRolesStore } from '@/stores/roles/store';
 import { securityStore } from '@/stores/security/store';
 import { useSignalRStore } from '@/stores/signalr/signalr-store';
@@ -166,6 +168,12 @@ export default function TabLayout() {
       await useSignalRStore.getState().connectUpdateHub();
       await useSignalRStore.getState().connectGeolocationHub();
 
+      // Hydrate incident-command boards from the server Sync Bundle (best-effort; offline-safe)
+      useCommandStore
+        .getState()
+        .syncFromServer()
+        .catch(() => {});
+
       hasInitialized.current = true;
 
       // Initialize Bluetooth and Audio services (native-only)
@@ -200,7 +208,13 @@ export default function TabLayout() {
 
     try {
       // Refresh data
-      await Promise.all([useCoreStore.getState().fetchConfig(), useCallsStore.getState().fetchCalls(), useRolesStore.getState().fetchRoles(), useWeatherAlertsStore.getState().fetchActiveAlerts()]);
+      await Promise.all([
+        useCoreStore.getState().fetchConfig(),
+        useCallsStore.getState().fetchCalls(),
+        useRolesStore.getState().fetchRoles(),
+        useWeatherAlertsStore.getState().fetchActiveAlerts(),
+        useCommandStore.getState().syncFromServer(),
+      ]);
     } catch (error) {
       logger.warn({
         message: 'Failed to refresh data on app resume',
@@ -270,20 +284,12 @@ export default function TabLayout() {
     }
   }, [isActive, appState, refreshDataFromBackground, initializeApp]);
 
-  // Force drawer open in landscape (guard with functional update to avoid unnecessary re-render)
-  useEffect(() => {
-    if (isLandscape) {
-      setIsOpen((prev) => (prev ? prev : true));
-    }
-  }, [isLandscape]);
-
   // Get user ID and config for notifications
   const config = useCoreStore((state) => state.config);
-  const activeUnitId = useCoreStore((state) => state.activeUnitId);
   const rights = securityStore((state) => state.rights);
 
   // Compute Novu readiness once for consistent gating across the render
-  const novuReady = !!(activeUnitId && config?.NovuApplicationId && config?.NovuBackendApiUrl && config?.NovuSocketUrl && rights?.DepartmentCode);
+  const novuReady = !!(userId && config?.NovuApplicationId && config?.NovuBackendApiUrl && config?.NovuSocketUrl && rights?.DepartmentCode);
   // Cache the last known-good Novu config so NovuProvider stays mounted stably
   // even if a transient state update briefly nullifies one of the values.
   const lastNovuConfig = useRef<{
@@ -294,7 +300,7 @@ export default function TabLayout() {
   } | null>(null);
   if (novuReady) {
     lastNovuConfig.current = {
-      subscriberId: `${rights?.DepartmentCode}_Unit_${activeUnitId}`,
+      subscriberId: `${rights?.DepartmentCode}_User_${userId}`,
       applicationIdentifier: config!.NovuApplicationId,
       backendUrl: config!.NovuBackendApiUrl,
       socketUrl: config!.NovuSocketUrl,
@@ -341,15 +347,18 @@ export default function TabLayout() {
   // Memoize per-screen tab bar icon renderers to prevent new functions every render
   const mapIcon = useCallback(({ color }: { color: string }) => <Icon as={Map} stroke={color} className="text-primary-500 dark:text-primary-400" />, []);
   const callsIcon = useCallback(({ color }: { color: string }) => <Icon as={Megaphone} stroke={color} className="text-primary-500 dark:text-primary-400" />, []);
+  const incidentsIcon = useCallback(({ color }: { color: string }) => <Icon as={LayoutDashboard} stroke={color} className="text-primary-500 dark:text-primary-400" />, []);
+  const commandIcon = useCallback(({ color }: { color: string }) => <Icon as={ClipboardList} stroke={color} className="text-primary-500 dark:text-primary-400" />, []);
   const routesIcon = useCallback(({ color }: { color: string }) => <Icon as={Navigation} stroke={color} className="text-primary-500 dark:text-primary-400" />, []);
   const weatherAlertsIcon = useCallback(({ color }: { color: string }) => <Icon as={CloudAlert} stroke={color} className="text-primary-500 dark:text-primary-400" />, []);
   const settingsIcon = useCallback(({ color }: { color: string }) => <Icon as={Settings} stroke={color} />, []);
 
   // Memoize header left/right renders
-  const headerLeftMap = useCallback(() => <CreateDrawerMenuButton setIsOpen={setIsOpen} isLandscape={isLandscape} />, [isLandscape]);
+  const headerLeftMap = useCallback(() => <CreateDrawerMenuButton setIsOpen={setIsOpen} />, []);
+  const headerLeftBack = useCallback(() => <CreateHeaderBackButton />, []);
   const headerRightNotification = useCallback(
-    () => <CreateNotificationButton config={config} setIsNotificationsOpen={handleOpenNotifications} activeUnitId={activeUnitId} departmentCode={rights?.DepartmentCode} />,
-    [config, handleOpenNotifications, activeUnitId, rights?.DepartmentCode]
+    () => <CreateNotificationButton config={config} setIsNotificationsOpen={handleOpenNotifications} userId={userId} departmentCode={rights?.DepartmentCode} />,
+    [config, handleOpenNotifications, userId, rights?.DepartmentCode]
   );
 
   // Memoize per-screen options to prevent new objects every render
@@ -370,26 +379,38 @@ export default function TabLayout() {
       headerShown: true as const,
       tabBarIcon: callsIcon,
       tabBarButtonTestID: 'calls-tab' as const,
+      headerLeft: headerLeftMap,
       headerRight: headerRightNotification,
     }),
-    [t, callsIcon, headerRightNotification]
+    [t, callsIcon, headerLeftMap, headerRightNotification]
   );
 
-  // routes + weather-alerts are kept as routes but HIDDEN from the IC shell tab bar (href: null).
-  // They are apparatus/Unit-centric and still referenced by the map home + maps components, so the
-  // route files remain to avoid broken navigation; physical removal can follow in a toolchain-verified pass.
-  const routesOptions = useMemo(
+  const commandOptions = useMemo(
     () => ({
-      href: null,
-      title: t('tabs.routes'),
+      title: t('tabs.command_board'),
+      headerShown: true as const,
+      tabBarIcon: commandIcon,
+      tabBarButtonTestID: 'command-tab' as const,
+      headerLeft: headerLeftMap,
+      headerRight: headerRightNotification,
+    }),
+    [t, commandIcon, headerLeftMap, headerRightNotification]
+  );
+
+  const incidentsOptions = useMemo(
+    () => ({
+      title: t('tabs.incidents'),
       headerShown: true as const,
       tabBarIcon: routesIcon,
       tabBarButtonTestID: 'routes-tab' as const,
+      headerLeft: headerLeftMap,
       headerRight: headerRightNotification,
     }),
-    [t, routesIcon, headerRightNotification]
+    [t, routesIcon, headerLeftMap, headerRightNotification]
   );
 
+  // weather-alerts is kept (relevant to IC scene safety) but HIDDEN from the tab bar (href: null);
+  // it is reachable from the map-home weather banner. IC shell tabs: Map, Calls, Settings.
   const weatherAlertsOptions = useMemo(
     () => ({
       href: null,
@@ -397,19 +418,37 @@ export default function TabLayout() {
       headerShown: true as const,
       tabBarIcon: weatherAlertsIcon,
       tabBarButtonTestID: 'weather-alerts-tab' as const,
+      headerLeft: headerLeftMap,
       headerRight: headerRightNotification,
     }),
-    [t, weatherAlertsIcon, headerRightNotification]
+    [t, weatherAlertsIcon, headerLeftMap, headerRightNotification]
   );
 
+  // POI detail renders inside the tab shell (app header + tab bar stay visible) but has no tab
+  // bar entry of its own; the header shows a back button instead of the drawer menu.
+  const poiDetailOptions = useMemo(
+    () => ({
+      href: null,
+      title: t('routes.poi_detail'),
+      headerShown: true as const,
+      headerLeft: headerLeftBack,
+      headerRight: headerRightNotification,
+    }),
+    [t, headerLeftBack, headerRightNotification]
+  );
+
+  // settings stays routable (sidebar menu link) but is hidden from the tab bar.
   const settingsOptions = useMemo(
     () => ({
+      href: null,
       title: t('tabs.settings'),
       headerShown: true as const,
       tabBarIcon: settingsIcon,
       tabBarButtonTestID: 'settings-tab' as const,
+      headerLeft: headerLeftMap,
+      headerRight: headerRightNotification,
     }),
-    [t, settingsIcon]
+    [t, settingsIcon, headerLeftMap, headerRightNotification]
   );
 
   if (isFirstTime) {
@@ -433,38 +472,42 @@ export default function TabLayout() {
         </View>
       ) : null}
       <View className="flex-1 flex-row" ref={parentRef}>
-        {/* Drawer and sidebar only render after init to avoid heavy re-renders during store settling */}
+        {/* Drawer renders after init to avoid heavy re-renders during store settling.
+            The menu is always a hamburger-toggled drawer — no persistent panel on tablets. */}
         {isInitComplete ? (
-          isLandscape ? (
-            <View className="w-1/4 border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-              <Sidebar />
-            </View>
-          ) : (
-            <Drawer isOpen={isOpen} onClose={handleCloseDrawer} {...({} as any)}>
-              <DrawerBackdrop onPress={handleCloseDrawer} />
-              <DrawerContent className="w-4/5 bg-white p-1 dark:bg-gray-900">
-                <DrawerBody>
-                  <Sidebar onClose={handleCloseDrawer} />
-                </DrawerBody>
-              </DrawerContent>
-            </Drawer>
-          )
+          <Drawer isOpen={isOpen} onClose={handleCloseDrawer} {...({} as any)}>
+            <DrawerBackdrop onPress={handleCloseDrawer} />
+            <DrawerContent className="w-4/5 max-w-[360px] bg-white p-1 dark:bg-gray-900">
+              <DrawerBody>
+                <Sidebar onClose={handleCloseDrawer} />
+              </DrawerBody>
+            </DrawerContent>
+          </Drawer>
         ) : null}
 
         {/* Main content area */}
-        <View className={`flex-1 ${isLandscape ? 'w-3/4' : 'w-full'}`}>
+        <View className="w-full flex-1">
+          {/* Offline / pending-sync status strip */}
+          {isInitComplete ? <OfflineStatusBar /> : null}
           <Tabs screenOptions={screenOptions}>
             <Tabs.Screen name="index" options={indexOptions} />
 
             <Tabs.Screen name="calls" options={callsOptions} />
 
-            {/* routes + weather-alerts are registered so their route files resolve, but hidden from the
-                tab bar (href: null in their options). IC shell shows: Map, Calls, Settings. */}
+            <Tabs.Screen name="command" options={commandOptions} />
+
+            {/* routes, weather-alerts, and settings are registered so their route files resolve, but hidden
+                from the tab bar (href: null in their options) — reachable via the sidebar menu.
+                IC shell shows: Map, Calls, Command Board. */}
             <Tabs.Screen name="routes" options={routesOptions} />
 
+            {/* weather-alerts is registered so its route file resolves, but hidden from the
+                tab bar (href: null). IC shell shows: Map, Calls, Settings. */}
             <Tabs.Screen name="weather-alerts" options={weatherAlertsOptions} />
 
             <Tabs.Screen name="settings" options={settingsOptions} />
+
+            <Tabs.Screen name="poi/[id]" options={poiDetailOptions} />
           </Tabs>
 
           {/* NotificationInbox positioned within the tab content area — only after init and Novu is ready */}
@@ -495,17 +538,13 @@ export default function TabLayout() {
 
 interface CreateDrawerMenuButtonProps {
   setIsOpen: (isOpen: boolean) => void;
-  isLandscape: boolean;
 }
 
-const CreateDrawerMenuButton = ({ setIsOpen, isLandscape }: CreateDrawerMenuButtonProps) => {
-  if (isLandscape) {
-    return null;
-  }
-
+const CreateDrawerMenuButton = ({ setIsOpen }: CreateDrawerMenuButtonProps) => {
   return (
     <Pressable
       className="p-3"
+      testID="drawer-menu-button"
       onPress={() => {
         setIsOpen(true);
       }}
@@ -515,18 +554,36 @@ const CreateDrawerMenuButton = ({ setIsOpen, isLandscape }: CreateDrawerMenuButt
   );
 };
 
+const CreateHeaderBackButton = () => {
+  return (
+    <Pressable
+      className="p-3"
+      testID="header-back-button"
+      onPress={() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/');
+        }
+      }}
+    >
+      <ArrowLeft size={24} color="currentColor" className="text-gray-700 dark:text-gray-300" />
+    </Pressable>
+  );
+};
+
 const CreateNotificationButton = ({
   config,
   setIsNotificationsOpen,
-  activeUnitId,
+  userId,
   departmentCode,
 }: {
   config: GetConfigResultData | null;
   setIsNotificationsOpen: () => void;
-  activeUnitId: string | null;
+  userId: string | null;
   departmentCode: string | undefined;
 }) => {
-  if (!activeUnitId || !config || !config.NovuApplicationId || !config.NovuBackendApiUrl || !config.NovuSocketUrl || !departmentCode) {
+  if (!userId || !config || !config.NovuApplicationId || !config.NovuBackendApiUrl || !config.NovuSocketUrl || !departmentCode) {
     return null;
   }
 

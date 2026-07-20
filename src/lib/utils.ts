@@ -124,6 +124,19 @@ export function getMinutesBetweenDates(startDate: Date, endDate: Date): number {
   return diff / 60000;
 }
 
+/**
+ * Epoch ms from a server timestamp. Core sends UTC datetimes without a timezone
+ * suffix — bare strings are treated as UTC instead of device-local time.
+ */
+export function parseUtcMs(value?: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+  const hasZone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(value);
+  const ms = Date.parse(hasZone ? value : `${value}Z`);
+  return Number.isNaN(ms) ? null : ms;
+}
+
 export function parseDateISOString(s: string): Date {
   const b = s.split(/\D/);
   return new Date(parseInt(b[0], 10), parseInt(b[1], 10) - 1, parseInt(b[2], 10), parseInt(b[3], 10), parseInt(b[4], 10), parseInt(b[5], 10));

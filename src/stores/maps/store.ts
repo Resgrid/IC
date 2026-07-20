@@ -1,7 +1,18 @@
 import { type FeatureCollection } from 'geojson';
 import { create } from 'zustand';
 
-import { getAllActiveLayers, getCustomMap, getCustomMaps, getIndoorMap, getIndoorMapFloor, getIndoorMaps, getIndoorMapZonesGeoJSON, getMapLayerGeoJSON, searchAllMapFeatures } from '@/api/mapping/mapping';
+import {
+  getAllActiveLayers,
+  getCustomMap,
+  getCustomMapRegionsGeoJSON,
+  getCustomMaps,
+  getIndoorMap,
+  getIndoorMapFloor,
+  getIndoorMaps,
+  getIndoorMapZonesGeoJSON,
+  getMapLayerGeoJSON,
+  searchAllMapFeatures,
+} from '@/api/mapping/mapping';
 import { type CustomMapResultData } from '@/models/v4/mapping/customMapResultData';
 import { type IndoorMapFloorResultData, type IndoorMapResultData } from '@/models/v4/mapping/indoorMapResultData';
 import { type ActiveLayerSummary, type UnifiedSearchResultItem } from '@/models/v4/mapping/mappingResults';
@@ -36,7 +47,7 @@ interface MapsState {
   // Actions - Layer management
   fetchActiveLayers: () => Promise<void>;
   toggleLayer: (layerId: string) => void;
-  fetchLayerGeoJSON: (layerId: string) => Promise<FeatureCollection | null>;
+  fetchLayerGeoJSON: (layerId: string, layerSource?: string) => Promise<FeatureCollection | null>;
 
   // Actions - Indoor maps
   fetchIndoorMaps: () => Promise<void>;
@@ -89,7 +100,8 @@ export const useMapsStore = create<MapsState>((set, get) => ({
       const layers = Array.isArray(response.Data) ? response.Data : [];
       const toggles: Record<string, boolean> = {};
       layers.forEach((layer) => {
-        toggles[layer.LayerId] = layer.IsOnByDefault;
+        // Preserve an existing user toggle across refetches; default to the server flag
+        toggles[layer.Id] = get().layerToggles[layer.Id] ?? layer.IsOnByDefault;
       });
       set({ activeLayers: layers, layerToggles: toggles, isLoadingLayers: false });
     } catch (error) {
@@ -107,7 +119,7 @@ export const useMapsStore = create<MapsState>((set, get) => ({
     });
   },
 
-  fetchLayerGeoJSON: async (layerId: string) => {
+  fetchLayerGeoJSON: async (layerId: string, layerSource?: string) => {
     const { cachedGeoJSON } = get();
     if (cachedGeoJSON[layerId]) {
       return cachedGeoJSON[layerId];
@@ -115,7 +127,8 @@ export const useMapsStore = create<MapsState>((set, get) => ({
 
     set({ isLoadingGeoJSON: true });
     try {
-      const response = await getMapLayerGeoJSON(layerId);
+      // Custom-map layers serve their regions from a different endpoint than vector map layers
+      const response = layerSource === 'custommaplayer' ? await getCustomMapRegionsGeoJSON(layerId) : await getMapLayerGeoJSON(layerId);
       const geoJSON = response.Data;
       set({
         cachedGeoJSON: { ...get().cachedGeoJSON, [layerId]: geoJSON },

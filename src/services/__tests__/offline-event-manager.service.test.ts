@@ -32,10 +32,32 @@ jest.mock('@/api/check-in-timers/check-in-timers', () => ({
   performCheckIn: jest.fn(),
 }));
 
+jest.mock('@/api/incidentCommand/incidentCommand', () => ({
+  establishCommand: jest.fn(),
+  closeCommand: jest.fn(),
+}));
+
+jest.mock('@/api/incidentCommand/incidentResources', () => ({
+  createAdHocUnit: jest.fn(),
+  releaseAdHocUnit: jest.fn(),
+}));
+
+jest.mock('@/api/incidentCommand/incidentRoles', () => ({
+  assignIncidentRole: jest.fn(),
+  removeIncidentRole: jest.fn(),
+}));
+
+jest.mock('@/stores/command/store', () => ({
+  useCommandStore: {
+    getState: jest.fn(() => ({ refreshBoard: jest.fn(), syncFromServer: jest.fn() })),
+  },
+}));
+
 // Mock the offline queue store
 jest.mock('@/stores/offline-queue/store', () => ({
   useOfflineQueueStore: {
     getState: jest.fn(),
+    subscribe: jest.fn(() => jest.fn()),
   },
 }));
 

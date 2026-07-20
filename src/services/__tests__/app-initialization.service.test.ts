@@ -23,6 +23,13 @@ jest.mock('../callkeep.service.ios', () => ({
 }));
 
 // Mock Push Notification service
+jest.mock('../offline-event-manager.service', () => ({
+  offlineEventManager: {
+    initialize: jest.fn(),
+    syncNow: jest.fn(),
+  },
+}));
+
 jest.mock('../push-notification', () => ({
   pushNotificationService: {
     initialize: jest.fn(),
@@ -57,7 +64,7 @@ describe('AppInitializationService', () => {
       await appInitializationService.initialize();
 
       expect(mockCallKeepService.setup).toHaveBeenCalledWith({
-        appName: 'Resgrid Unit',
+        appName: 'Resgrid IC',
         maximumCallGroups: 1,
         maximumCallsPerCallGroup: 1,
         includesCallsInRecents: false,
@@ -88,7 +95,7 @@ describe('AppInitializationService', () => {
       await appInitializationService.initialize();
 
       expect(mockCallKeepService.setup).toHaveBeenCalledWith({
-        appName: 'Resgrid Unit',
+        appName: 'Resgrid IC',
         maximumCallGroups: 1,
         maximumCallsPerCallGroup: 1,
         includesCallsInRecents: false,

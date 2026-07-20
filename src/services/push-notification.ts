@@ -4,7 +4,8 @@ import * as Device from 'expo-device';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 
-import { registerUnitDevice } from '@/api/devices/push';
+import { registerDevice } from '@/api/devices/push';
+import { useAuthStore } from '@/lib/auth';
 import { logger } from '@/lib/logging';
 import { getDeviceUuid } from '@/lib/storage/app';
 import { useCoreStore } from '@/stores/app/core-store';
@@ -195,28 +196,21 @@ class PushNotificationService {
         context: { type, detail: { id: detail.notification?.id, data: detail.notification?.data } },
       });
 
-      // Handle check-in action press
+      // Handle check-in action press — IC users always check in as personnel
       if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'check-in') {
         logger.info({ message: 'Check-in action pressed from notification' });
         const activeCall = useCoreStore.getState().activeCall;
-        const activeUnit = useCoreStore.getState().activeUnit;
         if (activeCall) {
           const callId = parseInt(activeCall.CallId, 10);
           if (Number.isNaN(callId)) {
             logger.error({ message: 'Check-in action aborted: invalid CallId', context: { CallId: activeCall.CallId } });
           } else {
-            const unitId = activeUnit ? parseInt(activeUnit.UnitId, 10) : undefined;
-            if (activeUnit && Number.isNaN(unitId)) {
-              logger.error({ message: 'Check-in action aborted: invalid UnitId', context: { UnitId: activeUnit.UnitId } });
-            } else {
-              await useCheckInTimerStore.getState().performCheckIn({
-                CallId: callId,
-                CheckInType: activeUnit ? CHECK_IN_TYPE_UNIT : CHECK_IN_TYPE_PERSONNEL,
-                UnitId: unitId,
-                Latitude: useLocationStore.getState().latitude?.toString(),
-                Longitude: useLocationStore.getState().longitude?.toString(),
-              });
-            }
+            await useCheckInTimerStore.getState().performCheckIn({
+              CallId: callId,
+              CheckInType: CHECK_IN_TYPE_PERSONNEL,
+              Latitude: useLocationStore.getState().latitude?.toString(),
+              Longitude: useLocationStore.getState().longitude?.toString(),
+            });
           }
         }
       }
@@ -408,7 +402,7 @@ class PushNotificationService {
     });
   }
 
-  public async registerForPushNotifications(unitId: string, departmentCode: string): Promise<string | null> {
+  public async registerForPushNotifications(userId: string, departmentCode: string): Promise<string | null> {
     if (!Device.isDevice) {
       logger.warn({
         message: 'Push notifications are not available on simulator/emulator',
@@ -416,9 +410,9 @@ class PushNotificationService {
       return null;
     }
 
-    if (!unitId || unitId.trim() === '') {
+    if (!userId || userId.trim() === '') {
       logger.warn({
-        message: 'Cannot register for push notifications without an active unit ID',
+        message: 'Cannot register for push notifications without a signed-in user ID',
       });
       return null;
     }
@@ -499,14 +493,14 @@ class PushNotificationService {
         message: 'Push notification token obtained',
         context: {
           token: this.pushToken,
-          unitId,
+          userId,
           platform: Platform.OS,
         },
       });
 
-      // Register device with backend
-      await registerUnitDevice({
-        UnitId: unitId,
+      // Register device with backend (user-scoped — the IC app has no unit context)
+      await registerDevice({
+        UserId: userId,
         Token: this.pushToken || '',
         Platform: Platform.OS === 'ios' ? 1 : 2,
         DeviceUuid: getDeviceUuid() || '',
@@ -544,23 +538,23 @@ export const pushNotificationService = PushNotificationService.getInstance();
 
 // React hook for component usage
 export const usePushNotifications = () => {
-  const activeUnitId = useCoreStore((state) => state.activeUnitId);
+  const userId = useAuthStore((state) => state.userId);
   const rights = securityStore((state) => state.rights);
-  const previousUnitIdRef = useRef<string | null>(null);
+  const previousUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Push notifications are native-only; skip on web
     if (Platform.OS === 'web') return;
 
-    // Only register if we have an active unit ID and it's different from the previous one
-    if (rights && activeUnitId && activeUnitId !== previousUnitIdRef.current) {
+    // Only register if we have a signed-in user ID and it's different from the previous one
+    if (rights && userId && userId !== previousUserIdRef.current) {
       pushNotificationService
-        .registerForPushNotifications(activeUnitId, rights.DepartmentCode)
+        .registerForPushNotifications(userId, rights.DepartmentCode)
         .then((token) => {
           if (token) {
             logger.info({
               message: 'Successfully registered for push notifications',
-              context: { unitId: activeUnitId },
+              context: { userId },
             });
           }
         })
@@ -571,14 +565,14 @@ export const usePushNotifications = () => {
           });
         });
 
-      previousUnitIdRef.current = activeUnitId;
+      previousUserIdRef.current = userId;
     }
 
     // Cleanup function
     return () => {
       // No need to clean up here as the service handles its own cleanup
     };
-  }, [activeUnitId, rights]);
+  }, [userId, rights]);
 
   return {
     pushToken: pushNotificationService.getPushToken(),

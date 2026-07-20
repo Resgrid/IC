@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import { logger } from '../lib/logging';
 import { callKeepService } from './callkeep.service';
 import { notificationSoundService } from './notification-sound.service';
+import { offlineEventManager } from './offline-event-manager.service';
 import { pushNotificationService } from './push-notification';
 
 /**
@@ -89,8 +90,31 @@ class AppInitializationService {
     // Initialize Push Notification Service
     await this._initializePushNotifications();
 
+    // Initialize offline sync — network listener, reconnect drain, and interval processing
+    this._initializeOfflineSync();
+
     // Add other global initialization tasks here as needed
     // e.g., analytics, crash reporting, background services, etc.
+  }
+
+  /**
+   * Initialize the offline event manager so queued writes (check-ins, notes, etc.)
+   * sync automatically when connectivity is restored.
+   */
+  private _initializeOfflineSync(): void {
+    try {
+      offlineEventManager.initialize();
+
+      logger.info({
+        message: 'Offline event manager initialized successfully',
+      });
+    } catch (error) {
+      logger.error({
+        message: 'Failed to initialize offline event manager',
+        context: { error },
+      });
+      // Don't throw — offline sync failure shouldn't prevent app startup
+    }
   }
 
   /**
@@ -140,7 +164,7 @@ class AppInitializationService {
 
     try {
       await callKeepService.setup({
-        appName: 'Resgrid Unit',
+        appName: 'Resgrid IC',
         maximumCallGroups: 1,
         maximumCallsPerCallGroup: 1,
         includesCallsInRecents: false,

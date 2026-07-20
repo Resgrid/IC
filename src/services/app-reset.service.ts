@@ -8,7 +8,7 @@
 
 import { logger } from '@/lib/logging';
 import { storage } from '@/lib/storage';
-import { removeActiveCallId, removeActiveUnitId, removeDeviceUuid } from '@/lib/storage/app';
+import { removeActiveCallId, removeDeviceUuid } from '@/lib/storage/app';
 import { useAudioStreamStore } from '@/stores/app/audio-stream-store';
 import { INITIAL_STATE as BLUETOOTH_INITIAL_STATE, useBluetoothAudioStore } from '@/stores/app/bluetooth-audio-store';
 import { useCoreStore } from '@/stores/app/core-store';
@@ -24,7 +24,6 @@ import { useProtocolsStore } from '@/stores/protocols/store';
 import { usePushNotificationModalStore } from '@/stores/push-notification/store';
 import { useRolesStore } from '@/stores/roles/store';
 import { securityStore } from '@/stores/security/store';
-import { useStatusBottomSheetStore } from '@/stores/status/store';
 import { useUnitsStore } from '@/stores/units/store';
 
 // ============================================================================
@@ -33,10 +32,6 @@ import { useUnitsStore } from '@/stores/units/store';
 // ============================================================================
 
 export const INITIAL_CORE_STATE = {
-  activeUnitId: null,
-  activeUnit: null,
-  activeUnitStatus: null,
-  activeUnitStatusType: null,
   activeCallId: null,
   activeCall: null,
   activePriority: null,
@@ -45,7 +40,6 @@ export const INITIAL_CORE_STATE = {
   isInitialized: false,
   isInitializing: false,
   error: null,
-  activeStatuses: null,
 };
 
 export const INITIAL_CALLS_STATE = {
@@ -176,10 +170,9 @@ export const clearPersistedStorage = (): void => {
 };
 
 /**
- * Clears app-specific storage items (active unit, call, device UUID)
+ * Clears app-specific storage items (active call, device UUID)
  */
 export const clearAppStorageItems = (): void => {
-  removeActiveUnitId();
   removeActiveCallId();
   removeDeviceUuid();
 };
@@ -201,7 +194,6 @@ export const resetAllStores = async (): Promise<void> => {
   securityStore.setState(INITIAL_SECURITY_STATE);
 
   // Stores with existing reset/clear methods
-  useStatusBottomSheetStore.getState().reset();
   useOfflineQueueStore.getState().clearAllEvents();
   useLoadingStore.getState().resetLoading();
 

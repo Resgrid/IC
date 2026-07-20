@@ -9,6 +9,15 @@ interface CacheConfig {
   enabled?: boolean; // Whether to use cache for this endpoint
 }
 
+const buildCachedResponse = <T>(data: T, stale = false): AxiosResponse<T> =>
+  ({
+    data,
+    status: 200,
+    statusText: stale ? 'OK (stale cache)' : 'OK (cached)',
+    headers: {},
+    config: {},
+  }) as AxiosResponse<T>;
+
 export const createCachedApiEndpoint = (endpoint: string, cacheConfig: CacheConfig = { enabled: true }) => {
   const api = createApiEndpoint(endpoint);
   const defaultTTL = 5 * 60 * 1000; // 5 minutes
@@ -21,18 +30,22 @@ export const createCachedApiEndpoint = (endpoint: string, cacheConfig: CacheConf
 
       const cached = cacheManager.get<T>(endpoint, params);
       if (cached) {
-        return Promise.resolve({
-          data: cached,
-          status: 200,
-          statusText: 'OK (cached)',
-          headers: {},
-          config: {},
-        } as AxiosResponse<T>);
+        return buildCachedResponse(cached);
       }
 
-      const response = await api.get<T>(params);
-      cacheManager.set(endpoint, response.data, params, cacheConfig.ttl || defaultTTL);
-      return response;
+      try {
+        const response = await api.get<T>(params);
+        cacheManager.set(endpoint, response.data, params, cacheConfig.ttl || defaultTTL);
+        return response;
+      } catch (error) {
+        // Offline / request failed: fall back to the last cached value even if
+        // its TTL has expired, so read paths keep working without a connection.
+        const stale = cacheManager.getStale<T>(endpoint, params);
+        if (stale !== null) {
+          return buildCachedResponse(stale, true);
+        }
+        throw error;
+      }
     },
     post: api.post,
     put: api.put,
