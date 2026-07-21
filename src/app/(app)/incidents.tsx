@@ -54,9 +54,7 @@ export default function Incidents() {
         testID="incidents-list"
         data={incidents}
         keyExtractor={(item: IncidentCommandBoard) => item.Command.IncidentCommandId}
-        renderItem={({ item }: { item: IncidentCommandBoard }) => (
-          <IncidentCard board={item} title={callTitle(item.Command.CallId)} onPress={() => router.push(`/incident/${item.Command.CallId}` as never)} />
-        )}
+        renderItem={({ item }: { item: IncidentCommandBoard }) => <IncidentCard board={item} title={callTitle(item.Command.CallId)} onPress={() => router.push(`/incident/${item.Command.CallId}` as never)} />}
         refreshControl={<RefreshControl refreshing={false} onRefresh={fetchActiveIncidents} />}
         ListEmptyComponent={<ZeroState heading={t('incidents.no_incidents')} description={t('incidents.no_incidents_description')} icon={LayoutDashboard} />}
         contentContainerStyle={{ paddingBottom: 20 }}

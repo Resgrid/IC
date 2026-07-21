@@ -11,15 +11,21 @@ import type {
   IncidentCommandResult,
   IncidentMapAnnotation,
   IncidentMapAnnotationResult,
+  IncidentNeed,
+  IncidentNeedResult,
+  IncidentNeedsResult,
   IncidentTimer,
   IncidentTimerResult,
   MoveResourceInput,
   ResourceAssignment,
   ResourceAssignmentResult,
+  SetNeedStatusInput,
   TacticalObjective,
   TacticalObjectiveResult,
   TransferCommandInput,
   UpdateActionPlanInput,
+  UpdateCommandDetailsInput,
+  UpdateObjectiveProgressInput,
 } from '@/models/v4/incidentCommand/incidentCommandModels';
 
 import { createApiEndpoint } from '../common/client';
@@ -94,6 +100,31 @@ export const saveObjective = async (objective: Partial<TacticalObjective>) => {
 
 export const completeObjective = async (tacticalObjectiveId: string) => {
   const response = await createApiEndpoint(`/IncidentCommand/CompleteObjective/${encodeURIComponent(tacticalObjectiveId)}`).post<TacticalObjectiveResult>({});
+  return response.data;
+};
+
+export const updateObjectiveProgress = async (input: UpdateObjectiveProgressInput) => {
+  const response = await createApiEndpoint('/IncidentCommand/UpdateObjectiveProgress').post<TacticalObjectiveResult>({ ...input });
+  return response.data;
+};
+
+export const saveNeed = async (need: Partial<IncidentNeed>) => {
+  const response = await createApiEndpoint('/IncidentCommand/SaveNeed').post<IncidentNeedResult>({ ...need });
+  return response.data;
+};
+
+export const setNeedStatus = async (input: SetNeedStatusInput) => {
+  const response = await createApiEndpoint('/IncidentCommand/SetNeedStatus').post<IncidentNeedResult>({ ...input });
+  return response.data;
+};
+
+export const getNeeds = async (callId: string | number) => {
+  const response = await createApiEndpoint(`/IncidentCommand/GetNeeds/${encodeURIComponent(String(callId))}`).get<IncidentNeedsResult>();
+  return response.data;
+};
+
+export const updateCommandDetails = async (input: UpdateCommandDetailsInput) => {
+  const response = await createApiEndpoint('/IncidentCommand/UpdateCommandDetails').put<IncidentCommandResult>({ ...input });
   return response.data;
 };
 

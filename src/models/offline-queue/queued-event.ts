@@ -19,6 +19,11 @@ export enum QueuedEventType {
   RELEASE_COMMAND_RESOURCE = 'release_command_resource',
   SAVE_OBJECTIVE = 'save_objective',
   COMPLETE_OBJECTIVE = 'complete_objective',
+  UPDATE_OBJECTIVE_PROGRESS = 'update_objective_progress',
+  SAVE_NEED = 'save_need',
+  SET_NEED_STATUS = 'set_need_status',
+  UPDATE_COMMAND_DETAILS = 'update_command_details',
+  UPDATE_COMMAND_NODE = 'update_command_node',
 }
 
 export enum QueuedEventStatus {
@@ -183,4 +188,30 @@ export interface QueuedSaveObjectiveEvent extends Omit<QueuedEvent, 'data'> {
 export interface QueuedCompleteObjectiveEvent extends Omit<QueuedEvent, 'data'> {
   type: QueuedEventType.COMPLETE_OBJECTIVE;
   data: { callId: string; tacticalObjectiveId: string };
+}
+
+export interface QueuedUpdateObjectiveProgressEvent extends Omit<QueuedEvent, 'data'> {
+  type: QueuedEventType.UPDATE_OBJECTIVE_PROGRESS;
+  data: { callId: string; tacticalObjectiveId: string; progressPercent: number };
+}
+
+export interface QueuedSaveNeedEvent extends Omit<QueuedEvent, 'data'> {
+  type: QueuedEventType.SAVE_NEED;
+  data: { callId: string; name: string; category: number; description?: string; quantityRequested?: number; priority?: number };
+}
+
+export interface QueuedSetNeedStatusEvent extends Omit<QueuedEvent, 'data'> {
+  type: QueuedEventType.SET_NEED_STATUS;
+  data: { callId: string; incidentNeedId: string; status: number; quantityFulfilled?: number };
+}
+
+export interface QueuedUpdateCommandDetailsEvent extends Omit<QueuedEvent, 'data'> {
+  type: QueuedEventType.UPDATE_COMMAND_DETAILS;
+  data: { callId: string; estimatedEndOn?: string | null; importantInformation?: string | null };
+}
+
+/** Edit of an EXISTING lane (leads / linked objectives / rename); creates use SAVE_COMMAND_NODE. */
+export interface QueuedUpdateCommandNodeEvent extends Omit<QueuedEvent, 'data'> {
+  type: QueuedEventType.UPDATE_COMMAND_NODE;
+  data: { callId: string; node: Record<string, unknown> };
 }

@@ -16,6 +16,10 @@ export interface IncidentCommand {
   IncidentActionPlan: string | null;
   /** NIMS/ICS escalation level for the incident (department defined). */
   IcsLevel: number;
+  /** Optional commander-supplied estimate of when the incident will end. */
+  EstimatedEndOn?: string | null;
+  /** Important information every resource on the incident should see. */
+  ImportantInformation?: string | null;
   /** Maps to IncidentCommandStatus. */
   Status: number;
   ClosedOn: string | null;
