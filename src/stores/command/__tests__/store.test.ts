@@ -119,6 +119,7 @@ const serverBoard = (callId: number) => ({
   Nodes: [],
   Assignments: [],
   Objectives: [],
+  Needs: [],
   Timers: [],
   Annotations: [],
   Accountability: [],

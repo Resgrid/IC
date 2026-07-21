@@ -4,7 +4,7 @@ import { NovuProvider } from '@novu/react-native';
 import Countly from 'countly-sdk-react-native-bridge';
 import * as NavigationBar from 'expo-navigation-bar';
 import { Redirect, router, SplashScreen, Tabs } from 'expo-router';
-import { ArrowLeft, ClipboardList, LayoutDashboard, CloudAlert, Map, Megaphone, Menu, Navigation, Settings } from 'lucide-react-native';
+import { ArrowLeft, ClipboardList, CloudAlert, LayoutDashboard, Map, Megaphone, Menu, Navigation, Settings } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Platform, StyleSheet, useWindowDimensions } from 'react-native';
@@ -496,10 +496,10 @@ export default function TabLayout() {
 
             <Tabs.Screen name="command" options={commandOptions} />
 
-            {/* routes, weather-alerts, and settings are registered so their route files resolve, but hidden
-                from the tab bar (href: null in their options) — reachable via the sidebar menu.
+            {/* incidents, weather-alerts, and settings are registered so their route files resolve;
+                hidden entries use href: null in their options — reachable via the sidebar menu.
                 IC shell shows: Map, Calls, Command Board. */}
-            <Tabs.Screen name="routes" options={routesOptions} />
+            <Tabs.Screen name="incidents" options={incidentsOptions} />
 
             {/* weather-alerts is registered so its route file resolves, but hidden from the
                 tab bar (href: null). IC shell shows: Map, Calls, Settings. */}

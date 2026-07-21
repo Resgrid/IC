@@ -6,7 +6,7 @@
     "types": ["jest"],
     "experimentalDecorators": true,
     "jsx": "react-native",
-    "module": "es2015",
+    "module": "esnext",
     "sourceMap": true,
     "target": "esnext",
     "lib": ["esnext", "dom"],

@@ -148,7 +148,6 @@ export const PinDetailModal: React.FC<PinDetailModalProps> = ({ pin, isOpen, onC
               </Button>
             </>
           )}
-
         </VStack>
       </Box>
     </CustomBottomSheet>

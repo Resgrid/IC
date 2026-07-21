@@ -1,4 +1,4 @@
-import { CloudOff, Plus, Trash2, UserPlus } from 'lucide-react-native';
+import { CloudOff, Pencil, Plus, Trash2, UserPlus } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -20,15 +20,30 @@ interface StructureSectionProps {
   nodes: CommandStructureNode[];
   assignments: ResourceAssignment[];
   resolveResourceName: (kind: number, resourceId: string) => string;
+  /** Display name for a lane lead slot (resolves user ids to names); external leads pass through. */
+  resolveLeadName?: (userId?: string | null, externalName?: string | null) => string | null;
   onAddLane: () => void;
   onDeleteLane: (nodeId: string) => void;
+  /** Open the lane details editor (leads, linked objectives/need). */
+  onEditLane?: (nodeId: string) => void;
   onAssignResource: (nodeId: string) => void;
   onMoveResource: (assignmentId: string, targetNodeId: string) => void | Promise<void>;
   onReleaseResource: (assignmentId: string) => void;
 }
 
 /** ICS command structure — lanes (Division/Group/Branch/...) with their assigned resources. */
-export const StructureSection: React.FC<StructureSectionProps> = ({ nodes, assignments, resolveResourceName, onAddLane, onDeleteLane, onAssignResource, onMoveResource, onReleaseResource }) => {
+export const StructureSection: React.FC<StructureSectionProps> = ({
+  nodes,
+  assignments,
+  resolveResourceName,
+  resolveLeadName,
+  onAddLane,
+  onDeleteLane,
+  onEditLane,
+  onAssignResource,
+  onMoveResource,
+  onReleaseResource,
+}) => {
   const { t } = useTranslation();
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
 
@@ -105,8 +120,21 @@ export const StructureSection: React.FC<StructureSectionProps> = ({ nodes, assig
                       {getCommandNodeTypeName(t, node.NodeType)}
                       {node.MaxUnits ? ` • ${t('command.lane_unit_capacity', { count: laneUnitCount, max: node.MaxUnits })}` : ''}
                     </Text>
+                    {resolveLeadName && (node.PrimaryLeadUserId || node.PrimaryLeadName || node.SecondaryLeadUserId || node.SecondaryLeadName) ? (
+                      <Text className="text-xs text-gray-500 dark:text-gray-400" testID={`lane-leads-${node.CommandStructureNodeId}`}>
+                        {[resolveLeadName(node.PrimaryLeadUserId, node.PrimaryLeadName), resolveLeadName(node.SecondaryLeadUserId, node.SecondaryLeadName)]
+                          .filter(Boolean)
+                          .map((name, index) => `${index === 0 ? t('command.primary_lead_short') : t('command.secondary_lead_short')}: ${name}`)
+                          .join(' • ')}
+                      </Text>
+                    ) : null}
                   </VStack>
                   <HStack space="sm" className="items-center">
+                    {onEditLane ? (
+                      <Pressable onPress={() => onEditLane(node.CommandStructureNodeId)} className="p-2" testID={`lane-edit-${node.CommandStructureNodeId}`}>
+                        <Icon as={Pencil} size="sm" className="text-gray-400" />
+                      </Pressable>
+                    ) : null}
                     <Pressable onPress={() => onAssignResource(node.CommandStructureNodeId)} className="p-2" testID={`lane-assign-${node.CommandStructureNodeId}`}>
                       <Icon as={UserPlus} size="sm" className="text-primary-500" />
                     </Pressable>

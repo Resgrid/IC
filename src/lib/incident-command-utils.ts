@@ -1,6 +1,6 @@
 import { type TFunction } from 'i18next';
 
-import { CommandNodeType, IncidentRoleType, TacticalObjectiveType } from '@/models/v4/incidentCommand/incidentCommandModels';
+import { CommandNodeType, IncidentNeedCategory, IncidentNeedStatus, IncidentRoleType, TacticalObjectiveType } from '@/models/v4/incidentCommand/incidentCommandModels';
 
 /** i18n keys for the roles offered as quick presets in the assignment sheet. */
 export const ICS_ROLE_I18N_KEYS: Partial<Record<IncidentRoleType, string>> = {
@@ -119,6 +119,57 @@ export const OBJECTIVE_TYPES: TacticalObjectiveType[] = [TacticalObjectiveType.G
 export const getObjectiveTypeName = (t: TFunction, objectiveType: TacticalObjectiveType): string => {
   const key = OBJECTIVE_TYPE_I18N_KEYS[objectiveType];
   return key ? t(key) : `Objective ${objectiveType}`;
+};
+
+/** i18n keys for incident need categories. */
+const NEED_CATEGORY_I18N_KEYS: Record<IncidentNeedCategory, string> = {
+  [IncidentNeedCategory.Resource]: 'command.need_category_resource',
+  [IncidentNeedCategory.Logistics]: 'command.need_category_logistics',
+  [IncidentNeedCategory.Medical]: 'command.need_category_medical',
+  [IncidentNeedCategory.Equipment]: 'command.need_category_equipment',
+  [IncidentNeedCategory.Staffing]: 'command.need_category_staffing',
+  [IncidentNeedCategory.Other]: 'command.need_category_other',
+};
+
+export const NEED_CATEGORIES: IncidentNeedCategory[] = [
+  IncidentNeedCategory.Resource,
+  IncidentNeedCategory.Logistics,
+  IncidentNeedCategory.Medical,
+  IncidentNeedCategory.Equipment,
+  IncidentNeedCategory.Staffing,
+  IncidentNeedCategory.Other,
+];
+
+export const getNeedCategoryName = (t: TFunction, category: IncidentNeedCategory): string => {
+  const key = NEED_CATEGORY_I18N_KEYS[category];
+  return key ? t(key) : `Category ${category}`;
+};
+
+/** i18n keys for incident need fulfillment statuses. */
+const NEED_STATUS_I18N_KEYS: Record<IncidentNeedStatus, string> = {
+  [IncidentNeedStatus.Open]: 'command.need_open',
+  [IncidentNeedStatus.PartiallyMet]: 'command.need_partially_met',
+  [IncidentNeedStatus.Met]: 'command.need_met',
+  [IncidentNeedStatus.Cancelled]: 'command.need_cancelled',
+};
+
+export const getNeedStatusName = (t: TFunction, status: IncidentNeedStatus): string => {
+  const key = NEED_STATUS_I18N_KEYS[status];
+  return key ? t(key) : `Status ${status}`;
+};
+
+/** Badge action color for a need's fulfillment status. */
+export const getNeedStatusBadgeAction = (status: IncidentNeedStatus): 'success' | 'warning' | 'error' | 'muted' | 'info' => {
+  switch (status) {
+    case IncidentNeedStatus.Met:
+      return 'success';
+    case IncidentNeedStatus.PartiallyMet:
+      return 'warning';
+    case IncidentNeedStatus.Cancelled:
+      return 'muted';
+    default:
+      return 'info';
+  }
 };
 
 /** Badge action color for a PAR/accountability status from the server. */

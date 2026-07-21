@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { ClipboardList, CloudOff, ExternalLink, MapPin, RefreshCw, Trash2, UserCog, XCircle } from 'lucide-react-native';
+import { ClipboardList, CloudOff, ExternalLink, Info, MapPin, Pencil, RefreshCw, Trash2, UserCog, XCircle } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, useWindowDimensions } from 'react-native';
@@ -8,8 +8,11 @@ import { AddAssignmentSheet } from '@/components/command/add-assignment-sheet';
 import { AddLaneSheet } from '@/components/command/add-lane-sheet';
 import { AddResourceSheet } from '@/components/command/add-resource-sheet';
 import { type AssignableResourceOption, AssignResourceSheet } from '@/components/command/assign-resource-sheet';
+import { CommandDetailsSheet } from '@/components/command/command-details-sheet';
 import { CommandSection } from '@/components/command/command-section';
 import { LandscapeStructureBoard } from '@/components/command/landscape-structure-board';
+import { LaneDetailsSheet } from '@/components/command/lane-details-sheet';
+import { NeedsSection } from '@/components/command/needs-section';
 import { ObjectivesSection } from '@/components/command/objectives-section';
 import { PersonnelResourceCard, UnitResourceCard } from '@/components/command/resource-cards';
 import { StructureSection } from '@/components/command/structure-section';
@@ -33,7 +36,7 @@ import { VStack } from '@/components/ui/vstack';
 import { getIncidentRoleName, getParBadgeAction } from '@/lib/incident-command-utils';
 import { isWeb } from '@/lib/platform';
 import { getTimeAgoUtc } from '@/lib/utils';
-import { ResourceAssignmentKind } from '@/models/v4/incidentCommand/incidentCommandModels';
+import { type IncidentNeedStatus, ResourceAssignmentKind } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useCallsStore } from '@/stores/calls/store';
 import { type AssignmentOutcome } from '@/stores/command/store';
@@ -68,6 +71,11 @@ export default function CommandBoard() {
   const releaseResourceAssignment = useCommandStore((state) => state.releaseResourceAssignment);
   const addObjective = useCommandStore((state) => state.addObjective);
   const completeObjectiveEntry = useCommandStore((state) => state.completeObjectiveEntry);
+  const updateObjectiveProgressEntry = useCommandStore((state) => state.updateObjectiveProgressEntry);
+  const addNeed = useCommandStore((state) => state.addNeed);
+  const setNeedStatusEntry = useCommandStore((state) => state.setNeedStatusEntry);
+  const updateCommandDetailsEntry = useCommandStore((state) => state.updateCommandDetailsEntry);
+  const updateNodeDetails = useCommandStore((state) => state.updateNodeDetails);
   const startTimer = useCommandStore((state) => state.startTimer);
   const acknowledgeTimer = useCommandStore((state) => state.acknowledgeTimer);
   const transferIncidentCommand = useCommandStore((state) => state.transferIncidentCommand);
@@ -108,6 +116,8 @@ export default function CommandBoard() {
   /** Pending "already assigned elsewhere — move it?" confirmation. */
   const [moveConflict, setMoveConflict] = useState<{ assignmentId: string; resourceName: string; fromLane: string; toLane: string; targetNodeId: string } | null>(null);
   const [isTransferSheetOpen, setIsTransferSheetOpen] = useState(false);
+  const [editLaneNodeId, setEditLaneNodeId] = useState<string | null>(null);
+  const [isCommandDetailsOpen, setIsCommandDetailsOpen] = useState(false);
 
   const boardList = useMemo(() => Object.values(boards), [boards]);
   const boardState = activeBoardCallId ? boards[activeBoardCallId] : undefined;
@@ -142,6 +152,17 @@ export default function CommandBoard() {
       return user ? `${user.FirstName} ${user.LastName}` : userId;
     },
     [users]
+  );
+
+  // Lane lead display: a Resgrid user resolves to their name; external leads use the entered name.
+  const resolveLeadName = useCallback(
+    (userId?: string | null, externalName?: string | null) => {
+      if (userId) {
+        return personName(userId);
+      }
+      return externalName ?? null;
+    },
+    [personName]
   );
 
   const boardLabel = useCallback(
@@ -279,7 +300,7 @@ export default function CommandBoard() {
       const outcome = await assignResourceToNode(activeBoardCallId, '', ResourceAssignmentKind.RealUnit, unitId);
       notifyAssignmentOutcome(outcome);
     },
-    [activeBoardCallId, assignResourceToNode, showToast]
+    [activeBoardCallId, assignResourceToNode, notifyAssignmentOutcome]
   );
 
   const handleAddDeptPersonnel = useCallback(
@@ -290,7 +311,7 @@ export default function CommandBoard() {
       const outcome = await assignResourceToNode(activeBoardCallId, '', ResourceAssignmentKind.RealPersonnel, userId);
       notifyAssignmentOutcome(outcome);
     },
-    [activeBoardCallId, assignResourceToNode, showToast]
+    [activeBoardCallId, assignResourceToNode, notifyAssignmentOutcome]
   );
 
   const handleAssignResourceSave = useCallback(
@@ -329,7 +350,7 @@ export default function CommandBoard() {
       const outcome = await assignResourceToNode(activeBoardCallId, targetNodeId, kind, resourceId);
       notifyAssignmentOutcome(outcome);
     },
-    [activeBoardCallId, assignTargetNodeId, boards, assignResourceToNode, moveResourceAssignment, resolveResourceName, laneName, showToast]
+    [activeBoardCallId, assignTargetNodeId, boards, assignResourceToNode, moveResourceAssignment, resolveResourceName, laneName, notifyAssignmentOutcome]
   );
 
   const handleConfirmMove = useCallback(async () => {
@@ -341,7 +362,7 @@ export default function CommandBoard() {
     setMoveConflict(null);
     const outcome = await moveResourceAssignment(activeBoardCallId, assignmentId, targetNodeId);
     notifyAssignmentOutcome(outcome);
-  }, [moveConflict, activeBoardCallId, moveResourceAssignment, showToast]);
+  }, [moveConflict, activeBoardCallId, moveResourceAssignment, notifyAssignmentOutcome]);
 
   const handleMoveResource = useCallback(
     async (assignmentId: string, targetNodeId: string) => {
@@ -351,7 +372,7 @@ export default function CommandBoard() {
       const outcome = await moveResourceAssignment(activeBoardCallId, assignmentId, targetNodeId);
       notifyAssignmentOutcome(outcome);
     },
-    [activeBoardCallId, moveResourceAssignment, showToast]
+    [activeBoardCallId, moveResourceAssignment, notifyAssignmentOutcome]
   );
 
   if (!boardState) {
@@ -447,6 +468,9 @@ export default function CommandBoard() {
                 <ButtonIcon as={ExternalLink} />
                 <ButtonText>{t('command.view_call')}</ButtonText>
               </Button>
+              <Button onPress={() => setIsCommandDetailsOpen(true)} variant="outline" size="xs" testID="command-edit-details">
+                <ButtonIcon as={Pencil} />
+              </Button>
               <Button onPress={() => setIsTransferSheetOpen(true)} variant="outline" size="xs" testID="command-transfer">
                 <ButtonIcon as={UserCog} />
               </Button>
@@ -458,6 +482,18 @@ export default function CommandBoard() {
                 <ButtonText>{t('command.end_command')}</ButtonText>
               </Button>
             </HStack>
+
+            {boardState.board?.Command?.EstimatedEndOn ? (
+              <Text className="mt-2 text-sm text-gray-600 dark:text-gray-300" testID="command-estimated-end">
+                {`${t('command.estimated_end_label')}: ${new Date(boardState.board.Command.EstimatedEndOn).toLocaleString()}`}
+              </Text>
+            ) : null}
+            {boardState.board?.Command?.ImportantInformation ? (
+              <HStack space="sm" className="mt-2 items-start rounded-lg bg-amber-50 px-3 py-2 dark:bg-amber-950" testID="command-important-info">
+                <Icon as={Info} size="sm" className="mt-0.5 text-amber-600 dark:text-amber-400" />
+                <Text className="flex-1 text-sm text-amber-800 dark:text-amber-200">{boardState.board.Command.ImportantInformation}</Text>
+              </HStack>
+            ) : null}
           </Box>
 
           {/* Command structure lanes (Division/Group/Branch/...) with assigned resources */}
@@ -481,8 +517,10 @@ export default function CommandBoard() {
               onAddLane={() => setIsLaneSheetOpen(true)}
               onAssignResource={(nodeId) => setAssignTargetNodeId(nodeId)}
               onDeleteLane={(nodeId) => deleteNode(boardState.callId, nodeId)}
+              onEditLane={(nodeId) => setEditLaneNodeId(nodeId)}
               onMoveResource={handleMoveResource}
               onReleaseResource={(assignmentId) => releaseResourceAssignment(boardState.callId, assignmentId)}
+              resolveLeadName={resolveLeadName}
               resolveResourceName={resolveResourceName}
             />
           )}
@@ -506,6 +544,14 @@ export default function CommandBoard() {
             objectives={boardState.board?.Objectives ?? []}
             onAdd={(name, type) => addObjective(boardState.callId, name, type)}
             onComplete={(objectiveId) => completeObjectiveEntry(boardState.callId, objectiveId)}
+            onUpdateProgress={(objectiveId, progress) => updateObjectiveProgressEntry(boardState.callId, objectiveId, progress)}
+          />
+
+          {/* Command-level needs (resources/logistics/etc.) tracked to fulfillment */}
+          <NeedsSection
+            needs={boardState.board?.Needs ?? []}
+            onAdd={(name, category, options) => addNeed(boardState.callId, name, category, options)}
+            onSetStatus={(needId, status: IncidentNeedStatus, quantityFulfilled) => setNeedStatusEntry(boardState.callId, needId, status, quantityFulfilled)}
           />
 
           {/* ICS role assignments — synced with IncidentRoles API */}
@@ -650,6 +696,21 @@ export default function CommandBoard() {
         onSaveExternal={(kind, name, detail, agency) => (kind === 'person' ? addAdHocPersonnel(boardState.callId, name, detail, agency) : addAdHocUnit(boardState.callId, name, detail))}
       />
       <AddLaneSheet isOpen={isLaneSheetOpen} onClose={() => setIsLaneSheetOpen(false)} onSave={(name, nodeType, color, limits) => addNode(boardState.callId, name, nodeType, color, limits)} />
+      <LaneDetailsSheet
+        isOpen={editLaneNodeId !== null}
+        onClose={() => setEditLaneNodeId(null)}
+        node={boardState.board?.Nodes.find((n) => n.CommandStructureNodeId === editLaneNodeId) ?? null}
+        objectives={boardState.board?.Objectives ?? []}
+        needs={boardState.board?.Needs ?? []}
+        users={users}
+        onSave={(nodeId, patch) => updateNodeDetails(boardState.callId, nodeId, patch)}
+      />
+      <CommandDetailsSheet
+        isOpen={isCommandDetailsOpen}
+        onClose={() => setIsCommandDetailsOpen(false)}
+        command={boardState.board?.Command ?? null}
+        onSave={(estimatedEndOn, importantInformation) => updateCommandDetailsEntry(boardState.callId, estimatedEndOn, importantInformation)}
+      />
       <TransferCommandSheet
         isOpen={isTransferSheetOpen}
         onClose={() => setIsTransferSheetOpen(false)}

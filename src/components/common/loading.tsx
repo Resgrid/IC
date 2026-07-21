@@ -1,12 +1,22 @@
-import { Box, Loader2 } from 'lucide-react-native';
+import { Loader2 } from 'lucide-react-native';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { View } from 'react-native';
+import { View, type ViewStyle } from 'react-native';
 
+import { isWeb } from '@/lib/platform';
+
+import { Box } from '../ui/box';
 import { HStack } from '../ui/hstack';
 import { Spinner } from '../ui/spinner';
 import { Text } from '../ui/text';
 import { VStack } from '../ui/vstack';
+
+/**
+ * Web-only stagger for the pulsing dots. animationDelay is a CSS property react-native-web
+ * forwards to the DOM but RN's ViewStyle type (and native) don't support — so it is applied
+ * only on web and cast past the native style type.
+ */
+const dotDelayStyle = (index: number): ViewStyle | undefined => (isWeb ? ({ animationDelay: `${index * 0.15}s` } as unknown as ViewStyle) : undefined);
 interface LoadingProps {
   /**
    * Text to display below the spinner
@@ -51,13 +61,7 @@ export const Loading: React.FC<LoadingProps> = ({ text, fullscreen = false, size
         return (
           <HStack space="sm" className="items-center">
             {[1, 2, 3].map((i) => (
-              <Box
-                key={i}
-                className={`bg-primary rounded-full ${size === 'small' ? 'size-2' : size === 'large' ? 'size-3' : 'size-4'} animate-pulse`}
-                style={{
-                  animationDelay: `${i * 0.15}s`,
-                }}
-              />
+              <Box key={i} className={`bg-primary rounded-full ${size === 'small' ? 'size-2' : size === 'large' ? 'size-3' : 'size-4'} animate-pulse`} style={dotDelayStyle(i)} />
             ))}
           </HStack>
         );

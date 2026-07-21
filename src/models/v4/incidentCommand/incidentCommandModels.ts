@@ -72,6 +72,25 @@ export enum TacticalObjectiveType {
 export enum TacticalObjectiveStatus {
   Pending = 0,
   Complete = 1,
+  InProgress = 2,
+}
+
+/** Category of a command-level incident need — mirrors Core IncidentNeedCategory. */
+export enum IncidentNeedCategory {
+  Resource = 0,
+  Logistics = 1,
+  Medical = 2,
+  Equipment = 3,
+  Staffing = 4,
+  Other = 5,
+}
+
+/** Fulfillment state of an incident need — mirrors Core IncidentNeedStatus. */
+export enum IncidentNeedStatus {
+  Open = 0,
+  PartiallyMet = 1,
+  Met = 2,
+  Cancelled = 3,
 }
 
 export interface IncidentCommand {
@@ -86,6 +105,10 @@ export interface IncidentCommand {
   CommandPostLongitude?: string | null;
   IncidentActionPlan?: string | null;
   IcsLevel: number;
+  /** Optional commander-supplied estimate of when the incident will end. */
+  EstimatedEndOn?: string | null;
+  /** Important information every resource on the incident should see. */
+  ImportantInformation?: string | null;
   Status: number;
   ClosedOn?: string | null;
   ModifiedOn?: string | null;
@@ -114,6 +137,24 @@ export interface CommandStructureNode {
   MaxTimeInRole?: number;
   /** When true, unmet lane requirements block assignment instead of warning. */
   ForceRequirements?: boolean;
+  /** Optional primary tactical objective this lane is working. */
+  PrimaryObjectiveId?: string | null;
+  /** Optional secondary tactical objective this lane is working. */
+  SecondaryObjectiveId?: string | null;
+  /** Optional incident need this lane is fulfilling. */
+  LinkedNeedId?: string | null;
+  /** Primary lane lead when they are a Resgrid user; null for external leads. */
+  PrimaryLeadUserId?: string | null;
+  /** Primary lane lead display name (external leads). */
+  PrimaryLeadName?: string | null;
+  PrimaryLeadPhone?: string | null;
+  PrimaryLeadEmail?: string | null;
+  /** Secondary lane lead when they are a Resgrid user; null for external leads. */
+  SecondaryLeadUserId?: string | null;
+  /** Secondary lane lead display name (external leads). */
+  SecondaryLeadName?: string | null;
+  SecondaryLeadPhone?: string | null;
+  SecondaryLeadEmail?: string | null;
   ParentNodeId?: string | null;
   SupervisorUserId?: string | null;
   SupervisorUnitId?: number | null;
@@ -150,6 +191,39 @@ export interface TacticalObjective {
   AutoPopulated: boolean;
   CompletedByUserId?: string | null;
   CompletedOn?: string | null;
+  /** Optional free-text detail describing the objective. */
+  Description?: string | null;
+  /** Progress toward completion, 0-100 (complete objectives are 100). */
+  ProgressPercent: number;
+  /** Relative priority for triage/ordering (0 = unset; higher = more urgent). */
+  Priority: number;
+  /** Optional target time this objective should be complete by. */
+  TargetCompleteOn?: string | null;
+  SortOrder: number;
+  ModifiedOn?: string | null;
+}
+
+/** A command-level need (resources/logistics/etc.) tracked to fulfillment — mirrors Core IncidentNeed. */
+export interface IncidentNeed {
+  IncidentNeedId: string;
+  IncidentCommandId: string;
+  DepartmentId: number;
+  CallId: number;
+  Name: string;
+  Description?: string | null;
+  /** Maps to IncidentNeedCategory. */
+  Category: number;
+  /** Maps to IncidentNeedStatus. */
+  Status: number;
+  /** How many of the thing are needed (0 = unquantified). */
+  QuantityRequested: number;
+  QuantityFulfilled: number;
+  /** Relative priority for triage/ordering (0 = unset; higher = more urgent). */
+  Priority: number;
+  CreatedByUserId?: string | null;
+  CreatedOn: string;
+  MetByUserId?: string | null;
+  MetOn?: string | null;
   SortOrder: number;
   ModifiedOn?: string | null;
 }
@@ -272,6 +346,8 @@ export interface IncidentCommandBoard {
   Nodes: CommandStructureNode[];
   Assignments: ResourceAssignment[];
   Objectives: TacticalObjective[];
+  /** Command-level needs tracked to fulfillment. */
+  Needs: IncidentNeed[];
   Timers: IncidentTimer[];
   Annotations: IncidentMapAnnotation[];
   Accountability: PersonnelCallCheckInStatus[];
@@ -294,6 +370,8 @@ export type EvaluateAccountabilityResult = V4Result<string[]>;
 export type CommandNodeResult = V4Result<CommandStructureNode>;
 export type ResourceAssignmentResult = V4Result<ResourceAssignment> & { Message?: string };
 export type TacticalObjectiveResult = V4Result<TacticalObjective>;
+export type IncidentNeedResult = V4Result<IncidentNeed>;
+export type IncidentNeedsResult = V4Result<IncidentNeed[]>;
 export type IncidentTimerResult = V4Result<IncidentTimer>;
 export type IncidentMapAnnotationResult = V4Result<IncidentMapAnnotation>;
 export type CommandTimelineResult = V4Result<CommandLogEntry[]>;
@@ -329,6 +407,27 @@ export interface MoveResourceInput {
   TargetNodeId: string;
 }
 
+/** Input to update command-level details every resource should see. */
+export interface UpdateCommandDetailsInput {
+  IncidentCommandId: string;
+  EstimatedEndOn?: string | null;
+  ImportantInformation?: string | null;
+}
+
+/** Input to set an objective's progress percentage (0-100; 100 completes it). */
+export interface UpdateObjectiveProgressInput {
+  TacticalObjectiveId: string;
+  ProgressPercent: number;
+}
+
+/** Input to transition an incident need's fulfillment status. */
+export interface SetNeedStatusInput {
+  IncidentNeedId: string;
+  /** Maps to IncidentNeedStatus. */
+  Status: number;
+  QuantityFulfilled?: number | null;
+}
+
 // ---- Sync models (SyncController) ----
 
 export interface IncidentCommandChanges {
@@ -337,6 +436,7 @@ export interface IncidentCommandChanges {
   Nodes: CommandStructureNode[];
   Assignments: ResourceAssignment[];
   Objectives: TacticalObjective[];
+  Needs: IncidentNeed[];
   Timers: IncidentTimer[];
   Annotations: IncidentMapAnnotation[];
   Roles: IncidentRoleAssignment[];

@@ -72,12 +72,6 @@ function MapContent() {
     setIsBannerDismissed(false);
   }, [extremeAlerts.length]);
 
-  // Route overlay state
-  const activeInstance = useRoutesStore((state) => state.activeInstance);
-  const instanceStops = useRoutesStore((state) => state.instanceStops);
-  const fetchStopsForInstance = useRoutesStore((state) => state.fetchStopsForInstance);
-  const [showRouteOverlay, setShowRouteOverlay] = useState(true);
-
   // Map layers state
   const activeLayers = useMapsStore((state) => state.activeLayers);
   const layerToggles = useMapsStore((state) => state.layerToggles);
@@ -127,13 +121,6 @@ function MapContent() {
   useEffect(() => {
     fetchActiveLayers();
   }, [fetchActiveLayers]);
-
-  // Fetch stops when active instance changes
-  useEffect(() => {
-    if (activeInstance?.RouteInstanceId) {
-      fetchStopsForInstance(activeInstance.RouteInstanceId);
-    }
-  }, [activeInstance?.RouteInstanceId, fetchStopsForInstance]);
 
   // Fetch GeoJSON for enabled layers
   useEffect(() => {

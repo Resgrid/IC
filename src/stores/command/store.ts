@@ -15,9 +15,13 @@ import {
   moveResource,
   releaseResource,
   saveCommandNode,
+  saveNeed,
   saveObjective,
+  setNeedStatus,
   startIncidentTimer,
   transferCommand,
+  updateCommandDetails,
+  updateObjectiveProgress,
 } from '@/api/incidentCommand/incidentCommand';
 import { createAdHocPersonnel, createAdHocUnit, getAdHocPersonnel, getAdHocUnits, releaseAdHocPersonnel, releaseAdHocUnit } from '@/api/incidentCommand/incidentResources';
 import { assignIncidentRole, removeIncidentRole } from '@/api/incidentCommand/incidentRoles';
@@ -31,9 +35,12 @@ import { QueuedEventType } from '@/models/offline-queue/queued-event';
 import {
   type CommandLogEntry,
   type CommandNodeType,
+  type CommandStructureNode,
   type IncidentAdHocPersonnel,
   type IncidentAdHocUnit,
   type IncidentCommandBoard,
+  type IncidentNeed,
+  IncidentNeedStatus,
   type IncidentRoleType,
   type IncidentVoiceChannel,
   type ResourceAssignmentKind,
@@ -107,6 +114,19 @@ interface CommandState {
   releaseResourceAssignment: (callId: string, resourceAssignmentId: string) => Promise<void>;
   addObjective: (callId: string, name: string, objectiveType: TacticalObjectiveType) => Promise<void>;
   completeObjectiveEntry: (callId: string, tacticalObjectiveId: string) => Promise<void>;
+  /** Set an objective's progress (0-100; 100 completes it server-side). */
+  updateObjectiveProgressEntry: (callId: string, tacticalObjectiveId: string, progressPercent: number) => Promise<void>;
+
+  /** Add a command-level need (resources/logistics/etc.). */
+  addNeed: (callId: string, name: string, category: number, options?: { description?: string; quantityRequested?: number; priority?: number }) => Promise<void>;
+  /** Transition a need's fulfillment status (Open/PartiallyMet/Met/Cancelled). */
+  setNeedStatusEntry: (callId: string, incidentNeedId: string, status: IncidentNeedStatus, quantityFulfilled?: number) => Promise<void>;
+
+  /** Update command-level details every resource sees: estimated end + important information. */
+  updateCommandDetailsEntry: (callId: string, estimatedEndOn: string | null, importantInformation: string | null) => Promise<void>;
+
+  /** Edit an existing lane (rename, leads, linked objectives/need). Merges the patch into the stored lane. */
+  updateNodeDetails: (callId: string, commandStructureNodeId: string, patch: Partial<CommandStructureNode>) => Promise<void>;
 
   /** Start a repeating incident timer (PAR check, benchmark reminder). Online-only. */
   startTimer: (callId: string, name: string, intervalSeconds: number) => Promise<void>;
@@ -775,6 +795,8 @@ export const useCommandStore = create<CommandState>()(
                       ObjectiveType: objectiveType,
                       Status: TacticalObjectiveStatus.Pending,
                       AutoPopulated: false,
+                      ProgressPercent: 0,
+                      Priority: 0,
                       SortOrder: current.board.Objectives.length,
                     },
                   ],
@@ -838,6 +860,242 @@ export const useCommandStore = create<CommandState>()(
             context: { error, callId, tacticalObjectiveId },
           });
           queueEvent(QueuedEventType.COMPLETE_OBJECTIVE, { callId, tacticalObjectiveId });
+        }
+      },
+
+      updateObjectiveProgressEntry: async (callId: string, tacticalObjectiveId: string, progressPercent: number) => {
+        const clamped = Math.max(0, Math.min(100, Math.round(progressPercent)));
+
+        // Optimistically stamp progress (and the implied status transition) on the row
+        const current = get().boards[callId];
+        if (current?.board) {
+          set({
+            boards: {
+              ...get().boards,
+              [callId]: {
+                ...current,
+                board: {
+                  ...current.board,
+                  Objectives: current.board.Objectives.map((o) => {
+                    if (o.TacticalObjectiveId !== tacticalObjectiveId) return o;
+                    if (clamped === 100) {
+                      return { ...o, ProgressPercent: 100, Status: TacticalObjectiveStatus.Complete, CompletedOn: new Date().toISOString() };
+                    }
+                    const status = o.Status === TacticalObjectiveStatus.Complete ? o.Status : clamped > 0 ? TacticalObjectiveStatus.InProgress : TacticalObjectiveStatus.Pending;
+                    return { ...o, ProgressPercent: clamped, Status: status };
+                  }),
+                },
+              },
+            },
+          });
+        }
+
+        if (tacticalObjectiveId.startsWith('local-')) {
+          return;
+        }
+
+        if (isOffline()) {
+          queueEvent(QueuedEventType.UPDATE_OBJECTIVE_PROGRESS, { callId, tacticalObjectiveId, progressPercent: clamped });
+          return;
+        }
+
+        try {
+          await updateObjectiveProgress({ TacticalObjectiveId: tacticalObjectiveId, ProgressPercent: clamped });
+          await get().refreshBoard(callId);
+        } catch (error) {
+          logger.warn({
+            message: 'UpdateObjectiveProgress failed — queueing for retry',
+            context: { error, callId, tacticalObjectiveId },
+          });
+          queueEvent(QueuedEventType.UPDATE_OBJECTIVE_PROGRESS, { callId, tacticalObjectiveId, progressPercent: clamped });
+        }
+      },
+
+      addNeed: async (callId: string, name: string, category: number, options?: { description?: string; quantityRequested?: number; priority?: number }) => {
+        const entry = get().boards[callId];
+        const incidentCommandId = entry?.board?.Command?.IncidentCommandId ?? '';
+
+        const applyOptimistic = () => {
+          const current = get().boards[callId];
+          if (!current?.board) return;
+          const needs = current.board.Needs ?? [];
+          const optimistic: IncidentNeed = {
+            IncidentNeedId: localId('need'),
+            IncidentCommandId: incidentCommandId,
+            DepartmentId: 0,
+            CallId: toNumericCallId(callId),
+            Name: name,
+            Description: options?.description ?? null,
+            Category: category,
+            Status: IncidentNeedStatus.Open,
+            QuantityRequested: options?.quantityRequested ?? 0,
+            QuantityFulfilled: 0,
+            Priority: options?.priority ?? 0,
+            CreatedOn: new Date().toISOString(),
+            SortOrder: needs.length,
+          };
+          set({
+            boards: {
+              ...get().boards,
+              [callId]: { ...current, board: { ...current.board, Needs: [...needs, optimistic] } },
+            },
+          });
+        };
+
+        const queueData = { callId, name, category, description: options?.description, quantityRequested: options?.quantityRequested, priority: options?.priority };
+
+        if (isOffline()) {
+          queueEvent(QueuedEventType.SAVE_NEED, queueData);
+          applyOptimistic();
+          return;
+        }
+
+        try {
+          await saveNeed({
+            IncidentCommandId: incidentCommandId,
+            CallId: toNumericCallId(callId),
+            Name: name,
+            Category: category,
+            Description: options?.description,
+            QuantityRequested: options?.quantityRequested ?? 0,
+            Priority: options?.priority ?? 0,
+            SortOrder: entry?.board?.Needs?.length ?? 0,
+          });
+          await get().refreshBoard(callId);
+        } catch (error) {
+          logger.warn({
+            message: 'SaveNeed failed — queueing for retry',
+            context: { error, callId, name },
+          });
+          queueEvent(QueuedEventType.SAVE_NEED, queueData);
+          applyOptimistic();
+        }
+      },
+
+      setNeedStatusEntry: async (callId: string, incidentNeedId: string, status: IncidentNeedStatus, quantityFulfilled?: number) => {
+        // Optimistically flip the row
+        const current = get().boards[callId];
+        if (current?.board) {
+          set({
+            boards: {
+              ...get().boards,
+              [callId]: {
+                ...current,
+                board: {
+                  ...current.board,
+                  Needs: (current.board.Needs ?? []).map((n) => {
+                    if (n.IncidentNeedId !== incidentNeedId) return n;
+                    const fulfilled = quantityFulfilled ?? (status === IncidentNeedStatus.Met && n.QuantityRequested > 0 ? n.QuantityRequested : n.QuantityFulfilled);
+                    return {
+                      ...n,
+                      Status: status,
+                      QuantityFulfilled: fulfilled,
+                      MetOn: status === IncidentNeedStatus.Met ? new Date().toISOString() : null,
+                    };
+                  }),
+                },
+              },
+            },
+          });
+        }
+
+        if (incidentNeedId.startsWith('local-')) {
+          return;
+        }
+
+        if (isOffline()) {
+          queueEvent(QueuedEventType.SET_NEED_STATUS, { callId, incidentNeedId, status, quantityFulfilled });
+          return;
+        }
+
+        try {
+          await setNeedStatus({ IncidentNeedId: incidentNeedId, Status: status, QuantityFulfilled: quantityFulfilled });
+          await get().refreshBoard(callId);
+        } catch (error) {
+          logger.warn({
+            message: 'SetNeedStatus failed — queueing for retry',
+            context: { error, callId, incidentNeedId },
+          });
+          queueEvent(QueuedEventType.SET_NEED_STATUS, { callId, incidentNeedId, status, quantityFulfilled });
+        }
+      },
+
+      updateCommandDetailsEntry: async (callId: string, estimatedEndOn: string | null, importantInformation: string | null) => {
+        const entry = get().boards[callId];
+        const incidentCommandId = entry?.board?.Command?.IncidentCommandId ?? '';
+
+        // Optimistically stamp the command header
+        const current = get().boards[callId];
+        if (current?.board) {
+          set({
+            boards: {
+              ...get().boards,
+              [callId]: {
+                ...current,
+                board: { ...current.board, Command: { ...current.board.Command, EstimatedEndOn: estimatedEndOn, ImportantInformation: importantInformation } },
+              },
+            },
+          });
+        }
+
+        if (isOffline() || !incidentCommandId) {
+          queueEvent(QueuedEventType.UPDATE_COMMAND_DETAILS, { callId, estimatedEndOn, importantInformation });
+          return;
+        }
+
+        try {
+          await updateCommandDetails({ IncidentCommandId: incidentCommandId, EstimatedEndOn: estimatedEndOn, ImportantInformation: importantInformation });
+          await get().refreshBoard(callId);
+        } catch (error) {
+          logger.warn({
+            message: 'UpdateCommandDetails failed — queueing for retry',
+            context: { error, callId },
+          });
+          queueEvent(QueuedEventType.UPDATE_COMMAND_DETAILS, { callId, estimatedEndOn, importantInformation });
+        }
+      },
+
+      updateNodeDetails: async (callId: string, commandStructureNodeId: string, patch: Partial<CommandStructureNode>) => {
+        const entry = get().boards[callId];
+        const stored = entry?.board?.Nodes.find((n) => n.CommandStructureNodeId === commandStructureNodeId);
+        if (!stored) {
+          return;
+        }
+        const merged = { ...stored, ...patch, CommandStructureNodeId: commandStructureNodeId };
+
+        // Optimistically replace the lane on the board
+        const current = get().boards[callId];
+        if (current?.board) {
+          set({
+            boards: {
+              ...get().boards,
+              [callId]: {
+                ...current,
+                board: { ...current.board, Nodes: current.board.Nodes.map((n) => (n.CommandStructureNodeId === commandStructureNodeId ? merged : n)) },
+              },
+            },
+          });
+        }
+
+        // A lane created offline replays through SAVE_COMMAND_NODE; its local id has no server row to update.
+        if (commandStructureNodeId.startsWith('local-')) {
+          return;
+        }
+
+        if (isOffline()) {
+          queueEvent(QueuedEventType.UPDATE_COMMAND_NODE, { callId, node: merged });
+          return;
+        }
+
+        try {
+          await saveCommandNode(merged);
+          await get().refreshBoard(callId);
+        } catch (error) {
+          logger.warn({
+            message: 'SaveCommandNode (lane edit) failed — queueing for retry',
+            context: { error, callId, commandStructureNodeId },
+          });
+          queueEvent(QueuedEventType.UPDATE_COMMAND_NODE, { callId, node: merged });
         }
       },
 
@@ -1122,16 +1380,21 @@ export const useCommandStore = create<CommandState>()(
     {
       name: 'command-storage',
       storage: createJSONStorage(() => zustandStorage),
-      version: 3,
+      version: 4,
       // v1 stored device-local boards (assignments/resources arrays); v2 boards wrap the
-      // server IncidentCommandBoard; v3 adds adHocPersonnel. Drop v1 entries, backfill v2.
+      // server IncidentCommandBoard; v3 adds adHocPersonnel; v4 adds board.Needs. Drop v1
+      // entries, backfill v2/v3.
       migrate: (persistedState: unknown) => {
         const state = (persistedState ?? {}) as { boards?: Record<string, unknown>; activeCallId?: string | null; lastSyncTimestampMs?: number };
         const boards: Record<string, CommandBoardState> = {};
         for (const [callId, entry] of Object.entries(state.boards ?? {})) {
           if (entry && typeof entry === 'object' && Array.isArray((entry as CommandBoardState).adHocUnits)) {
             const board = entry as CommandBoardState;
-            boards[callId] = { ...board, adHocPersonnel: Array.isArray(board.adHocPersonnel) ? board.adHocPersonnel : [] };
+            boards[callId] = {
+              ...board,
+              adHocPersonnel: Array.isArray(board.adHocPersonnel) ? board.adHocPersonnel : [],
+              board: board.board ? { ...board.board, Needs: Array.isArray(board.board.Needs) ? board.board.Needs : [] } : board.board,
+            };
           }
         }
         return {

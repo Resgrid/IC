@@ -12,7 +12,11 @@ import {
   moveResource,
   releaseResource,
   saveCommandNode,
+  saveNeed,
   saveObjective,
+  setNeedStatus,
+  updateCommandDetails,
+  updateObjectiveProgress,
 } from '@/api/incidentCommand/incidentCommand';
 import { createAdHocPersonnel, createAdHocUnit, releaseAdHocPersonnel, releaseAdHocUnit } from '@/api/incidentCommand/incidentResources';
 import { assignIncidentRole, removeIncidentRole } from '@/api/incidentCommand/incidentRoles';
@@ -40,8 +44,13 @@ import {
   type QueuedReleaseCommandResourceEvent,
   type QueuedRemoveIncidentRoleEvent,
   type QueuedSaveCommandNodeEvent,
+  type QueuedSaveNeedEvent,
   type QueuedSaveObjectiveEvent,
+  type QueuedSetNeedStatusEvent,
   type QueuedUnitStatusEvent,
+  type QueuedUpdateCommandDetailsEvent,
+  type QueuedUpdateCommandNodeEvent,
+  type QueuedUpdateObjectiveProgressEvent,
 } from '@/models/offline-queue/queued-event';
 import { SaveUnitLocationInput } from '@/models/v4/unitLocation/saveUnitLocationInput';
 import { SaveUnitStatusInput, SaveUnitStatusRoleInput } from '@/models/v4/unitStatus/saveUnitStatusInput';
@@ -102,8 +111,8 @@ class OfflineEventManager {
    */
   private async pullCommandSync(): Promise<void> {
     try {
-      // Late import via require to avoid a module cycle
-      const { useCommandStore } = require('@/stores/command/store');
+      // Late dynamic import to avoid a module cycle
+      const { useCommandStore } = await import('@/stores/command/store');
       await useCommandStore.getState().syncFromServer();
     } catch (error) {
       logger.warn({
@@ -268,8 +277,8 @@ class OfflineEventManager {
 
   private async refreshCommandBoard(callId: string): Promise<void> {
     try {
-      // Late import via require to avoid a module cycle (store → queue store; manager → store)
-      const { useCommandStore } = require('@/stores/command/store');
+      // Late dynamic import to avoid a module cycle (store → queue store; manager → store)
+      const { useCommandStore } = await import('@/stores/command/store');
       await useCommandStore.getState().refreshBoard(callId);
     } catch {
       // Refresh is best-effort — the next sync pass converges the state
@@ -384,6 +393,45 @@ class OfflineEventManager {
 
   private async processCompleteObjectiveEvent(event: QueuedCompleteObjectiveEvent): Promise<void> {
     await completeObjective(event.data.tacticalObjectiveId);
+  }
+
+  private async processUpdateObjectiveProgressEvent(event: QueuedUpdateObjectiveProgressEvent): Promise<void> {
+    await updateObjectiveProgress({ TacticalObjectiveId: event.data.tacticalObjectiveId, ProgressPercent: event.data.progressPercent });
+    await this.refreshCommandBoard(event.data.callId);
+  }
+
+  private async processSaveNeedEvent(event: QueuedSaveNeedEvent): Promise<void> {
+    const callId = parseInt(event.data.callId, 10);
+    const incidentCommandId = await this.resolveIncidentCommandId(event.data.callId);
+    await saveNeed({
+      IncidentCommandId: incidentCommandId,
+      CallId: Number.isNaN(callId) ? 0 : callId,
+      Name: event.data.name,
+      Category: event.data.category,
+      Description: event.data.description,
+      QuantityRequested: event.data.quantityRequested ?? 0,
+      Priority: event.data.priority ?? 0,
+    });
+    await this.refreshCommandBoard(event.data.callId);
+  }
+
+  private async processSetNeedStatusEvent(event: QueuedSetNeedStatusEvent): Promise<void> {
+    await setNeedStatus({ IncidentNeedId: event.data.incidentNeedId, Status: event.data.status, QuantityFulfilled: event.data.quantityFulfilled });
+    await this.refreshCommandBoard(event.data.callId);
+  }
+
+  private async processUpdateCommandDetailsEvent(event: QueuedUpdateCommandDetailsEvent): Promise<void> {
+    const incidentCommandId = await this.resolveIncidentCommandId(event.data.callId);
+    if (!incidentCommandId) {
+      return;
+    }
+    await updateCommandDetails({ IncidentCommandId: incidentCommandId, EstimatedEndOn: event.data.estimatedEndOn, ImportantInformation: event.data.importantInformation });
+    await this.refreshCommandBoard(event.data.callId);
+  }
+
+  private async processUpdateCommandNodeEvent(event: QueuedUpdateCommandNodeEvent): Promise<void> {
+    await saveCommandNode(event.data.node);
+    await this.refreshCommandBoard(event.data.callId);
   }
 
   /**
@@ -523,6 +571,21 @@ class OfflineEventManager {
           break;
         case QueuedEventType.COMPLETE_OBJECTIVE:
           await this.processCompleteObjectiveEvent(event as QueuedCompleteObjectiveEvent);
+          break;
+        case QueuedEventType.UPDATE_OBJECTIVE_PROGRESS:
+          await this.processUpdateObjectiveProgressEvent(event as QueuedUpdateObjectiveProgressEvent);
+          break;
+        case QueuedEventType.SAVE_NEED:
+          await this.processSaveNeedEvent(event as QueuedSaveNeedEvent);
+          break;
+        case QueuedEventType.SET_NEED_STATUS:
+          await this.processSetNeedStatusEvent(event as QueuedSetNeedStatusEvent);
+          break;
+        case QueuedEventType.UPDATE_COMMAND_DETAILS:
+          await this.processUpdateCommandDetailsEvent(event as QueuedUpdateCommandDetailsEvent);
+          break;
+        case QueuedEventType.UPDATE_COMMAND_NODE:
+          await this.processUpdateCommandNodeEvent(event as QueuedUpdateCommandNodeEvent);
           break;
         default:
           throw new Error(`Unknown event type: ${event.type}`);

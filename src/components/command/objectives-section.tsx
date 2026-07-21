@@ -16,14 +16,19 @@ import { VStack } from '@/components/ui/vstack';
 import { getObjectiveTypeName, OBJECTIVE_TYPES } from '@/lib/incident-command-utils';
 import { type TacticalObjective, TacticalObjectiveStatus, TacticalObjectiveType } from '@/models/v4/incidentCommand/incidentCommandModels';
 
+/** Quick-set progress values offered per incomplete objective. */
+const PROGRESS_STEPS = [25, 50, 75];
+
 interface ObjectivesSectionProps {
   objectives: TacticalObjective[];
   onAdd: (name: string, objectiveType: TacticalObjectiveType) => void;
   onComplete: (tacticalObjectiveId: string) => void;
+  /** Set an objective's progress (0-100); omit to hide the progress quick-set row. */
+  onUpdateProgress?: (tacticalObjectiveId: string, progressPercent: number) => void;
 }
 
-/** Tactical objectives / benchmarks with completion tracking. */
-export const ObjectivesSection: React.FC<ObjectivesSectionProps> = ({ objectives, onAdd, onComplete }) => {
+/** Tactical objectives / benchmarks with completion + progress tracking. */
+export const ObjectivesSection: React.FC<ObjectivesSectionProps> = ({ objectives, onAdd, onComplete, onUpdateProgress }) => {
   const { t } = useTranslation();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [name, setName] = useState('');
@@ -63,24 +68,45 @@ export const ObjectivesSection: React.FC<ObjectivesSectionProps> = ({ objectives
         <VStack space="sm">
           {sorted.map((objective) => {
             const isComplete = objective.Status === TacticalObjectiveStatus.Complete;
+            const progress = isComplete ? 100 : (objective.ProgressPercent ?? 0);
             return (
-              <HStack key={objective.TacticalObjectiveId} className="items-center justify-between rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900" testID={`objective-${objective.TacticalObjectiveId}`}>
-                <Pressable onPress={() => (isComplete ? undefined : onComplete(objective.TacticalObjectiveId))} className="flex-1" testID={`objective-complete-${objective.TacticalObjectiveId}`} disabled={isComplete}>
-                  <HStack space="sm" className="items-center">
-                    <Icon as={isComplete ? CheckCircle2 : Circle} size="sm" className={isComplete ? 'text-green-500' : 'text-gray-400'} />
-                    <VStack className="flex-1">
-                      <Text className={`text-base ${isComplete ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>{objective.Name}</Text>
-                      <Text className="text-xs uppercase text-gray-500 dark:text-gray-400">{getObjectiveTypeName(t, objective.ObjectiveType)}</Text>
-                    </VStack>
-                    {objective.TacticalObjectiveId.startsWith('local-') ? <Icon as={CloudOff} size="sm" className="text-amber-500" /> : null}
+              <VStack key={objective.TacticalObjectiveId} className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900" testID={`objective-${objective.TacticalObjectiveId}`}>
+                <HStack className="items-center justify-between">
+                  <Pressable onPress={() => (isComplete ? undefined : onComplete(objective.TacticalObjectiveId))} className="flex-1" testID={`objective-complete-${objective.TacticalObjectiveId}`} disabled={isComplete}>
+                    <HStack space="sm" className="items-center">
+                      <Icon as={isComplete ? CheckCircle2 : Circle} size="sm" className={isComplete ? 'text-green-500' : 'text-gray-400'} />
+                      <VStack className="flex-1">
+                        <Text className={`text-base ${isComplete ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>{objective.Name}</Text>
+                        <Text className="text-xs uppercase text-gray-500 dark:text-gray-400">
+                          {getObjectiveTypeName(t, objective.ObjectiveType)}
+                          {!isComplete && progress > 0 ? ` • ${progress}%` : ''}
+                        </Text>
+                      </VStack>
+                      {objective.TacticalObjectiveId.startsWith('local-') ? <Icon as={CloudOff} size="sm" className="text-amber-500" /> : null}
+                    </HStack>
+                  </Pressable>
+                  {isComplete ? (
+                    <Badge action="success" variant="solid" size="sm">
+                      <BadgeText className="text-white">{t('command.objective_completed')}</BadgeText>
+                    </Badge>
+                  ) : null}
+                </HStack>
+                {!isComplete && onUpdateProgress ? (
+                  <HStack space="sm" className="mt-1 pl-7">
+                    {PROGRESS_STEPS.map((step) => (
+                      <Button
+                        key={step}
+                        size="xs"
+                        variant={progress === step ? 'solid' : 'outline'}
+                        onPress={() => onUpdateProgress(objective.TacticalObjectiveId, step)}
+                        testID={`objective-progress-${objective.TacticalObjectiveId}-${step}`}
+                      >
+                        <ButtonText>{`${step}%`}</ButtonText>
+                      </Button>
+                    ))}
                   </HStack>
-                </Pressable>
-                {isComplete ? (
-                  <Badge action="success" variant="solid" size="sm">
-                    <BadgeText className="text-white">{t('command.objective_completed')}</BadgeText>
-                  </Badge>
                 ) : null}
-              </HStack>
+              </VStack>
             );
           })}
         </VStack>

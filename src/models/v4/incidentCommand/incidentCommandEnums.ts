@@ -40,6 +40,25 @@ export enum TacticalObjectiveType {
 export enum TacticalObjectiveStatus {
   Pending = 0,
   Complete = 1,
+  InProgress = 2,
+}
+
+/** Category of a command-level incident need. */
+export enum IncidentNeedCategory {
+  Resource = 0,
+  Logistics = 1,
+  Medical = 2,
+  Equipment = 3,
+  Staffing = 4,
+  Other = 5,
+}
+
+/** Fulfillment state of an incident need. */
+export enum IncidentNeedStatus {
+  Open = 0,
+  PartiallyMet = 1,
+  Met = 2,
+  Cancelled = 3,
 }
 
 /** Type of incident timer (personnel PAR is handled by the Checkin feature, not these). */
@@ -99,6 +118,20 @@ export enum CommandLogEntryType {
   Note = 20,
   CommandClosed = 21,
   ParCritical = 22,
+  IncidentNoteAdded = 23,
+  IncidentNoteRemoved = 24,
+  IncidentAttachmentAdded = 25,
+  IncidentAttachmentRemoved = 26,
+  ActionPlanUpdated = 27,
+  CommandPostUpdated = 28,
+  PublicSharingEnabled = 29,
+  PublicSharingDisabled = 30,
+  NeedAdded = 31,
+  NeedUpdated = 32,
+  NeedMet = 33,
+  ObjectiveProgressUpdated = 34,
+  LaneLeadChanged = 35,
+  CommandDetailsUpdated = 36,
 }
 
 /**
