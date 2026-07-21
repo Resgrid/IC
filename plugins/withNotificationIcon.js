@@ -40,6 +40,14 @@ function withNotificationIconDrawables(config) {
  */
 function withNotificationIconManifest(config) {
   return withAndroidManifest(config, (config) => {
+    // react-native-firebase_messaging's library manifest declares the same meta-data entries
+    // (default_notification_color=@color/white), so ours must carry tools:replace or the
+    // manifest merger fails the build. tools: attributes require the tools namespace on <manifest>.
+    config.modResults.manifest.$ = {
+      ...config.modResults.manifest.$,
+      'xmlns:tools': 'http://schemas.android.com/tools',
+    };
+
     const mainApplication = AndroidConfig.Manifest.getMainApplicationOrThrow(config.modResults);
     mainApplication['meta-data'] = mainApplication['meta-data'] || [];
 
@@ -52,8 +60,8 @@ function withNotificationIconManifest(config) {
       }
     };
 
-    upsert('com.google.firebase.messaging.default_notification_icon', { 'android:resource': '@drawable/ic_notification' });
-    upsert('com.google.firebase.messaging.default_notification_color', { 'android:resource': '@color/notification_icon_color' });
+    upsert('com.google.firebase.messaging.default_notification_icon', { 'android:resource': '@drawable/ic_notification', 'tools:replace': 'android:resource' });
+    upsert('com.google.firebase.messaging.default_notification_color', { 'android:resource': '@color/notification_icon_color', 'tools:replace': 'android:resource' });
     return config;
   });
 }
