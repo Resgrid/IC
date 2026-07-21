@@ -44,7 +44,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
     bundleIdentifier: Env.BUNDLE_ID,
     requireFullScreen: true,
-    googleServicesFile: 'GoogleService-Info.plist',
     infoPlist: {
       UIBackgroundModes: ['remote-notification', 'audio', 'bluetooth-central', 'voip'],
       ITSAppUsesNonExemptEncryption: false,
@@ -54,6 +53,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       LSApplicationQueriesSchemes: ['resgridic'],
     },
     entitlements: {
+      // Required for APNs registration. Previously added by the withForegroundNotifications
+      // plugin; set explicitly so removing/swapping plugins can never silently drop it
+      // (which would break ALL iOS push).
+      'aps-environment': 'production',
       ...((Env.APP_ENV === 'production' || Env.APP_ENV === 'internal') && {
         'com.apple.developer.usernotifications.critical-alerts': true,
         'com.apple.developer.usernotifications.time-sensitive': true,
@@ -219,11 +222,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     '@config-plugins/react-native-webrtc',
     './plugins/withWebRTCFrameworkFix.js',
     '@config-plugins/react-native-callkeep',
-    '@react-native-firebase/app',
+    [
+      // Owns the FCM/local notification icon + color meta-data on Android (generates the
+      // white-silhouette drawable from the source PNG). Manual meta-data edits are stripped
+      // by this plugin, so branding MUST flow through these props.
+      'expo-notifications',
+      {
+        icon: './assets/notification-icon.png',
+        color: '#2484c4',
+      },
+    ],
     './customGradle.plugin.js',
     './customManifest.plugin.js',
-    './plugins/withForegroundNotifications.js',
-    './plugins/withNotificationIcon.js',
     './plugins/withNotificationSounds.js',
     './plugins/withMediaButtonModule.js',
     [
