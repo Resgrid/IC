@@ -8,7 +8,7 @@ This guide explains how to deploy the Resgrid IC application using Docker.
 
 ```bash
 # Pull from GitHub Container Registry
-docker pull ghcr.io/resgrid/unit:latest
+docker pull resgridllc/ic:latest
 
 # Or pull from Docker Hub (if configured)
 docker pull <dockerhub-username>/resgrid-ic:latest
@@ -19,7 +19,7 @@ docker run -d \
   -e IC_BASE_API_URL="https://api.example.com" \
   -e IC_APP_KEY="your-app-key" \
   --name resgrid-ic \
-  ghcr.io/resgrid/unit:latest
+  resgridllc/ic:latest
 ```
 
 ### Building Locally
@@ -72,7 +72,7 @@ version: '3.8'
 
 services:
   resgrid-ic:
-    image: ghcr.io/resgrid/unit:latest
+    image: resgridllc/ic:latest
     ports:
       - "8080:80"
     environment:
@@ -127,7 +127,7 @@ docker run -d \
   -p 8080:80 \
   --env-file .env \
   --name resgrid-ic \
-  ghcr.io/resgrid/unit:latest
+  resgridllc/ic:latest
 ```
 
 ## Kubernetes Deployment
@@ -172,7 +172,7 @@ spec:
     spec:
       containers:
       - name: resgrid-ic
-        image: ghcr.io/resgrid/unit:latest
+        image: resgridllc/ic:latest
         ports:
         - containerPort: 80
         envFrom:
@@ -281,7 +281,7 @@ To update to a new version:
 
 ```bash
 # Pull the latest image
-docker pull ghcr.io/resgrid/unit:latest
+docker pull resgridllc/ic:latest
 
 # Stop and remove the old container
 docker stop resgrid-ic
@@ -292,7 +292,7 @@ docker run -d \
   -p 8080:80 \
   --env-file .env \
   --name resgrid-ic \
-  ghcr.io/resgrid/unit:latest
+  resgridllc/ic:latest
 ```
 
 Or with Docker Compose:
