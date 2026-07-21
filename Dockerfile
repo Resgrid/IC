@@ -1,5 +1,8 @@
 ### STAGE 1: Build ###
-FROM node:22-alpine AS build
+# The web export is architecture-independent static output, so always run this stage on the
+# builder's native platform ($BUILDPLATFORM). Without this, multi-arch builds run Metro under
+# QEMU emulation, where Node crashes (illegal instruction) mid-bundle on arm64.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 
 # Install build dependencies
 RUN apk add --no-cache python3 make g++
