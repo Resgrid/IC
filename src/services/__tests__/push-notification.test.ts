@@ -215,6 +215,7 @@ describe('PushNotificationService (expo-notifications transport)', () => {
         actionIdentifier: 'default',
         notification: {
           request: {
+            identifier: 'tap-1',
             content: {
               title: 'Command Transferred',
               body: 'Command passed',
@@ -227,6 +228,54 @@ describe('PushNotificationService (expo-notifications transport)', () => {
       expect(mockShowNotificationModal).not.toHaveBeenCalled();
       jest.advanceTimersByTime(400);
       expect(mockShowNotificationModal).toHaveBeenCalledWith(expect.objectContaining({ eventCode: 'C:55' }));
+    });
+
+    it('handles the same cold-start tap only once across the listener and killed-state replay', async () => {
+      jest.useFakeTimers();
+      const launchResponse = {
+        actionIdentifier: 'default',
+        notification: {
+          request: {
+            identifier: 'launch-tap',
+            content: { title: 'Assignment', body: 'Lane', data: { eventCode: 'C:77' } },
+          },
+        },
+      };
+      // Killed-state replay returns the same response the live listener already delivered
+      mockGetLastNotificationResponseAsync.mockResolvedValueOnce(launchResponse as never);
+
+      await pushNotificationService.initialize();
+
+      const responseHandler = mockAddNotificationResponseReceivedListener.mock.calls[0]?.[0] as unknown as (r: unknown) => void;
+      responseHandler(launchResponse);
+
+      // Let the killed-state initial delay elapse and its promise resolve
+      jest.advanceTimersByTime(1100);
+      await Promise.resolve();
+      await Promise.resolve();
+      jest.advanceTimersByTime(1000);
+
+      expect(mockShowNotificationModal).toHaveBeenCalledTimes(1);
+      expect(mockShowNotificationModal).toHaveBeenCalledWith(expect.objectContaining({ eventCode: 'C:77' }));
+    });
+
+    it('still handles distinct notification taps separately', async () => {
+      jest.useFakeTimers();
+      await pushNotificationService.initialize();
+
+      const responseHandler = mockAddNotificationResponseReceivedListener.mock.calls[0]?.[0] as unknown as (r: unknown) => void;
+      const makeResponse = (id: string, eventCode: string) => ({
+        actionIdentifier: 'default',
+        notification: {
+          request: { identifier: id, content: { title: 'T', body: 'B', data: { eventCode } } },
+        },
+      });
+
+      responseHandler(makeResponse('tap-a', 'C:1'));
+      responseHandler(makeResponse('tap-b', 'C:2'));
+      jest.advanceTimersByTime(400);
+
+      expect(mockShowNotificationModal).toHaveBeenCalledTimes(2);
     });
 
     it('shows the modal from a notifee-displayed notification press', async () => {
