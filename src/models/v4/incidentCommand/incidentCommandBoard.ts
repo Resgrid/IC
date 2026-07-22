@@ -3,6 +3,7 @@
 
 import { type CommandStructureNode } from './commandStructureNode';
 import { type IncidentCommand } from './incidentCommand';
+import { type IncidentAttachment, type IncidentNote } from './incidentCommandModels';
 import { type IncidentMapAnnotation } from './incidentMapAnnotation';
 import { type IncidentNeed } from './incidentNeed';
 import { type IncidentRoleAssignment } from './incidentRoleAssignment';
@@ -25,4 +26,8 @@ export interface IncidentCommandBoard {
   Accountability: PersonnelCallCheckInStatus[];
   /** Active functional command-role assignments for the incident. */
   Roles: IncidentRoleAssignment[];
+  /** Operational status notes (internal + public). */
+  Notes?: IncidentNote[];
+  /** Incident file metadata. */
+  Attachments?: IncidentAttachment[];
 }

@@ -16,23 +16,29 @@ import { VStack } from '@/components/ui/vstack';
 import { getObjectiveTypeName, OBJECTIVE_TYPES } from '@/lib/incident-command-utils';
 import { type TacticalObjective, TacticalObjectiveStatus, TacticalObjectiveType } from '@/models/v4/incidentCommand/incidentCommandModels';
 
+import { getObjectiveOutcomeBadgeAction, getObjectiveOutcomeKey, ObjectiveDetailsSheet } from './objective-details-sheet';
+
 /** Quick-set progress values offered per incomplete objective. */
 const PROGRESS_STEPS = [25, 50, 75];
 
 interface ObjectivesSectionProps {
   objectives: TacticalObjective[];
   onAdd: (name: string, objectiveType: TacticalObjectiveType) => void;
-  onComplete: (tacticalObjectiveId: string) => void;
+  /** Close out an objective with how it turned out (TacticalObjectiveOutcome) and an optional note. */
+  onComplete: (tacticalObjectiveId: string, outcome?: number, note?: string | null) => void;
   /** Set an objective's progress (0-100); omit to hide the progress quick-set row. */
   onUpdateProgress?: (tacticalObjectiveId: string, progressPercent: number) => void;
+  /** Resolve a user id to a display name for the completed-by line in the details sheet. */
+  resolveUserName?: (userId: string) => string;
 }
 
-/** Tactical objectives / benchmarks with completion + progress tracking. */
-export const ObjectivesSection: React.FC<ObjectivesSectionProps> = ({ objectives, onAdd, onComplete, onUpdateProgress }) => {
+/** Tactical objectives / benchmarks with completion + progress tracking. Tap an objective to open its details sheet. */
+export const ObjectivesSection: React.FC<ObjectivesSectionProps> = ({ objectives, onAdd, onComplete, onUpdateProgress, resolveUserName }) => {
   const { t } = useTranslation();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [name, setName] = useState('');
   const [objectiveType, setObjectiveType] = useState<TacticalObjectiveType>(TacticalObjectiveType.General);
+  const [detailsObjectiveId, setDetailsObjectiveId] = useState<string | null>(null);
 
   const sorted = [...objectives].sort((a, b) => a.SortOrder - b.SortOrder);
   const completedCount = sorted.filter((o) => o.Status === TacticalObjectiveStatus.Complete).length;
@@ -72,7 +78,8 @@ export const ObjectivesSection: React.FC<ObjectivesSectionProps> = ({ objectives
             return (
               <VStack key={objective.TacticalObjectiveId} className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900" testID={`objective-${objective.TacticalObjectiveId}`}>
                 <HStack className="items-center justify-between">
-                  <Pressable onPress={() => (isComplete ? undefined : onComplete(objective.TacticalObjectiveId))} className="flex-1" testID={`objective-complete-${objective.TacticalObjectiveId}`} disabled={isComplete}>
+                  {/* Tapping the row opens the details sheet — completion (with outcome + note) happens there */}
+                  <Pressable onPress={() => setDetailsObjectiveId(objective.TacticalObjectiveId)} className="flex-1" testID={`objective-complete-${objective.TacticalObjectiveId}`}>
                     <HStack space="sm" className="items-center">
                       <Icon as={isComplete ? CheckCircle2 : Circle} size="sm" className={isComplete ? 'text-green-500' : 'text-gray-400'} />
                       <VStack className="flex-1">
@@ -86,8 +93,8 @@ export const ObjectivesSection: React.FC<ObjectivesSectionProps> = ({ objectives
                     </HStack>
                   </Pressable>
                   {isComplete ? (
-                    <Badge action="success" variant="solid" size="sm">
-                      <BadgeText className="text-white">{t('command.objective_completed')}</BadgeText>
+                    <Badge action={getObjectiveOutcomeBadgeAction(objective.Outcome ?? 0)} variant="solid" size="sm" testID={`objective-outcome-badge-${objective.TacticalObjectiveId}`}>
+                      <BadgeText className="text-white">{(objective.Outcome ?? 0) !== 0 ? t(getObjectiveOutcomeKey(objective.Outcome ?? 0)) : t('command.objective_completed')}</BadgeText>
                     </Badge>
                   ) : null}
                 </HStack>
@@ -139,6 +146,15 @@ export const ObjectivesSection: React.FC<ObjectivesSectionProps> = ({ objectives
           </Button>
         </VStack>
       </CustomBottomSheet>
+
+      <ObjectiveDetailsSheet
+        isOpen={detailsObjectiveId !== null}
+        onClose={() => setDetailsObjectiveId(null)}
+        objective={objectives.find((o) => o.TacticalObjectiveId === detailsObjectiveId) ?? null}
+        onComplete={(tacticalObjectiveId, outcome, note) => onComplete(tacticalObjectiveId, outcome, note)}
+        onUpdateProgress={onUpdateProgress}
+        resolveUserName={resolveUserName}
+      />
     </Box>
   );
 };

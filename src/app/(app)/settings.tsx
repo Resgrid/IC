@@ -1,5 +1,6 @@
 /* eslint-disable react/react-in-jsx-scope */
 import { Env } from '@env';
+import { router } from 'expo-router';
 import { useColorScheme } from 'nativewind';
 import React, { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -26,8 +27,10 @@ import { useAuth, useAuthStore } from '@/lib';
 import { logger } from '@/lib/logging';
 import { getBaseApiUrl } from '@/lib/storage/app';
 import { openLinkInBrowser } from '@/lib/utils';
+import { QueuedEventStatus } from '@/models/offline-queue/queued-event';
 import { clearAllAppData } from '@/services/app-reset.service';
 import { useServerUrlStore } from '@/stores/app/server-url-store';
+import { useOfflineQueueStore } from '@/stores/offline-queue/store';
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -39,6 +42,20 @@ export default function Settings() {
   const [showServerUrl, setShowServerUrl] = React.useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
   const serverUrl = useServerUrlStore((s) => s.url);
+  const queuedEvents = useOfflineQueueStore((s) => s.queuedEvents);
+  const isConnected = useOfflineQueueStore((s) => s.isConnected);
+  const isNetworkReachable = useOfflineQueueStore((s) => s.isNetworkReachable);
+
+  const pendingSyncCount = queuedEvents.filter((event) => event.status === QueuedEventStatus.PENDING || event.status === QueuedEventStatus.PROCESSING).length;
+  const failedSyncCount = queuedEvents.filter((event) => event.status === QueuedEventStatus.FAILED).length;
+  const syncStatusValue =
+    !isConnected || !isNetworkReachable
+      ? t('offline_queue.offline')
+      : failedSyncCount > 0
+        ? t('settings.sync_status_failed', { count: failedSyncCount })
+        : pendingSyncCount > 0
+          ? t('settings.sync_status_pending', { count: pendingSyncCount })
+          : t('settings.sync_status_ok');
 
   /**
    * Handles logout confirmation - clears all data and signs out
@@ -104,6 +121,15 @@ export default function Settings() {
               <Item text={t('settings.server')} value={serverUrl || getBaseApiUrl()} onPress={() => setShowServerUrl(true)} textStyle="text-info-600" />
               <Item text={t('settings.login_info')} onPress={() => setShowLoginInfo(true)} textStyle="text-info-600" />
               <Item text={t('settings.logout')} onPress={() => setShowLogoutConfirm(true)} textStyle="text-error-600" />
+            </VStack>
+          </Card>
+
+          {/* Sync & Offline Queue Section */}
+          <Card className={`mb-4 rounded-lg border p-4 ${colorScheme === 'dark' ? 'border-neutral-800 bg-neutral-900' : 'border-neutral-200 bg-white'}`}>
+            <Heading className="mb2 text-sm">{t('settings.sync_section')}</Heading>
+            <VStack space="sm">
+              <Item text={t('settings.sync_status')} value={syncStatusValue} />
+              <Item text={t('settings.view_sync_queue')} onPress={() => router.push('/settings/offline-queue')} textStyle="text-info-600" />
             </VStack>
           </Card>
 

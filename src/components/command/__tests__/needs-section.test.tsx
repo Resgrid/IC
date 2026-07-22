@@ -42,7 +42,7 @@ const need = (overrides: Partial<IncidentNeed> = {}): IncidentNeed => ({
 
 describe('NeedsSection', () => {
   it('renders needs with category, quantity, and status badge', () => {
-    const { getByTestId, getByText, unmount } = render(<NeedsSection needs={[need()]} onAdd={jest.fn()} onSetStatus={jest.fn()} />);
+    const { getByTestId, getByText, unmount } = render(<NeedsSection needs={[need()]} onAdd={jest.fn()} onSetStatus={jest.fn()} fetchNeedUpdates={jest.fn().mockResolvedValue([])} />);
 
     expect(getByTestId('need-need-1')).toBeTruthy();
     expect(getByText('Fuel truck')).toBeTruthy();
@@ -54,12 +54,12 @@ describe('NeedsSection', () => {
 
   it('marks an open need met and reopens a met need', () => {
     const onSetStatus = jest.fn();
-    const { getByTestId, rerender, unmount } = render(<NeedsSection needs={[need()]} onAdd={jest.fn()} onSetStatus={onSetStatus} />);
+    const { getByTestId, rerender, unmount } = render(<NeedsSection needs={[need()]} onAdd={jest.fn()} onSetStatus={onSetStatus} fetchNeedUpdates={jest.fn().mockResolvedValue([])} />);
 
     fireEvent.press(getByTestId('need-met-need-1'));
     expect(onSetStatus).toHaveBeenCalledWith('need-1', IncidentNeedStatus.Met);
 
-    rerender(<NeedsSection needs={[need({ Status: IncidentNeedStatus.Met, QuantityFulfilled: 2 })]} onAdd={jest.fn()} onSetStatus={onSetStatus} />);
+    rerender(<NeedsSection needs={[need({ Status: IncidentNeedStatus.Met, QuantityFulfilled: 2 })]} onAdd={jest.fn()} onSetStatus={onSetStatus} fetchNeedUpdates={jest.fn().mockResolvedValue([])} />);
     fireEvent.press(getByTestId('need-reopen-need-1'));
     expect(onSetStatus).toHaveBeenCalledWith('need-1', IncidentNeedStatus.Open);
 
@@ -67,7 +67,7 @@ describe('NeedsSection', () => {
   });
 
   it('hides cancelled needs from the list', () => {
-    const { queryByTestId, unmount } = render(<NeedsSection needs={[need({ Status: IncidentNeedStatus.Cancelled })]} onAdd={jest.fn()} onSetStatus={jest.fn()} />);
+    const { queryByTestId, unmount } = render(<NeedsSection needs={[need({ Status: IncidentNeedStatus.Cancelled })]} onAdd={jest.fn()} onSetStatus={jest.fn()} fetchNeedUpdates={jest.fn().mockResolvedValue([])} />);
 
     expect(queryByTestId('need-need-1')).toBeNull();
 
@@ -76,7 +76,7 @@ describe('NeedsSection', () => {
 
   it('saves a new need with category and quantity from the add sheet', () => {
     const onAdd = jest.fn();
-    const { getByTestId, unmount } = render(<NeedsSection needs={[]} onAdd={onAdd} onSetStatus={jest.fn()} />);
+    const { getByTestId, unmount } = render(<NeedsSection needs={[]} onAdd={onAdd} onSetStatus={jest.fn()} fetchNeedUpdates={jest.fn().mockResolvedValue([])} />);
 
     fireEvent.press(getByTestId('command-needs-add'));
     fireEvent.press(getByTestId(`need-category-${IncidentNeedCategory.Equipment}`));

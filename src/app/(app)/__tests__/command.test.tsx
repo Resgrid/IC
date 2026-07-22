@@ -68,6 +68,35 @@ jest.mock('@/components/command/add-resource-sheet', () => ({
   AddResourceSheet: () => null,
 }));
 
+// The incident-info editor pulls in the Mapbox pin picker — keep the native module out of this suite.
+jest.mock('@/components/command/command-details-sheet', () => ({
+  CommandDetailsSheet: () => null,
+}));
+
+// The incident map card pulls in Mapbox + live-map hooks — stub it out here.
+jest.mock('@/components/command/incident-map-card', () => ({
+  __esModule: true,
+  default: () => null,
+  IncidentMapCard: () => null,
+}));
+
+// Call resource viewers pull in webview / keyboard-controller natives — stub them out here.
+jest.mock('@/components/call-video-feeds/video-feed-tab-content', () => ({
+  VideoFeedTabContent: () => null,
+}));
+jest.mock('@/components/calls/call-notes-modal', () => ({
+  __esModule: true,
+  default: () => null,
+}));
+jest.mock('@/components/calls/call-images-modal', () => ({
+  __esModule: true,
+  default: () => null,
+}));
+jest.mock('@/components/calls/call-files-modal', () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
 jest.mock('@/lib/utils', () => ({
   ...jest.requireActual('@/lib/utils'),
   getTimeAgoUtc: jest.fn(() => '5 minutes ago'),
@@ -330,7 +359,7 @@ describe('CommandBoard', () => {
     unmount();
   });
 
-  it('ends the active command and supports manual refresh', () => {
+  it('ends the active command only after confirmation and supports manual refresh', () => {
     setupStores({
       boards: { '101': serverBoard('101') },
       activeCallId: '101',
@@ -339,7 +368,11 @@ describe('CommandBoard', () => {
 
     const { getByTestId, unmount } = render(<CommandBoard />);
 
+    // The end button opens a confirmation dialog; nothing happens until confirmed.
     fireEvent.press(getByTestId('command-end-command'));
+    expect(mockEndCommand).not.toHaveBeenCalled();
+
+    fireEvent.press(getByTestId('end-command-confirm'));
     expect(mockEndCommand).toHaveBeenCalledWith('101');
 
     fireEvent.press(getByTestId('command-refresh'));

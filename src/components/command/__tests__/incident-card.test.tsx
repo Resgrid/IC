@@ -1,53 +1,71 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
 
-import { type IncidentCommandBoard } from '@/models/v4/incidentCommand/incidentCommandBoard';
+import { type IncidentCommandSummary } from '@/models/v4/incidentCommand/incidentCommandModels';
 
-import { IncidentCard } from '../incident-card';
+import { formatIncidentDuration, IncidentCard } from '../incident-card';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-const board = {
-  Command: { IncidentCommandId: 'ic-1', CallId: 5 },
-  Nodes: [
-    { CommandStructureNodeId: 'n1', DeletedOn: null },
-    { CommandStructureNodeId: 'n2', DeletedOn: '2026-01-01T00:00:00Z' },
-  ],
-  Assignments: [{ ResourceAssignmentId: 'a1', ReleasedOn: null }],
-  Objectives: [],
-  Timers: [],
-  Annotations: [],
-  Accountability: [
-    { UserId: 'u1', Status: 'Critical' },
-    { UserId: 'u2', Status: 'Warning' },
-  ],
-  Roles: [],
-} as unknown as IncidentCommandBoard;
+const summary = {
+  IncidentCommandId: 'ic-1',
+  DepartmentId: 1,
+  CallId: 5,
+  Name: 'Main St Structure Fire',
+  CallName: 'Structure Fire',
+  CallNumber: 'C-1042',
+  CallAddress: '123 Main St',
+  Status: 0,
+  EstablishedOn: '2026-07-01T10:00:00Z',
+  ClosedOn: null,
+  CommanderUserId: 'u1',
+  CommanderName: 'Jane Smith',
+  CommandPostLocationText: 'Front lobby',
+  AssignedUnitCount: 2,
+  AssignedPersonnelCount: 3,
+} as unknown as IncidentCommandSummary;
 
-describe('IncidentCard', () => {
-  it('renders the title and live counts (excluding deleted lanes / released resources)', () => {
-    render(<IncidentCard board={board} title="Structure Fire" onPress={() => {}} />);
-
-    expect(screen.getByText('Structure Fire')).toBeTruthy();
-    expect(screen.getByText('incidents.lanes: 1')).toBeTruthy();
-    expect(screen.getByText('incidents.resources: 1')).toBeTruthy();
-    expect(screen.getByText('incidents.par_critical: 1')).toBeTruthy();
-    expect(screen.getByText('incidents.par_warning: 1')).toBeTruthy();
+describe('formatIncidentDuration', () => {
+  it('formats an ended incident duration from established to closed', () => {
+    expect(formatIncidentDuration('2026-07-01T10:00:00Z', '2026-07-01T13:24:00Z')).toBe('3h 24m');
   });
 
-  it('omits PAR badges when accountability is all clear', () => {
-    const calm = { ...board, Accountability: [] } as unknown as IncidentCommandBoard;
-    render(<IncidentCard board={calm} title="EMS Call" onPress={() => {}} />);
+  it('formats multi-day durations as days + hours', () => {
+    expect(formatIncidentDuration('2026-07-01T10:00:00Z', '2026-07-03T15:00:00Z')).toBe('2d 5h');
+  });
 
-    expect(screen.queryByText(/par_critical/)).toBeNull();
-    expect(screen.queryByText(/par_warning/)).toBeNull();
+  it('falls back to a dash for an unparseable start', () => {
+    expect(formatIncidentDuration('not-a-date', '2026-07-01T13:24:00Z')).toBe('—');
+  });
+});
+
+describe('IncidentCard', () => {
+  it('renders name, commander, location, and unit/personnel counts', () => {
+    render(<IncidentCard summary={summary} onPress={() => {}} />);
+
+    expect(screen.getByText('Main St Structure Fire')).toBeTruthy();
+    expect(screen.getByText('Jane Smith')).toBeTruthy();
+    expect(screen.getByText('Front lobby')).toBeTruthy();
+    expect(screen.getByText('incidents.units: 2')).toBeTruthy();
+    expect(screen.getByText('incidents.personnel: 3')).toBeTruthy();
+    expect(screen.getByTestId('incident-active-badge')).toBeTruthy();
+  });
+
+  it('shows the ended badge and falls back to the call address for ended incidents', () => {
+    const ended = { ...summary, Name: null, Status: 1, ClosedOn: '2026-07-01T14:00:00Z', CommandPostLocationText: null } as unknown as IncidentCommandSummary;
+    render(<IncidentCard summary={ended} onPress={() => {}} />);
+
+    expect(screen.getByText('Structure Fire')).toBeTruthy();
+    expect(screen.getByTestId('incident-ended-badge')).toBeTruthy();
+    expect(screen.getByText('123 Main St')).toBeTruthy();
+    expect(screen.getByTestId('incident-duration')).toHaveTextContent('4h 00m');
   });
 
   it('fires onPress when tapped', () => {
     const onPress = jest.fn();
-    render(<IncidentCard board={board} title="Structure Fire" onPress={onPress} />);
+    render(<IncidentCard summary={summary} onPress={onPress} />);
 
     fireEvent.press(screen.getByTestId('incident-card'));
 

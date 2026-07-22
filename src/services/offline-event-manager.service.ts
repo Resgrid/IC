@@ -392,7 +392,7 @@ class OfflineEventManager {
   }
 
   private async processCompleteObjectiveEvent(event: QueuedCompleteObjectiveEvent): Promise<void> {
-    await completeObjective(event.data.tacticalObjectiveId);
+    await completeObjective(event.data.tacticalObjectiveId, event.data.outcome, event.data.note);
   }
 
   private async processUpdateObjectiveProgressEvent(event: QueuedUpdateObjectiveProgressEvent): Promise<void> {
@@ -416,7 +416,7 @@ class OfflineEventManager {
   }
 
   private async processSetNeedStatusEvent(event: QueuedSetNeedStatusEvent): Promise<void> {
-    await setNeedStatus({ IncidentNeedId: event.data.incidentNeedId, Status: event.data.status, QuantityFulfilled: event.data.quantityFulfilled });
+    await setNeedStatus({ IncidentNeedId: event.data.incidentNeedId, Status: event.data.status, QuantityFulfilled: event.data.quantityFulfilled, Note: event.data.note });
     await this.refreshCommandBoard(event.data.callId);
   }
 

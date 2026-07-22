@@ -7,6 +7,16 @@ jest.mock('@/components/command/start-command-sheet', () => ({
   StartCommandSheet: () => null,
 }));
 
+// The reopen sheet pulls in the real bottom-sheet (Animated/gluestack) — keep it out of this suite.
+jest.mock('@/components/command/reopen-command-sheet', () => ({
+  ReopenCommandSheet: () => null,
+}));
+
+// handleStartCommand probes for a prior ended command before opening the template picker.
+jest.mock('@/api/incidentCommand/incidentCommand', () => ({
+  getCommandForCall: jest.fn().mockResolvedValue({ Data: null }),
+}));
+
 jest.mock('react-native', () => ({
   Platform: {
     OS: 'ios',

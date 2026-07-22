@@ -3,24 +3,37 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import {
   acknowledgeIncidentTimer,
+  addIncidentAttachment,
+  addIncidentNote,
   assignResource,
   closeCommand,
   completeObjective,
   deleteCommandNode,
+  deleteIncidentMap,
+  deleteMapAnnotation,
   establishCommand,
   evaluateAccountability,
   getAccountability,
   getCommandBoard,
   getCommandTimeline,
+  getNeedEntities,
+  getNeedUpdates,
   moveResource,
   releaseResource,
+  removeIncidentAttachment,
+  reopenCommand,
+  requestNeedEntities,
   saveCommandNode,
+  saveIncidentMap,
+  saveMapAnnotation,
   saveNeed,
   saveObjective,
   setNeedStatus,
   startIncidentTimer,
   transferCommand,
   updateCommandDetails,
+  updateCommandInfo,
+  updateMapView,
   updateObjectiveProgress,
 } from '@/api/incidentCommand/incidentCommand';
 import { createAdHocPersonnel, createAdHocUnit, getAdHocPersonnel, getAdHocUnits, releaseAdHocPersonnel, releaseAdHocUnit } from '@/api/incidentCommand/incidentResources';
@@ -31,7 +44,7 @@ import { type LaneLimits } from '@/components/command/add-lane-sheet';
 import { logger } from '@/lib/logging';
 import { zustandStorage } from '@/lib/storage';
 import { uuidv4 } from '@/lib/utils';
-import { QueuedEventType } from '@/models/offline-queue/queued-event';
+import { QueuedEventStatus, QueuedEventType } from '@/models/offline-queue/queued-event';
 import {
   type CommandLogEntry,
   type CommandNodeType,
@@ -39,13 +52,18 @@ import {
   type IncidentAdHocPersonnel,
   type IncidentAdHocUnit,
   type IncidentCommandBoard,
+  type IncidentMap,
+  type IncidentMapAnnotation,
   type IncidentNeed,
+  type IncidentNeedEntity,
   IncidentNeedStatus,
+  type IncidentNeedUpdate,
   type IncidentRoleType,
   type IncidentVoiceChannel,
   type ResourceAssignmentKind,
   TacticalObjectiveStatus,
   type TacticalObjectiveType,
+  type UpdateCommandInfoInput,
   type VoiceTransmissionLog,
 } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useCoreStore } from '@/stores/app/core-store';
@@ -113,17 +131,69 @@ interface CommandState {
   moveResourceAssignment: (callId: string, resourceAssignmentId: string, targetNodeId: string) => Promise<AssignmentOutcome | null>;
   releaseResourceAssignment: (callId: string, resourceAssignmentId: string) => Promise<void>;
   addObjective: (callId: string, name: string, objectiveType: TacticalObjectiveType) => Promise<void>;
-  completeObjectiveEntry: (callId: string, tacticalObjectiveId: string) => Promise<void>;
+  /** Complete (close out) an objective with how it turned out (TacticalObjectiveOutcome) and an optional note. */
+  completeObjectiveEntry: (callId: string, tacticalObjectiveId: string, outcome?: number, note?: string | null) => Promise<void>;
   /** Set an objective's progress (0-100; 100 completes it server-side). */
   updateObjectiveProgressEntry: (callId: string, tacticalObjectiveId: string, progressPercent: number) => Promise<void>;
 
   /** Add a command-level need (resources/logistics/etc.). */
   addNeed: (callId: string, name: string, category: number, options?: { description?: string; quantityRequested?: number; priority?: number }) => Promise<void>;
-  /** Transition a need's fulfillment status (Open/PartiallyMet/Met/Cancelled). */
-  setNeedStatusEntry: (callId: string, incidentNeedId: string, status: IncidentNeedStatus, quantityFulfilled?: number) => Promise<void>;
+  /**
+   * Transition a need's fulfillment status (Open/PartiallyMet/Met/Cancelled). The fill quantity may
+   * move DOWN as well as up; the optional note lands on the server-side audit trail and incident log.
+   */
+  setNeedStatusEntry: (callId: string, incidentNeedId: string, status: IncidentNeedStatus, quantityFulfilled?: number, note?: string | null) => Promise<void>;
+
+  /** Audit trail for one need (newest first): fill/status changes with note, author name, timestamp. */
+  fetchNeedUpdates: (incidentNeedId: string) => Promise<IncidentNeedUpdate[]>;
+
+  /**
+   * Create an Entity need: the selected units/users/roles/groups are added to the call and
+   * dispatched individually by the server as "Requested by Incident Command". Online-only.
+   */
+  requestNeedEntitiesEntry: (callId: string, name: string, description: string | null, entities: { EntityKind: number; EntityId: string }[]) => Promise<boolean>;
+
+  /** The requested entities under one Entity-category need. Online-only. */
+  fetchNeedEntities: (incidentNeedId: string) => Promise<IncidentNeedEntity[]>;
 
   /** Update command-level details every resource sees: estimated end + important information. */
   updateCommandDetailsEntry: (callId: string, estimatedEndOn: string | null, importantInformation: string | null) => Promise<void>;
+
+  /**
+   * Update core incident info (name, start time, locations, ...). Online-only — the server geocodes
+   * any location whose text is set without coordinates. Returns false on failure.
+   */
+  updateCommandInfoEntry: (callId: string, info: Omit<UpdateCommandInfoInput, 'IncidentCommandId'>) => Promise<boolean>;
+
+  /**
+   * Add an operational status note (internal or public). Online-only; the server writes the matching
+   * incident-log entry (public notes verbatim, private notes as an attributed marker).
+   */
+  addIncidentNoteEntry: (callId: string, body: string, visibility: number, title?: string | null) => Promise<boolean>;
+
+  /** Reopen a previously closed command for this call with a reason. Online-only. */
+  reopenCommandForCall: (callId: string, incidentCommandId: string, reason: string | null) => Promise<boolean>;
+
+  /** Create/update the incident map's saved view (center + zoom). Online-only. */
+  updateMapViewEntry: (callId: string, centerLatitude: string, centerLongitude: string, zoomLevel: string) => Promise<boolean>;
+
+  /** Save (create or update) an incident-map markup annotation. Online-only. */
+  saveMapAnnotationEntry: (callId: string, annotation: Partial<IncidentMapAnnotation>) => Promise<boolean>;
+
+  /** Save (create or update) a NAMED incident map — audit stamps + log entry happen server-side. Online-only. */
+  saveIncidentMapEntry: (callId: string, map: Partial<IncidentMap>) => Promise<boolean>;
+
+  /** Soft-delete a named incident map. Online-only. */
+  deleteIncidentMapEntry: (callId: string, incidentMapId: string) => Promise<boolean>;
+
+  /** Upload an incident file (report/image/document). Online-only. */
+  addIncidentAttachmentEntry: (callId: string, visibility: number, description: string | null, file: { uri: string; name: string; type: string }) => Promise<boolean>;
+
+  /** Remove an incident file. Online-only. */
+  removeIncidentAttachmentEntry: (callId: string, incidentAttachmentId: string) => Promise<boolean>;
+
+  /** Delete an incident-map markup annotation. Online-only. */
+  deleteMapAnnotationEntry: (callId: string, incidentMapAnnotationId: string) => Promise<boolean>;
 
   /** Edit an existing lane (rename, leads, linked objectives/need). Merges the patch into the stored lane. */
   updateNodeDetails: (callId: string, commandStructureNodeId: string, patch: Partial<CommandStructureNode>) => Promise<void>;
@@ -168,6 +238,62 @@ const emptyBoardState = (callId: string, provisional: boolean): CommandBoardStat
   isProvisional: provisional,
   lastRefreshed: null,
 });
+
+/**
+ * A server board refresh must NOT wipe optimistic `local-` rows whose queued offline writes have not
+ * completed yet (adds made offline, or online adds that failed and were queued for retry) — otherwise
+ * an app restart "loses" the work until the queue drains. Carries those rows forward from the previous
+ * board; once the queued event completes, the refreshed server board contains the real row and the
+ * matching queue entry is gone, so the local row stops being carried.
+ */
+const preserveQueuedLocalRows = (callId: string, serverBoard: IncidentCommandBoard | null, previousBoard: IncidentCommandBoard | null | undefined): IncidentCommandBoard | null => {
+  if (!serverBoard || !previousBoard) {
+    return serverBoard;
+  }
+
+  const queuedEvents = useOfflineQueueStore.getState().queuedEvents ?? [];
+  const hasQueued = (types: QueuedEventType[]) => queuedEvents.some((event) => event.status !== QueuedEventStatus.COMPLETED && String(event.data?.callId) === callId && types.includes(event.type));
+
+  const carryLocal = <T>(previous: T[] | undefined, server: T[], idOf: (row: T) => string, types: QueuedEventType[]): T[] => {
+    if (!hasQueued(types)) {
+      return server;
+    }
+    const localRows = (previous ?? []).filter((row) => idOf(row).startsWith('local-'));
+    return localRows.length > 0 ? [...server, ...localRows] : server;
+  };
+
+  return {
+    ...serverBoard,
+    Needs: carryLocal(previousBoard.Needs, serverBoard.Needs ?? [], (row) => row.IncidentNeedId, [QueuedEventType.SAVE_NEED]),
+    Objectives: carryLocal(previousBoard.Objectives, serverBoard.Objectives ?? [], (row) => row.TacticalObjectiveId, [QueuedEventType.SAVE_OBJECTIVE]),
+    Nodes: carryLocal(previousBoard.Nodes, serverBoard.Nodes ?? [], (row) => row.CommandStructureNodeId, [QueuedEventType.SAVE_COMMAND_NODE]),
+    Roles: carryLocal(previousBoard.Roles, serverBoard.Roles ?? [], (row) => row.IncidentRoleAssignmentId, [QueuedEventType.ASSIGN_INCIDENT_ROLE]),
+    Assignments: carryLocal(previousBoard.Assignments, serverBoard.Assignments ?? [], (row) => row.ResourceAssignmentId, [QueuedEventType.ASSIGN_COMMAND_RESOURCE]),
+  };
+};
+
+/** Online-only per-need list fetch with the shared offline/local-id guards. */
+const fetchNeedListSafe = async <T>(label: string, incidentNeedId: string, loader: () => Promise<{ Data?: T[] | null }>): Promise<T[]> => {
+  if (isOffline() || incidentNeedId.startsWith('local-')) {
+    return [];
+  }
+  try {
+    const result = await loader();
+    return result.Data ?? [];
+  } catch (error) {
+    logger.warn({ message: label, context: { error, incidentNeedId } });
+    return [];
+  }
+};
+
+/** Applies a board transform for one call (no-op when the board isn't loaded) — shared by map/file actions. */
+const mutateBoard = (set: (partial: Partial<CommandState>) => void, get: () => CommandState, callId: string, transform: (board: IncidentCommandBoard) => IncidentCommandBoard) => {
+  const current = get().boards[callId];
+  if (!current?.board) {
+    return;
+  }
+  set({ boards: { ...get().boards, [callId]: { ...current, board: transform(current.board) } } });
+};
 
 export const useCommandStore = create<CommandState>()(
   persist(
@@ -261,7 +387,7 @@ export const useCommandStore = create<CommandState>()(
               ...get().boards,
               [callId]: {
                 ...existing,
-                board: boardResult.Data,
+                board: preserveQueuedLocalRows(callId, boardResult.Data, existing.board),
                 adHocUnits: (adHocResult.Data ?? []).filter((u) => !u.ReleasedOn),
                 adHocPersonnel: (adHocPersonnelResult.Data ?? []).filter((p) => !p.ReleasedOn),
                 isProvisional: false,
@@ -293,7 +419,7 @@ export const useCommandStore = create<CommandState>()(
             const existing = boards[callId] ?? emptyBoardState(callId, false);
             boards[callId] = {
               ...existing,
-              board,
+              board: preserveQueuedLocalRows(callId, board, existing.board) ?? board,
               adHocUnits: (bundle.Data?.AdHocUnits ?? []).filter((u) => String(u.CallId) === callId && !u.ReleasedOn),
               adHocPersonnel: (bundle.Data?.AdHocPersonnel ?? []).filter((p) => String(p.CallId) === callId && !p.ReleasedOn),
               isProvisional: false,
@@ -825,8 +951,8 @@ export const useCommandStore = create<CommandState>()(
         }
       },
 
-      completeObjectiveEntry: async (callId: string, tacticalObjectiveId: string) => {
-        // Optimistically flip the row to Complete
+      completeObjectiveEntry: async (callId: string, tacticalObjectiveId: string, outcome?: number, note?: string | null) => {
+        // Optimistically flip the row to Complete with its close-out outcome/note
         const current = get().boards[callId];
         if (current?.board) {
           set({
@@ -836,7 +962,9 @@ export const useCommandStore = create<CommandState>()(
                 ...current,
                 board: {
                   ...current.board,
-                  Objectives: current.board.Objectives.map((o) => (o.TacticalObjectiveId === tacticalObjectiveId ? { ...o, Status: TacticalObjectiveStatus.Complete, CompletedOn: new Date().toISOString() } : o)),
+                  Objectives: current.board.Objectives.map((o) =>
+                    o.TacticalObjectiveId === tacticalObjectiveId ? { ...o, Status: TacticalObjectiveStatus.Complete, CompletedOn: new Date().toISOString(), Outcome: outcome ?? 0, CompletionNote: note ?? null } : o
+                  ),
                 },
               },
             },
@@ -848,18 +976,21 @@ export const useCommandStore = create<CommandState>()(
         }
 
         if (isOffline()) {
-          queueEvent(QueuedEventType.COMPLETE_OBJECTIVE, { callId, tacticalObjectiveId });
+          queueEvent(QueuedEventType.COMPLETE_OBJECTIVE, { callId, tacticalObjectiveId, outcome, note });
           return;
         }
 
         try {
-          await completeObjective(tacticalObjectiveId);
+          await completeObjective(tacticalObjectiveId, outcome, note);
+          get()
+            .fetchTimeline(callId)
+            .catch(() => {});
         } catch (error) {
           logger.warn({
             message: 'CompleteObjective failed — queueing for retry',
             context: { error, callId, tacticalObjectiveId },
           });
-          queueEvent(QueuedEventType.COMPLETE_OBJECTIVE, { callId, tacticalObjectiveId });
+          queueEvent(QueuedEventType.COMPLETE_OBJECTIVE, { callId, tacticalObjectiveId, outcome, note });
         }
       },
 
@@ -972,7 +1103,7 @@ export const useCommandStore = create<CommandState>()(
         }
       },
 
-      setNeedStatusEntry: async (callId: string, incidentNeedId: string, status: IncidentNeedStatus, quantityFulfilled?: number) => {
+      setNeedStatusEntry: async (callId: string, incidentNeedId: string, status: IncidentNeedStatus, quantityFulfilled?: number, note?: string | null) => {
         // Optimistically flip the row
         const current = get().boards[callId];
         if (current?.board) {
@@ -1004,21 +1135,50 @@ export const useCommandStore = create<CommandState>()(
         }
 
         if (isOffline()) {
-          queueEvent(QueuedEventType.SET_NEED_STATUS, { callId, incidentNeedId, status, quantityFulfilled });
+          queueEvent(QueuedEventType.SET_NEED_STATUS, { callId, incidentNeedId, status, quantityFulfilled, note });
           return;
         }
 
         try {
-          await setNeedStatus({ IncidentNeedId: incidentNeedId, Status: status, QuantityFulfilled: quantityFulfilled });
+          await setNeedStatus({ IncidentNeedId: incidentNeedId, Status: status, QuantityFulfilled: quantityFulfilled, Note: note });
           await get().refreshBoard(callId);
         } catch (error) {
           logger.warn({
             message: 'SetNeedStatus failed — queueing for retry',
             context: { error, callId, incidentNeedId },
           });
-          queueEvent(QueuedEventType.SET_NEED_STATUS, { callId, incidentNeedId, status, quantityFulfilled });
+          queueEvent(QueuedEventType.SET_NEED_STATUS, { callId, incidentNeedId, status, quantityFulfilled, note });
         }
       },
+
+      requestNeedEntitiesEntry: async (callId: string, name: string, description: string | null, entities: { EntityKind: number; EntityId: string }[]) => {
+        const entry = get().boards[callId];
+        const incidentCommandId = entry?.board?.Command?.IncidentCommandId;
+        if (!incidentCommandId || entities.length === 0) {
+          return false;
+        }
+        try {
+          const result = await requestNeedEntities(incidentCommandId, name, description, entities);
+          if (!result.Data) {
+            return false;
+          }
+          await get().refreshBoard(callId);
+          get()
+            .fetchTimeline(callId)
+            .catch(() => {});
+          return true;
+        } catch (error) {
+          logger.warn({
+            message: 'RequestNeedEntities failed',
+            context: { error, callId, name },
+          });
+          return false;
+        }
+      },
+
+      fetchNeedEntities: async (incidentNeedId: string) => fetchNeedListSafe('Failed to fetch need entities', incidentNeedId, () => getNeedEntities(incidentNeedId)),
+
+      fetchNeedUpdates: async (incidentNeedId: string) => fetchNeedListSafe('Failed to fetch need updates', incidentNeedId, () => getNeedUpdates(incidentNeedId)),
 
       updateCommandDetailsEntry: async (callId: string, estimatedEndOn: string | null, importantInformation: string | null) => {
         const entry = get().boards[callId];
@@ -1052,6 +1212,239 @@ export const useCommandStore = create<CommandState>()(
             context: { error, callId },
           });
           queueEvent(QueuedEventType.UPDATE_COMMAND_DETAILS, { callId, estimatedEndOn, importantInformation });
+        }
+      },
+
+      updateMapViewEntry: async (callId: string, centerLatitude: string, centerLongitude: string, zoomLevel: string) => {
+        const entry = get().boards[callId];
+        const incidentCommandId = entry?.board?.Command?.IncidentCommandId;
+        if (!incidentCommandId) {
+          return false;
+        }
+        try {
+          await updateMapView(incidentCommandId, centerLatitude, centerLongitude, zoomLevel);
+          // Optimistically stamp the saved view so the map card reframes immediately
+          const current = get().boards[callId];
+          if (current?.board) {
+            set({
+              boards: {
+                ...get().boards,
+                [callId]: {
+                  ...current,
+                  board: { ...current.board, Command: { ...current.board.Command, MapCenterLatitude: centerLatitude, MapCenterLongitude: centerLongitude, MapZoomLevel: zoomLevel } },
+                },
+              },
+            });
+          }
+          get()
+            .fetchTimeline(callId)
+            .catch(() => {});
+          return true;
+        } catch (error) {
+          logger.warn({
+            message: 'UpdateMapView failed',
+            context: { error, callId },
+          });
+          return false;
+        }
+      },
+
+      saveMapAnnotationEntry: async (callId: string, annotation: Partial<IncidentMapAnnotation>) => {
+        const entry = get().boards[callId];
+        const incidentCommandId = entry?.board?.Command?.IncidentCommandId;
+        if (!incidentCommandId) {
+          return false;
+        }
+        try {
+          const result = await saveMapAnnotation({ ...annotation, IncidentCommandId: incidentCommandId, CallId: toNumericCallId(callId) });
+          const saved = result.Data;
+          if (!saved) {
+            return false;
+          }
+          mutateBoard(set, get, callId, (board) => {
+            const annotations = board.Annotations ?? [];
+            const exists = annotations.some((a) => a.IncidentMapAnnotationId === saved.IncidentMapAnnotationId);
+            return { ...board, Annotations: exists ? annotations.map((a) => (a.IncidentMapAnnotationId === saved.IncidentMapAnnotationId ? saved : a)) : [...annotations, saved] };
+          });
+          get()
+            .fetchTimeline(callId)
+            .catch(() => {});
+          return true;
+        } catch (error) {
+          logger.warn({
+            message: 'SaveMapAnnotation failed',
+            context: { error, callId },
+          });
+          return false;
+        }
+      },
+
+      saveIncidentMapEntry: async (callId: string, map: Partial<IncidentMap>) => {
+        const entry = get().boards[callId];
+        const incidentCommandId = entry?.board?.Command?.IncidentCommandId;
+        if (!incidentCommandId) {
+          return false;
+        }
+        try {
+          const result = await saveIncidentMap({ ...map, IncidentCommandId: incidentCommandId, CallId: toNumericCallId(callId) });
+          const saved = result.Data;
+          if (!saved) {
+            return false;
+          }
+          mutateBoard(set, get, callId, (board) => {
+            const maps = board.Maps ?? [];
+            const exists = maps.some((m) => m.IncidentMapId === saved.IncidentMapId);
+            return { ...board, Maps: exists ? maps.map((m) => (m.IncidentMapId === saved.IncidentMapId ? saved : m)) : [...maps, saved] };
+          });
+          get()
+            .fetchTimeline(callId)
+            .catch(() => {});
+          return true;
+        } catch (error) {
+          logger.warn({
+            message: 'SaveIncidentMap failed',
+            context: { error, callId },
+          });
+          return false;
+        }
+      },
+
+      deleteIncidentMapEntry: async (callId: string, incidentMapId: string) => {
+        try {
+          await deleteIncidentMap(incidentMapId);
+          mutateBoard(set, get, callId, (board) => ({ ...board, Maps: (board.Maps ?? []).filter((m) => m.IncidentMapId !== incidentMapId) }));
+          get()
+            .fetchTimeline(callId)
+            .catch(() => {});
+          return true;
+        } catch (error) {
+          logger.warn({
+            message: 'DeleteIncidentMap failed',
+            context: { error, callId, incidentMapId },
+          });
+          return false;
+        }
+      },
+
+      addIncidentAttachmentEntry: async (callId: string, visibility: number, description: string | null, file: { uri: string; name: string; type: string }) => {
+        const entry = get().boards[callId];
+        const incidentCommandId = entry?.board?.Command?.IncidentCommandId;
+        if (!incidentCommandId) {
+          return false;
+        }
+        try {
+          const result = await addIncidentAttachment(incidentCommandId, visibility, description, file);
+          if (!result.Data) {
+            return false;
+          }
+          await get().refreshBoard(callId);
+          get()
+            .fetchTimeline(callId)
+            .catch(() => {});
+          return true;
+        } catch (error) {
+          logger.warn({
+            message: 'AddIncidentAttachment failed',
+            context: { error, callId, fileName: file.name },
+          });
+          return false;
+        }
+      },
+
+      removeIncidentAttachmentEntry: async (callId: string, incidentAttachmentId: string) => {
+        try {
+          await removeIncidentAttachment(incidentAttachmentId);
+          mutateBoard(set, get, callId, (board) => ({ ...board, Attachments: (board.Attachments ?? []).filter((a) => a.IncidentAttachmentId !== incidentAttachmentId) }));
+          get()
+            .fetchTimeline(callId)
+            .catch(() => {});
+          return true;
+        } catch (error) {
+          logger.warn({
+            message: 'RemoveIncidentAttachment failed',
+            context: { error, callId, incidentAttachmentId },
+          });
+          return false;
+        }
+      },
+
+      deleteMapAnnotationEntry: async (callId: string, incidentMapAnnotationId: string) => {
+        try {
+          await deleteMapAnnotation(incidentMapAnnotationId);
+          mutateBoard(set, get, callId, (board) => ({ ...board, Annotations: (board.Annotations ?? []).filter((a) => a.IncidentMapAnnotationId !== incidentMapAnnotationId) }));
+          get()
+            .fetchTimeline(callId)
+            .catch(() => {});
+          return true;
+        } catch (error) {
+          logger.warn({
+            message: 'DeleteMapAnnotation failed',
+            context: { error, callId, incidentMapAnnotationId },
+          });
+          return false;
+        }
+      },
+
+      updateCommandInfoEntry: async (callId: string, info: Omit<UpdateCommandInfoInput, 'IncidentCommandId'>) => {
+        const entry = get().boards[callId];
+        const incidentCommandId = entry?.board?.Command?.IncidentCommandId;
+        if (!incidentCommandId) {
+          return false;
+        }
+        try {
+          await updateCommandInfo({ IncidentCommandId: incidentCommandId, ...info });
+          await get().refreshBoard(callId);
+          get()
+            .fetchTimeline(callId)
+            .catch(() => {});
+          return true;
+        } catch (error) {
+          logger.warn({
+            message: 'UpdateCommandInfo failed',
+            context: { error, callId },
+          });
+          return false;
+        }
+      },
+
+      addIncidentNoteEntry: async (callId: string, body: string, visibility: number, title?: string | null) => {
+        const entry = get().boards[callId];
+        const incidentCommandId = entry?.board?.Command?.IncidentCommandId;
+        if (!incidentCommandId || !body.trim()) {
+          return false;
+        }
+        try {
+          await addIncidentNote({ IncidentCommandId: incidentCommandId, NoteType: 0, Visibility: visibility, Title: title ?? null, Body: body.trim() });
+          await get().refreshBoard(callId);
+          get()
+            .fetchTimeline(callId)
+            .catch(() => {});
+          return true;
+        } catch (error) {
+          logger.warn({
+            message: 'AddIncidentNote failed',
+            context: { error, callId },
+          });
+          return false;
+        }
+      },
+
+      reopenCommandForCall: async (callId: string, incidentCommandId: string, reason: string | null) => {
+        try {
+          const result = await reopenCommand({ IncidentCommandId: incidentCommandId, Reason: reason });
+          if (!result.Data) {
+            return false;
+          }
+          set({ boards: { ...get().boards, [callId]: get().boards[callId] ?? emptyBoardState(callId, false) }, activeCallId: callId });
+          await get().refreshBoard(callId);
+          await useCoreStore.getState().setActiveCall(callId);
+          return true;
+        } catch (error) {
+          logger.warn({
+            message: 'ReopenCommand failed',
+            context: { error, callId, incidentCommandId },
+          });
+          return false;
         }
       },
 

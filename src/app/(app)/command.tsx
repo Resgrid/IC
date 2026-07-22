@@ -1,18 +1,27 @@
 import { router } from 'expo-router';
-import { ClipboardList, CloudOff, ExternalLink, Info, MapPin, Pencil, RefreshCw, Trash2, UserCog, XCircle } from 'lucide-react-native';
+import { ClipboardList, CloudOff, ExternalLink, Image as ImageIcon, Info, MapPin, Paperclip, Pencil, RefreshCw, StickyNote, Trash2, UserCog, Video as VideoIcon, XCircle } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, useWindowDimensions } from 'react-native';
 
+import { VideoFeedTabContent } from '@/components/call-video-feeds/video-feed-tab-content';
+import CallFilesModal from '@/components/calls/call-files-modal';
+import CallImagesModal from '@/components/calls/call-images-modal';
+import CallNotesModal from '@/components/calls/call-notes-modal';
 import { AddAssignmentSheet } from '@/components/command/add-assignment-sheet';
 import { AddLaneSheet } from '@/components/command/add-lane-sheet';
 import { AddResourceSheet } from '@/components/command/add-resource-sheet';
 import { type AssignableResourceOption, AssignResourceSheet } from '@/components/command/assign-resource-sheet';
 import { CommandDetailsSheet } from '@/components/command/command-details-sheet';
 import { CommandSection } from '@/components/command/command-section';
+import { IncidentFilesSection } from '@/components/command/incident-files-section';
+import IncidentMapCard from '@/components/command/incident-map-card';
+import { IncidentMapsSection } from '@/components/command/incident-maps-section';
+import { IncidentWeatherSection } from '@/components/command/incident-weather-section';
 import { LandscapeStructureBoard } from '@/components/command/landscape-structure-board';
 import { LaneDetailsSheet } from '@/components/command/lane-details-sheet';
 import { NeedsSection } from '@/components/command/needs-section';
+import { NotesSection } from '@/components/command/notes-section';
 import { ObjectivesSection } from '@/components/command/objectives-section';
 import { PersonnelResourceCard, UnitResourceCard } from '@/components/command/resource-cards';
 import { StructureSection } from '@/components/command/structure-section';
@@ -24,6 +33,7 @@ import ZeroState from '@/components/common/zero-state';
 import { View } from '@/components/ui';
 import { AlertDialog, AlertDialogBackdrop, AlertDialogBody, AlertDialogContent, AlertDialogFooter, AlertDialogHeader } from '@/components/ui/alert-dialog';
 import { Badge, BadgeText } from '@/components/ui/badge';
+import { CustomBottomSheet } from '@/components/ui/bottom-sheet';
 import { Box } from '@/components/ui/box';
 import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
 import { FocusAwareStatusBar } from '@/components/ui/focus-aware-status-bar';
@@ -74,7 +84,15 @@ export default function CommandBoard() {
   const updateObjectiveProgressEntry = useCommandStore((state) => state.updateObjectiveProgressEntry);
   const addNeed = useCommandStore((state) => state.addNeed);
   const setNeedStatusEntry = useCommandStore((state) => state.setNeedStatusEntry);
-  const updateCommandDetailsEntry = useCommandStore((state) => state.updateCommandDetailsEntry);
+  const fetchNeedUpdates = useCommandStore((state) => state.fetchNeedUpdates);
+  const requestNeedEntitiesEntry = useCommandStore((state) => state.requestNeedEntitiesEntry);
+  const fetchNeedEntities = useCommandStore((state) => state.fetchNeedEntities);
+  const saveIncidentMapEntry = useCommandStore((state) => state.saveIncidentMapEntry);
+  const deleteIncidentMapEntry = useCommandStore((state) => state.deleteIncidentMapEntry);
+  const addIncidentAttachmentEntry = useCommandStore((state) => state.addIncidentAttachmentEntry);
+  const removeIncidentAttachmentEntry = useCommandStore((state) => state.removeIncidentAttachmentEntry);
+  const updateCommandInfoEntry = useCommandStore((state) => state.updateCommandInfoEntry);
+  const addIncidentNoteEntry = useCommandStore((state) => state.addIncidentNoteEntry);
   const updateNodeDetails = useCommandStore((state) => state.updateNodeDetails);
   const startTimer = useCommandStore((state) => state.startTimer);
   const acknowledgeTimer = useCommandStore((state) => state.acknowledgeTimer);
@@ -118,6 +136,9 @@ export default function CommandBoard() {
   const [isTransferSheetOpen, setIsTransferSheetOpen] = useState(false);
   const [editLaneNodeId, setEditLaneNodeId] = useState<string | null>(null);
   const [isCommandDetailsOpen, setIsCommandDetailsOpen] = useState(false);
+  const [isEndConfirmOpen, setIsEndConfirmOpen] = useState(false);
+  /** Which call-resource viewer (from the underlying call) is open on top of the board. */
+  const [callResourceModal, setCallResourceModal] = useState<'notes' | 'images' | 'files' | 'video' | null>(null);
 
   const boardList = useMemo(() => Object.values(boards), [boards]);
   const boardState = activeBoardCallId ? boards[activeBoardCallId] : undefined;
@@ -180,10 +201,33 @@ export default function CommandBoard() {
   }, [activeBoardCallId]);
 
   const handleEndCommand = useCallback(() => {
+    setIsEndConfirmOpen(false);
     if (activeBoardCallId) {
       endCommand(activeBoardCallId);
     }
   }, [activeBoardCallId, endCommand]);
+
+  const handleSaveCommandInfo = useCallback(
+    async (info: Parameters<typeof updateCommandInfoEntry>[1]) => {
+      if (!activeBoardCallId) {
+        return;
+      }
+      const ok = await updateCommandInfoEntry(activeBoardCallId, info);
+      showToast(ok ? 'success' : 'error', ok ? t('command.info_save_success') : t('command.info_save_error'));
+    },
+    [activeBoardCallId, updateCommandInfoEntry, showToast, t]
+  );
+
+  const handleAddNote = useCallback(
+    async (body: string, visibility: number) => {
+      if (!activeBoardCallId) {
+        return;
+      }
+      const ok = await addIncidentNoteEntry(activeBoardCallId, body, visibility);
+      showToast(ok ? 'success' : 'error', ok ? t('command.note_save_success') : t('command.note_save_error'));
+    },
+    [activeBoardCallId, addIncidentNoteEntry, showToast, t]
+  );
 
   const handleRefresh = useCallback(() => {
     if (activeBoardCallId) {
@@ -391,13 +435,25 @@ export default function CommandBoard() {
   const activeRoles = (boardState.board?.Roles ?? []).filter((r) => !r.RemovedOn);
   const accountability = boardState.board?.Accountability ?? [];
   const summaryCall = activeCall?.CallId === boardState.callId ? activeCall : (calls.find((c) => c.CallId === boardState.callId) ?? null);
+
+  // Weather location: the ICP when set, otherwise the call's own coordinates.
+  const icpLatitude = parseFloat(boardState.board?.Command?.CommandPostLatitude ?? '');
+  const icpLongitude = parseFloat(boardState.board?.Command?.CommandPostLongitude ?? '');
+  const callLatitude = parseFloat(summaryCall?.Latitude ?? '');
+  const callLongitude = parseFloat(summaryCall?.Longitude ?? '');
+  const incidentWeatherCoords =
+    Number.isFinite(icpLatitude) && Number.isFinite(icpLongitude)
+      ? { latitude: icpLatitude, longitude: icpLongitude, isIcp: true }
+      : Number.isFinite(callLatitude) && Number.isFinite(callLongitude)
+        ? { latitude: callLatitude, longitude: callLongitude, isIcp: false }
+        : null;
   const summaryPriority = activeCall?.CallId === boardState.callId ? activePriority : null;
 
   return (
     <View className="flex-1 bg-gray-50 dark:bg-gray-900" testID="command-board-screen">
       <FocusAwareStatusBar />
       <ScrollView className="flex-1">
-        <VStack space="lg" className="p-4">
+        <VStack space="md" className="px-3 pb-3 pt-2">
           {/* Board switcher — the IC may be running several incidents at once */}
           {boardList.length > 1 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} testID="command-board-switcher">
@@ -421,9 +477,9 @@ export default function CommandBoard() {
             <HStack space="sm" className="items-center justify-between">
               <HStack space="sm" className="min-w-0 flex-1 items-center">
                 <Heading size="sm">{boardLabel(boardState.callId)}</Heading>
-                {summaryCall ? (
+                {boardState.board?.Command?.Name || summaryCall ? (
                   <Text className="min-w-0 flex-1 font-medium text-gray-900 dark:text-white" {...oneLine}>
-                    {summaryCall.Name}
+                    {boardState.board?.Command?.Name || summaryCall?.Name}
                   </Text>
                 ) : null}
               </HStack>
@@ -477,11 +533,51 @@ export default function CommandBoard() {
               <Button onPress={handleRefresh} variant="outline" size="xs" isDisabled={isRefreshing} testID="command-refresh">
                 <ButtonIcon as={RefreshCw} />
               </Button>
-              <Button onPress={handleEndCommand} action="negative" variant="outline" size="xs" testID="command-end-command">
-                <ButtonIcon as={XCircle} />
-                <ButtonText>{t('command.end_command')}</ButtonText>
+              {/* Icon-only by design; a confirmation dialog guards against accidental taps. */}
+              <Button onPress={() => setIsEndConfirmOpen(true)} action="negative" variant="solid" size="xs" accessibilityLabel={t('command.end_command')} testID="command-end-command">
+                <ButtonIcon as={XCircle} className="text-white" />
               </Button>
             </HStack>
+
+            {/* Quick access to the underlying call's notes/images/files/video without leaving the board */}
+            <HStack space="sm" className="mt-2">
+              <Button onPress={() => setCallResourceModal('notes')} variant="outline" size="xs" testID="command-call-notes">
+                <ButtonIcon as={StickyNote} />
+                <ButtonText>{t('call_detail.notes')}</ButtonText>
+              </Button>
+              <Button onPress={() => setCallResourceModal('images')} variant="outline" size="xs" testID="command-call-images">
+                <ButtonIcon as={ImageIcon} />
+                <ButtonText>{t('call_detail.images')}</ButtonText>
+              </Button>
+              <Button onPress={() => setCallResourceModal('files')} variant="outline" size="xs" testID="command-call-files">
+                <ButtonIcon as={Paperclip} />
+                <ButtonText>{t('call_detail.files.button')}</ButtonText>
+              </Button>
+              <Button onPress={() => setCallResourceModal('video')} variant="outline" size="xs" testID="command-call-video">
+                <ButtonIcon as={VideoIcon} />
+                <ButtonText>{t('video_feeds.tab_title')}</ButtonText>
+              </Button>
+            </HStack>
+
+            {boardState.board?.Command?.CommandPostLocationText || boardState.board?.Command?.StagingLocationText || boardState.board?.Command?.RehabLocationText ? (
+              <VStack space="xs" className="mt-2" testID="command-locations">
+                {boardState.board?.Command?.CommandPostLocationText ? (
+                  <Text className="text-sm text-gray-600 dark:text-gray-300" {...oneLine}>
+                    {`${t('command.icp_location_label')}: ${boardState.board.Command.CommandPostLocationText}`}
+                  </Text>
+                ) : null}
+                {boardState.board?.Command?.StagingLocationText ? (
+                  <Text className="text-sm text-gray-600 dark:text-gray-300" {...oneLine}>
+                    {`${t('command.staging_location_label')}: ${boardState.board.Command.StagingLocationText}`}
+                  </Text>
+                ) : null}
+                {boardState.board?.Command?.RehabLocationText ? (
+                  <Text className="text-sm text-gray-600 dark:text-gray-300" {...oneLine}>
+                    {`${t('command.rehab_location_label')}: ${boardState.board.Command.RehabLocationText}`}
+                  </Text>
+                ) : null}
+              </VStack>
+            ) : null}
 
             {boardState.board?.Command?.EstimatedEndOn ? (
               <Text className="mt-2 text-sm text-gray-600 dark:text-gray-300" testID="command-estimated-end">
@@ -495,6 +591,20 @@ export default function CommandBoard() {
               </HStack>
             ) : null}
           </Box>
+
+          {/* Incident tactical map — saved framing, markup, ICP/Staging/Rehab, live incident resources */}
+          {boardState.board?.Command ? (
+            <IncidentMapCard callId={boardState.callId} command={boardState.board.Command} annotations={(boardState.board.Annotations ?? []).filter((a) => !a.DeletedOn && !a.IncidentMapId)} />
+          ) : null}
+
+          {/* Named tactical maps (areas of operation, cleanup zones, ...) */}
+          <IncidentMapsSection
+            callId={boardState.callId}
+            maps={boardState.board?.Maps ?? []}
+            onCreate={(name, description, expiresOn) => saveIncidentMapEntry(boardState.callId, { Name: name, Description: description, ExpiresOn: expiresOn })}
+            onDelete={(incidentMapId) => deleteIncidentMapEntry(boardState.callId, incidentMapId)}
+            resolveUserName={personName}
+          />
 
           {/* Command structure lanes (Division/Group/Branch/...) with assigned resources */}
           {isLandscapeBoard ? (
@@ -543,16 +653,42 @@ export default function CommandBoard() {
           <ObjectivesSection
             objectives={boardState.board?.Objectives ?? []}
             onAdd={(name, type) => addObjective(boardState.callId, name, type)}
-            onComplete={(objectiveId) => completeObjectiveEntry(boardState.callId, objectiveId)}
+            onComplete={(objectiveId, outcome, note) => completeObjectiveEntry(boardState.callId, objectiveId, outcome, note)}
             onUpdateProgress={(objectiveId, progress) => updateObjectiveProgressEntry(boardState.callId, objectiveId, progress)}
+            resolveUserName={personName}
           />
 
           {/* Command-level needs (resources/logistics/etc.) tracked to fulfillment */}
           <NeedsSection
             needs={boardState.board?.Needs ?? []}
             onAdd={(name, category, options) => addNeed(boardState.callId, name, category, options)}
-            onSetStatus={(needId, status: IncidentNeedStatus, quantityFulfilled) => setNeedStatusEntry(boardState.callId, needId, status, quantityFulfilled)}
+            onSetStatus={(needId, status: IncidentNeedStatus, quantityFulfilled, note) => setNeedStatusEntry(boardState.callId, needId, status, quantityFulfilled, note)}
+            fetchNeedUpdates={fetchNeedUpdates}
+            onRequestEntities={(name, description, entities) =>
+              requestNeedEntitiesEntry(
+                boardState.callId,
+                name,
+                description,
+                entities.map((e) => ({ EntityKind: e.kind, EntityId: e.id }))
+              )
+            }
+            fetchNeedEntities={fetchNeedEntities}
+            unitStatuses={unitCurrentStatuses}
+            personnel={users}
           />
+
+          {/* Weather alerts at the incident's own location (ICP first, call fallback) */}
+          {incidentWeatherCoords ? <IncidentWeatherSection latitude={incidentWeatherCoords.latitude} longitude={incidentWeatherCoords.longitude} isIcpLocation={incidentWeatherCoords.isIcp} /> : null}
+
+          {/* Incident files: reports, images, documents */}
+          <IncidentFilesSection
+            attachments={(boardState.board?.Attachments ?? []).filter((a) => !a.DeletedOn)}
+            onUpload={(visibility, description, file) => addIncidentAttachmentEntry(boardState.callId, visibility, description, file)}
+            onRemove={(incidentAttachmentId) => removeIncidentAttachmentEntry(boardState.callId, incidentAttachmentId)}
+          />
+
+          {/* Operational status notes — public ones land verbatim on the incident log */}
+          <NotesSection notes={boardState.board?.Notes ?? []} onAdd={handleAddNote} />
 
           {/* ICS role assignments — synced with IncidentRoles API */}
           <CommandSection
@@ -702,15 +838,11 @@ export default function CommandBoard() {
         node={boardState.board?.Nodes.find((n) => n.CommandStructureNodeId === editLaneNodeId) ?? null}
         objectives={boardState.board?.Objectives ?? []}
         needs={boardState.board?.Needs ?? []}
+        maps={boardState.board?.Maps ?? []}
         users={users}
         onSave={(nodeId, patch) => updateNodeDetails(boardState.callId, nodeId, patch)}
       />
-      <CommandDetailsSheet
-        isOpen={isCommandDetailsOpen}
-        onClose={() => setIsCommandDetailsOpen(false)}
-        command={boardState.board?.Command ?? null}
-        onSave={(estimatedEndOn, importantInformation) => updateCommandDetailsEntry(boardState.callId, estimatedEndOn, importantInformation)}
-      />
+      <CommandDetailsSheet isOpen={isCommandDetailsOpen} onClose={() => setIsCommandDetailsOpen(false)} command={boardState.board?.Command ?? null} onSave={handleSaveCommandInfo} />
       <TransferCommandSheet
         isOpen={isTransferSheetOpen}
         onClose={() => setIsTransferSheetOpen(false)}
@@ -726,6 +858,38 @@ export default function CommandBoard() {
         targetNodeId={assignTargetNodeId}
         onSave={handleAssignResourceSave}
       />
+
+      {/* Call resource viewers — the same modals the call detail screen uses, opened in place */}
+      <CallNotesModal isOpen={callResourceModal === 'notes'} onClose={() => setCallResourceModal(null)} callId={boardState.callId} />
+      <CallImagesModal isOpen={callResourceModal === 'images'} onClose={() => setCallResourceModal(null)} callId={boardState.callId} />
+      <CallFilesModal isOpen={callResourceModal === 'files'} onClose={() => setCallResourceModal(null)} callId={boardState.callId} />
+      <CustomBottomSheet isOpen={callResourceModal === 'video'} onClose={() => setCallResourceModal(null)} snapPoints={[85]} testID="command-video-sheet">
+        <VStack space="md" className="w-full">
+          <Heading size="md">{t('video_feeds.tab_title')}</Heading>
+          <VideoFeedTabContent callId={parseInt(boardState.callId, 10) || 0} />
+        </VStack>
+      </CustomBottomSheet>
+
+      {/* End-command confirmation — ending closes the command server-side and drops the local board */}
+      <AlertDialog isOpen={isEndConfirmOpen} onClose={() => setIsEndConfirmOpen(false)}>
+        <AlertDialogBackdrop />
+        <AlertDialogContent testID="end-command-dialog">
+          <AlertDialogHeader>
+            <Heading size="md">{t('command.end_command_confirm_title')}</Heading>
+          </AlertDialogHeader>
+          <AlertDialogBody>
+            <Text className="text-gray-700 dark:text-gray-300">{t('command.end_command_confirm_message')}</Text>
+          </AlertDialogBody>
+          <AlertDialogFooter>
+            <Button variant="outline" onPress={() => setIsEndConfirmOpen(false)} testID="end-command-cancel">
+              <ButtonText>{t('common.cancel')}</ButtonText>
+            </Button>
+            <Button action="negative" onPress={handleEndCommand} testID="end-command-confirm">
+              <ButtonText>{t('command.end_command')}</ButtonText>
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* "Already assigned to another lane" confirmation */}
       <AlertDialog isOpen={moveConflict !== null} onClose={() => setMoveConflict(null)}>

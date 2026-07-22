@@ -1,66 +1,73 @@
-import { getBundle } from '@/api/command/sync';
-import { type IncidentCommandBundle } from '@/models/v4/incidentCommand/incidentCommandBundle';
+import { getCommandList } from '@/api/incidentCommand/incidentCommand';
+import { type IncidentCommandSummary } from '@/models/v4/incidentCommand/incidentCommandModels';
 
 import { useIncidentsStore } from '../incidents-store';
 
-jest.mock('@/api/command/sync');
+jest.mock('@/api/incidentCommand/incidentCommand');
 jest.mock('@/lib/logging', () => ({
   logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn(), debug: jest.fn() },
 }));
 
-const mockGetBundle = getBundle as jest.MockedFunction<typeof getBundle>;
+const mockGetCommandList = getCommandList as jest.MockedFunction<typeof getCommandList>;
 
-const fakeBundle = {
-  ServerTimestampMs: 1700000000000,
-  Boards: [{ Command: { CallId: 5 } }],
-  AdHocUnits: [],
-  AdHocPersonnel: [],
-} as unknown as IncidentCommandBundle;
+const summaries = [
+  { IncidentCommandId: 'ic-1', CallId: 5, Status: 0, EstablishedOn: '2026-07-01T10:00:00Z', AssignedUnitCount: 2, AssignedPersonnelCount: 3 },
+  { IncidentCommandId: 'ic-2', CallId: 6, Status: 1, EstablishedOn: '2026-06-01T10:00:00Z', ClosedOn: '2026-06-01T14:00:00Z', AssignedUnitCount: 0, AssignedPersonnelCount: 0 },
+] as unknown as IncidentCommandSummary[];
 
-const bundleResult = { Data: fakeBundle } as unknown as Awaited<ReturnType<typeof getBundle>>;
+const listResult = { Data: summaries } as unknown as Awaited<ReturnType<typeof getCommandList>>;
 
 describe('useIncidentsStore', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useIncidentsStore.setState({ incidents: [], adHocUnits: [], adHocPersonnel: [], serverTimestampMs: null, isLoading: false, error: null });
+    useIncidentsStore.setState({ summaries: [], includeClosed: false, isLoading: false, error: null });
   });
 
-  it('fetchActiveIncidents populates incidents + cursor from the bundle', async () => {
-    mockGetBundle.mockResolvedValue(bundleResult);
+  it('fetchIncidents loads summaries for the active-only filter by default', async () => {
+    mockGetCommandList.mockResolvedValue(listResult);
 
-    await useIncidentsStore.getState().fetchActiveIncidents();
+    await useIncidentsStore.getState().fetchIncidents();
 
+    expect(mockGetCommandList).toHaveBeenCalledWith(false);
     const state = useIncidentsStore.getState();
-    expect(state.incidents).toBe(fakeBundle.Boards);
-    expect(state.serverTimestampMs).toBe(1700000000000);
+    expect(state.summaries).toBe(summaries);
     expect(state.isLoading).toBe(false);
     expect(state.error).toBeNull();
   });
 
-  it('fetchActiveIncidents tolerates a null bundle payload', async () => {
-    mockGetBundle.mockResolvedValue({ Data: null } as unknown as Awaited<ReturnType<typeof getBundle>>);
+  it('setIncludeClosed(true) refetches with ended incidents included', async () => {
+    mockGetCommandList.mockResolvedValue(listResult);
 
-    await useIncidentsStore.getState().fetchActiveIncidents();
+    useIncidentsStore.getState().setIncludeClosed(true);
+    await Promise.resolve();
 
-    expect(useIncidentsStore.getState().incidents).toEqual([]);
+    expect(useIncidentsStore.getState().includeClosed).toBe(true);
+    expect(mockGetCommandList).toHaveBeenCalledWith(true);
   });
 
-  it('fetchActiveIncidents sets an error and clears loading on failure', async () => {
-    mockGetBundle.mockRejectedValue(new Error('boom'));
+  it('fetchIncidents tolerates a null payload', async () => {
+    mockGetCommandList.mockResolvedValue({ Data: null } as unknown as Awaited<ReturnType<typeof getCommandList>>);
 
-    await useIncidentsStore.getState().fetchActiveIncidents();
+    await useIncidentsStore.getState().fetchIncidents();
+
+    expect(useIncidentsStore.getState().summaries).toEqual([]);
+  });
+
+  it('fetchIncidents sets an error and clears loading on failure', async () => {
+    mockGetCommandList.mockRejectedValue(new Error('boom'));
+
+    await useIncidentsStore.getState().fetchIncidents();
 
     const state = useIncidentsStore.getState();
     expect(state.error).toBe('Failed to load incidents');
     expect(state.isLoading).toBe(false);
   });
 
-  it('clear resets the loaded incidents', () => {
-    useIncidentsStore.setState({ incidents: fakeBundle.Boards, serverTimestampMs: 1 });
+  it('clear resets the loaded summaries', () => {
+    useIncidentsStore.setState({ summaries });
 
     useIncidentsStore.getState().clear();
 
-    expect(useIncidentsStore.getState().incidents).toEqual([]);
-    expect(useIncidentsStore.getState().serverTimestampMs).toBeNull();
+    expect(useIncidentsStore.getState().summaries).toEqual([]);
   });
 });

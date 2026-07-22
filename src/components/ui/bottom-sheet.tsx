@@ -1,7 +1,7 @@
 import { useColorScheme } from 'nativewind';
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Pressable, ScrollView, useWindowDimensions } from 'react-native';
+import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 
 import { Center } from './center';
 import { Spinner } from './spinner';
@@ -115,58 +115,62 @@ export function CustomBottomSheet({
 
   return (
     <Modal visible={modalVisible} transparent animationType="none" statusBarTranslucent onRequestClose={handleClose} testID={testID}>
-      {/* Backdrop */}
-      <Pressable style={{ flex: 1 }} onPress={backdropEnabled ? handleClose : undefined} testID={testID ? `${testID}-backdrop` : undefined}>
+      {/* KeyboardAvoidingView lifts the bottom-anchored sheet above the soft keyboard so
+          text inputs low in the sheet stay visible while typing. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {/* Backdrop */}
+        <Pressable style={{ flex: 1 }} onPress={backdropEnabled ? handleClose : undefined} testID={testID ? `${testID}-backdrop` : undefined}>
+          <Animated.View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: '#000',
+              opacity: backdropOpacity,
+            }}
+          />
+        </Pressable>
+
+        {/* Sheet content */}
         <Animated.View
           style={{
             position: 'absolute',
-            top: 0,
+            bottom: 0,
             left: 0,
             right: 0,
-            bottom: 0,
-            backgroundColor: '#000',
-            opacity: backdropOpacity,
+            maxHeight: sheetHeight,
+            transform: [{ translateY: translateY.interpolate({ inputRange: [0, 1], outputRange: [0, sheetHeight] }) }],
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            backgroundColor: colorScheme === 'dark' ? '#171717' : '#ffffff',
+            paddingHorizontal: 16,
+            paddingBottom: 24,
           }}
-        />
-      </Pressable>
-
-      {/* Sheet content */}
-      <Animated.View
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          maxHeight: sheetHeight,
-          transform: [{ translateY: translateY.interpolate({ inputRange: [0, 1], outputRange: [0, sheetHeight] }) }],
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          backgroundColor: colorScheme === 'dark' ? '#171717' : '#ffffff',
-          paddingHorizontal: 16,
-          paddingBottom: 24,
-        }}
-        testID={testID ? `${testID}-content` : undefined}
-      >
-        {/* Drag indicator */}
-        <VStack className="w-full items-center py-2">
-          <Center className="w-16 h-1 bg-gray-400 rounded-full" />
-        </VStack>
-
-        <ScrollView bounces={false} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 8 }}>
-          <VStack className="w-full flex-1" space="md">
-            {isLoading ? (
-              <Center className="h-32">
-                <VStack space="sm" className="items-center">
-                  <Spinner size="large" />
-                  {loadingText && <Text className="text-sm text-gray-500">{loadingText}</Text>}
-                </VStack>
-              </Center>
-            ) : (
-              children
-            )}
+          testID={testID ? `${testID}-content` : undefined}
+        >
+          {/* Drag indicator */}
+          <VStack className="w-full items-center py-2">
+            <Center className="w-16 h-1 bg-gray-400 rounded-full" />
           </VStack>
-        </ScrollView>
-      </Animated.View>
+
+          <ScrollView bounces={false} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" nestedScrollEnabled={true} contentContainerStyle={{ paddingBottom: 8 }}>
+            <VStack className="w-full flex-1" space="md">
+              {isLoading ? (
+                <Center className="h-32">
+                  <VStack space="sm" className="items-center">
+                    <Spinner size="large" />
+                    {loadingText && <Text className="text-sm text-gray-500">{loadingText}</Text>}
+                  </VStack>
+                </Center>
+              ) : (
+                children
+              )}
+            </VStack>
+          </ScrollView>
+        </Animated.View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
