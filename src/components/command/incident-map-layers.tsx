@@ -3,22 +3,39 @@ import { StyleSheet, View } from 'react-native';
 
 import Mapbox from '@/components/maps/mapbox';
 import { Text } from '@/components/ui/text';
+import { logger } from '@/lib/logging';
 import { IncidentMapAnnotationType } from '@/models/v4/incidentCommand/incidentCommandEnums';
 import { type IncidentCommand, type IncidentMapAnnotation } from '@/models/v4/incidentCommand/incidentCommandModels';
 
 const MARKUP_COLOR = '#dc2626';
 
-/** Parses an annotation's stored GeoJson into a Feature (accepts a bare geometry too). */
+/** Corrupt-annotation ids already reported — the parser runs per render, log each offender once. */
+const reportedCorruptAnnotationIds = new Set<string>();
+
+const reportCorruptAnnotation = (annotation: IncidentMapAnnotation, reason: string, error?: unknown) => {
+  if (reportedCorruptAnnotationIds.has(annotation.IncidentMapAnnotationId)) {
+    return;
+  }
+  reportedCorruptAnnotationIds.add(annotation.IncidentMapAnnotationId);
+  logger.warn({
+    message: 'Skipping corrupt incident map annotation',
+    context: { incidentMapAnnotationId: annotation.IncidentMapAnnotationId, annotationType: annotation.AnnotationType, callId: annotation.CallId, reason, error },
+  });
+};
+
+/** Parses an annotation's stored GeoJson into a Feature (accepts a bare geometry too); null (and a one-time log) when corrupt. */
 export const parseAnnotationFeature = (annotation: IncidentMapAnnotation): GeoJSON.Feature | null => {
   try {
     const parsed = JSON.parse(annotation.GeoJson);
     const feature: GeoJSON.Feature = parsed?.type === 'Feature' ? parsed : { type: 'Feature', geometry: parsed, properties: {} };
     if (!feature.geometry) {
+      reportCorruptAnnotation(annotation, 'missing geometry');
       return null;
     }
     feature.properties = { ...(feature.properties ?? {}), annotationId: annotation.IncidentMapAnnotationId, label: annotation.Label ?? null };
     return feature;
-  } catch {
+  } catch (error) {
+    reportCorruptAnnotation(annotation, 'invalid GeoJSON', error);
     return null;
   }
 };

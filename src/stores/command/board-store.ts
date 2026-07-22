@@ -57,15 +57,21 @@ export const useCommandBoardStore = create<CommandBoardState>((set, get) => ({
       // Same wire payload as GetCommandBoard — the two local IncidentCommandBoard interfaces only differ in optionality.
       const board = (result?.Data ?? null) as unknown as IncidentCommandBoard | null;
 
-      // Log + files load best-effort; the per-call reads span every command on the call, so filter to this one.
+      // Log + files load best-effort AND independently: one failing must not discard the other's
+      // result, so settle both and inspect each outcome. Per-call reads span every command on the
+      // call, so filter to this one.
       let timeline: CommandLogEntry[] = [];
       let attachments: IncidentAttachment[] = [];
-      try {
-        const [timelineResult, attachmentsResult] = await Promise.all([getCommandTimeline(callId), getIncidentAttachments(callId)]);
-        timeline = (timelineResult?.Data ?? []).filter((entry) => entry.IncidentCommandId === incidentCommandId).sort((a, b) => new Date(b.OccurredOn).getTime() - new Date(a.OccurredOn).getTime());
-        attachments = (attachmentsResult?.Data ?? []).filter((attachment) => attachment.IncidentCommandId === incidentCommandId);
-      } catch (error) {
-        logger.warn({ message: 'Failed to fetch incident history extras', context: { error, callId, incidentCommandId } });
+      const [timelineOutcome, attachmentsOutcome] = await Promise.allSettled([getCommandTimeline(callId), getIncidentAttachments(callId)]);
+      if (timelineOutcome.status === 'fulfilled') {
+        timeline = (timelineOutcome.value?.Data ?? []).filter((entry) => entry.IncidentCommandId === incidentCommandId).sort((a, b) => new Date(b.OccurredOn).getTime() - new Date(a.OccurredOn).getTime());
+      } else {
+        logger.warn({ message: 'Failed to fetch incident history timeline', context: { error: timelineOutcome.reason, callId, incidentCommandId } });
+      }
+      if (attachmentsOutcome.status === 'fulfilled') {
+        attachments = (attachmentsOutcome.value?.Data ?? []).filter((attachment) => attachment.IncidentCommandId === incidentCommandId);
+      } else {
+        logger.warn({ message: 'Failed to fetch incident history attachments', context: { error: attachmentsOutcome.reason, callId, incidentCommandId } });
       }
 
       set({ board, timeline, attachments, isLoading: false });

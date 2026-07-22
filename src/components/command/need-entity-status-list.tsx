@@ -7,6 +7,7 @@ import { HStack } from '@/components/ui/hstack';
 import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { logger } from '@/lib/logging';
 import { type IncidentNeedEntity, NeedEntityKind } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { type PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
 import { type UnitStatusResultData } from '@/models/v4/unitStatus/unitStatusResultData';
@@ -48,6 +49,14 @@ export const NeedEntityStatusList: React.FC<NeedEntityStatusListProps> = ({ inci
       .then((rows) => {
         if (!cancelled) {
           setEntities(rows);
+        }
+      })
+      .catch((error) => {
+        // The store implementation resolves [] on failure, but the prop contract doesn't
+        // guarantee that — never leave a rejection unhandled.
+        logger.warn({ message: 'Failed to load need entities', context: { incidentNeedId, error } });
+        if (!cancelled) {
+          setEntities([]);
         }
       })
       .finally(() => {

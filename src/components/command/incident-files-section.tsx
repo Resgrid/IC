@@ -17,6 +17,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { logger } from '@/lib/logging';
+import { sanitizeFileName } from '@/lib/utils';
 import { type IncidentAttachment, IncidentContentVisibility } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useToastStore } from '@/stores/toast/store';
 
@@ -69,7 +70,9 @@ export const IncidentFilesSection: React.FC<IncidentFilesSectionProps> = ({ atta
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
-        const fileUri = `${documentDirectory}${attachment.FileName}`;
+        // FileName is server-stored data — reduce it to a basename so a value containing path
+        // separators or ".." segments can never write outside documentDirectory.
+        const fileUri = `${documentDirectory}${sanitizeFileName(attachment.FileName)}`;
         await writeAsStringAsync(fileUri, base64, { encoding: EncodingType.Base64 });
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(fileUri, { mimeType: attachment.ContentType || 'application/octet-stream', dialogTitle: attachment.FileName });

@@ -17,6 +17,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { useAnalytics } from '@/hooks/use-analytics';
+import { sanitizeFileName } from '@/lib/utils';
 import { type CallFileResultData } from '@/models/v4/callFiles/callFileResultData';
 import { useCallDetailStore } from '@/stores/calls/detail-store';
 
@@ -110,8 +111,9 @@ export const CallFilesModal: React.FC<CallFilesModalProps> = ({ isOpen, onClose,
     try {
       setDownloadingFiles((prev) => ({ ...prev, [file.Id]: 0 }));
 
-      // Create a temporary file
-      const fileName = file.FileName || file.Name || `file_${file.Id}`;
+      // Create a temporary file. The name is server-stored data — reduce it to a basename so a
+      // value containing path separators or ".." segments can never write outside documentDirectory.
+      const fileName = sanitizeFileName(file.FileName || file.Name, `file_${file.Id}`);
       if (!documentDirectory) {
         throw new Error('Document directory is unavailable');
       }

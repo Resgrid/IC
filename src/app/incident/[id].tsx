@@ -78,8 +78,9 @@ export default function IncidentDetail() {
       return <ZeroState heading={t('common.errorOccurred')} description={error} isError={true} />;
     }
 
-    // No command established yet for this call → offer to establish one.
-    if (!board || currentCallId !== callId) {
+    // No command established yet for this call → offer to establish one. Also guards a malformed
+    // server payload (board without Command) so the reads below can never dereference undefined.
+    if (!board?.Command || currentCallId !== callId) {
       return (
         <ZeroState icon={ShieldPlus} heading={t('incidents.no_command')} description={t('incidents.no_command_description')}>
           <Button onPress={handleEstablish} action="primary" testID="establish-command">

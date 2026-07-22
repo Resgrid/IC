@@ -54,6 +54,7 @@ import {
 } from '@/models/offline-queue/queued-event';
 import { SaveUnitLocationInput } from '@/models/v4/unitLocation/saveUnitLocationInput';
 import { SaveUnitStatusInput, SaveUnitStatusRoleInput } from '@/models/v4/unitStatus/saveUnitStatusInput';
+import type * as CommandStoreModule from '@/stores/command/store';
 import { useOfflineQueueStore } from '@/stores/offline-queue/store';
 
 class OfflineEventManager {
@@ -111,8 +112,10 @@ class OfflineEventManager {
    */
   private async pullCommandSync(): Promise<void> {
     try {
-      // Late dynamic import to avoid a module cycle
-      const { useCommandStore } = await import('@/stores/command/store');
+      // Lazy require to avoid a module cycle (store → queue store; manager → store).
+      // require, not import(): Jest's CJS runtime can't execute dynamic import().
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { useCommandStore } = require('@/stores/command/store') as typeof CommandStoreModule;
       await useCommandStore.getState().syncFromServer();
     } catch (error) {
       logger.warn({
@@ -272,13 +275,45 @@ class OfflineEventManager {
   }
 
   // ---- Incident command (ICS) event processors ----
-  // After each successful replay the command store refreshes the affected board
-  // so the local optimistic state converges to the server state.
+  // Handlers replay the API call ONLY. The board refresh happens centrally in
+  // processEvent AFTER the event is marked COMPLETED: preserveQueuedLocalRows carries
+  // optimistic `local-` rows while a non-completed queued event exists for the call, so
+  // refreshing earlier would re-add the local row next to the server row the replay just
+  // created (duplicate needs/objectives/nodes/resources on the board).
+
+  /** Command event types whose replay must be followed by a board refresh. */
+  private static readonly BOARD_REFRESH_EVENT_TYPES: ReadonlySet<QueuedEventType> = new Set([
+    QueuedEventType.ESTABLISH_COMMAND,
+    QueuedEventType.ASSIGN_INCIDENT_ROLE,
+    QueuedEventType.CREATE_ADHOC_UNIT,
+    QueuedEventType.CREATE_ADHOC_PERSONNEL,
+    QueuedEventType.SAVE_COMMAND_NODE,
+    QueuedEventType.ASSIGN_COMMAND_RESOURCE,
+    QueuedEventType.MOVE_COMMAND_RESOURCE,
+    QueuedEventType.SAVE_OBJECTIVE,
+    QueuedEventType.UPDATE_OBJECTIVE_PROGRESS,
+    QueuedEventType.SAVE_NEED,
+    QueuedEventType.SET_NEED_STATUS,
+    QueuedEventType.UPDATE_COMMAND_DETAILS,
+    QueuedEventType.UPDATE_COMMAND_NODE,
+  ]);
+
+  private async refreshBoardForCommandEvent(event: QueuedEvent): Promise<void> {
+    if (!OfflineEventManager.BOARD_REFRESH_EVENT_TYPES.has(event.type)) {
+      return;
+    }
+    const callId = (event.data as { callId?: unknown }).callId;
+    if (typeof callId === 'string' && callId) {
+      await this.refreshCommandBoard(callId);
+    }
+  }
 
   private async refreshCommandBoard(callId: string): Promise<void> {
     try {
-      // Late dynamic import to avoid a module cycle (store → queue store; manager → store)
-      const { useCommandStore } = await import('@/stores/command/store');
+      // Lazy require to avoid a module cycle (store → queue store; manager → store).
+      // require, not import(): Jest's CJS runtime can't execute dynamic import().
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { useCommandStore } = require('@/stores/command/store') as typeof CommandStoreModule;
       await useCommandStore.getState().refreshBoard(callId);
     } catch {
       // Refresh is best-effort — the next sync pass converges the state
@@ -288,7 +323,6 @@ class OfflineEventManager {
   private async processEstablishCommandEvent(event: QueuedEstablishCommandEvent): Promise<void> {
     const callId = parseInt(event.data.callId, 10);
     await establishCommand({ CallId: Number.isNaN(callId) ? 0 : callId, CommandDefinitionId: event.data.commandDefinitionId ?? null });
-    await this.refreshCommandBoard(event.data.callId);
   }
 
   private async processCloseCommandEvent(event: QueuedCloseCommandEvent): Promise<void> {
@@ -302,7 +336,6 @@ class OfflineEventManager {
       RoleType: event.data.roleType,
       UserId: event.data.userId,
     });
-    await this.refreshCommandBoard(event.data.callId);
   }
 
   private async processRemoveIncidentRoleEvent(event: QueuedRemoveIncidentRoleEvent): Promise<void> {
@@ -312,7 +345,6 @@ class OfflineEventManager {
   private async processCreateAdHocUnitEvent(event: QueuedCreateAdHocUnitEvent): Promise<void> {
     const callId = parseInt(event.data.callId, 10);
     await createAdHocUnit({ CallId: Number.isNaN(callId) ? 0 : callId, Name: event.data.name, Type: event.data.type });
-    await this.refreshCommandBoard(event.data.callId);
   }
 
   private async processReleaseAdHocUnitEvent(event: QueuedReleaseAdHocUnitEvent): Promise<void> {
@@ -322,7 +354,6 @@ class OfflineEventManager {
   private async processCreateAdHocPersonnelEvent(event: QueuedCreateAdHocPersonnelEvent): Promise<void> {
     const callId = parseInt(event.data.callId, 10);
     await createAdHocPersonnel({ CallId: Number.isNaN(callId) ? 0 : callId, Name: event.data.name, Role: event.data.role, ExternalAgencyName: event.data.agency });
-    await this.refreshCommandBoard(event.data.callId);
   }
 
   private async processReleaseAdHocPersonnelEvent(event: QueuedReleaseAdHocPersonnelEvent): Promise<void> {
@@ -355,7 +386,6 @@ class OfflineEventManager {
       MinTimeInRole: event.data.limits?.minTimeInRole ?? 0,
       MaxTimeInRole: event.data.limits?.maxTimeInRole ?? 0,
     });
-    await this.refreshCommandBoard(event.data.callId);
   }
 
   private async processDeleteCommandNodeEvent(event: QueuedDeleteCommandNodeEvent): Promise<void> {
@@ -372,12 +402,10 @@ class OfflineEventManager {
       ResourceKind: event.data.resourceKind,
       ResourceId: event.data.resourceId,
     });
-    await this.refreshCommandBoard(event.data.callId);
   }
 
   private async processMoveCommandResourceEvent(event: QueuedMoveCommandResourceEvent): Promise<void> {
     await moveResource({ ResourceAssignmentId: event.data.resourceAssignmentId, TargetNodeId: event.data.targetNodeId });
-    await this.refreshCommandBoard(event.data.callId);
   }
 
   private async processReleaseCommandResourceEvent(event: QueuedReleaseCommandResourceEvent): Promise<void> {
@@ -388,7 +416,6 @@ class OfflineEventManager {
     const callId = parseInt(event.data.callId, 10);
     const incidentCommandId = await this.resolveIncidentCommandId(event.data.callId);
     await saveObjective({ IncidentCommandId: incidentCommandId, CallId: Number.isNaN(callId) ? 0 : callId, Name: event.data.name, ObjectiveType: event.data.objectiveType });
-    await this.refreshCommandBoard(event.data.callId);
   }
 
   private async processCompleteObjectiveEvent(event: QueuedCompleteObjectiveEvent): Promise<void> {
@@ -397,7 +424,6 @@ class OfflineEventManager {
 
   private async processUpdateObjectiveProgressEvent(event: QueuedUpdateObjectiveProgressEvent): Promise<void> {
     await updateObjectiveProgress({ TacticalObjectiveId: event.data.tacticalObjectiveId, ProgressPercent: event.data.progressPercent });
-    await this.refreshCommandBoard(event.data.callId);
   }
 
   private async processSaveNeedEvent(event: QueuedSaveNeedEvent): Promise<void> {
@@ -412,12 +438,10 @@ class OfflineEventManager {
       QuantityRequested: event.data.quantityRequested ?? 0,
       Priority: event.data.priority ?? 0,
     });
-    await this.refreshCommandBoard(event.data.callId);
   }
 
   private async processSetNeedStatusEvent(event: QueuedSetNeedStatusEvent): Promise<void> {
     await setNeedStatus({ IncidentNeedId: event.data.incidentNeedId, Status: event.data.status, QuantityFulfilled: event.data.quantityFulfilled, Note: event.data.note });
-    await this.refreshCommandBoard(event.data.callId);
   }
 
   private async processUpdateCommandDetailsEvent(event: QueuedUpdateCommandDetailsEvent): Promise<void> {
@@ -426,12 +450,10 @@ class OfflineEventManager {
       return;
     }
     await updateCommandDetails({ IncidentCommandId: incidentCommandId, EstimatedEndOn: event.data.estimatedEndOn, ImportantInformation: event.data.importantInformation });
-    await this.refreshCommandBoard(event.data.callId);
   }
 
   private async processUpdateCommandNodeEvent(event: QueuedUpdateCommandNodeEvent): Promise<void> {
     await saveCommandNode(event.data.node);
-    await this.refreshCommandBoard(event.data.callId);
   }
 
   /**
@@ -593,6 +615,11 @@ class OfflineEventManager {
 
       // Mark as completed and remove from queue
       store.updateEventStatus(event.id, QueuedEventStatus.COMPLETED);
+
+      // Refresh only after COMPLETED so preserveQueuedLocalRows stops carrying the
+      // optimistic local- row this event created (avoids a duplicate next to the server row).
+      // refreshCommandBoard swallows its own errors, so this can't flip the event to FAILED.
+      await this.refreshBoardForCommandEvent(event);
 
       // Clean up completed events after a delay to avoid immediate removal
       setTimeout(() => {

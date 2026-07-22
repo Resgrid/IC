@@ -60,7 +60,7 @@ export const IncidentMapsSection: React.FC<IncidentMapsSectionProps> = ({ callId
       if (map.UpdatedByUserId && map.UpdatedOn) {
         return t('command.incident_maps_updated_by', { name: resolveUserName?.(map.UpdatedByUserId) ?? map.UpdatedByUserId, when: new Date(map.UpdatedOn).toLocaleString() });
       }
-      if (map.CreatedByUserId) {
+      if (map.CreatedByUserId && map.CreatedOn) {
         return t('command.incident_maps_created_by', { name: resolveUserName?.(map.CreatedByUserId) ?? map.CreatedByUserId, when: new Date(map.CreatedOn).toLocaleString() });
       }
       return null;

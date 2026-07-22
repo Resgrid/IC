@@ -1,6 +1,7 @@
 import { AppState } from 'react-native';
 
 import { saveCallImage } from '@/api/calls/callFiles';
+import { getCommandBoard, saveObjective } from '@/api/incidentCommand/incidentCommand';
 import { setUnitLocation } from '@/api/units/unitLocation';
 import { saveUnitStatus } from '@/api/units/unitStatuses';
 import { QueuedEventStatus, QueuedEventType } from '@/models/offline-queue/queued-event';
@@ -35,6 +36,8 @@ jest.mock('@/api/check-in-timers/check-in-timers', () => ({
 jest.mock('@/api/incidentCommand/incidentCommand', () => ({
   establishCommand: jest.fn(),
   closeCommand: jest.fn(),
+  getCommandBoard: jest.fn(),
+  saveObjective: jest.fn(),
 }));
 
 jest.mock('@/api/incidentCommand/incidentResources', () => ({
@@ -47,9 +50,10 @@ jest.mock('@/api/incidentCommand/incidentRoles', () => ({
   removeIncidentRole: jest.fn(),
 }));
 
+const mockRefreshBoard = jest.fn();
 jest.mock('@/stores/command/store', () => ({
   useCommandStore: {
-    getState: jest.fn(() => ({ refreshBoard: jest.fn(), syncFromServer: jest.fn() })),
+    getState: jest.fn(() => ({ refreshBoard: mockRefreshBoard, syncFromServer: jest.fn() })),
   },
 }));
 
@@ -425,6 +429,37 @@ describe('OfflineEventManager', () => {
       
       // Verify that getPendingEvents is called immediately when online
       expect(mockStoreState.getPendingEvents).toHaveBeenCalled();
+    });
+  });
+
+  describe('command board refresh ordering', () => {
+    it('marks the event COMPLETED before refreshing the board (prevents duplicate local- rows)', async () => {
+      // preserveQueuedLocalRows carries optimistic local- rows while a matching
+      // non-completed queued event exists — refreshing before COMPLETED would duplicate
+      // the row the replay just created on the server.
+      const completedBeforeRefresh: boolean[] = [];
+      mockRefreshBoard.mockImplementation(async () => {
+        completedBeforeRefresh.push(mockStoreState.updateEventStatus.mock.calls.some((call: unknown[]) => call[0] === 'evt-1' && call[1] === QueuedEventStatus.COMPLETED));
+      });
+      (getCommandBoard as jest.Mock).mockResolvedValue({ Data: { Command: { IncidentCommandId: 'ic-1' } } });
+      (saveObjective as jest.Mock).mockResolvedValue({});
+
+      const event = {
+        id: 'evt-1',
+        type: QueuedEventType.SAVE_OBJECTIVE,
+        status: QueuedEventStatus.PENDING,
+        data: { callId: '42', name: 'Ventilate roof', objectiveType: 0 },
+        retryCount: 0,
+        maxRetries: 3,
+        createdAt: Date.now(),
+      };
+
+      const processEventMethod = (offlineEventManager as any).processEvent.bind(offlineEventManager);
+      await processEventMethod(event);
+
+      expect(saveObjective).toHaveBeenCalled();
+      expect(mockRefreshBoard).toHaveBeenCalledWith('42');
+      expect(completedBeforeRefresh).toEqual([true]);
     });
   });
 

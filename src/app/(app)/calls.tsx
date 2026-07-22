@@ -83,6 +83,28 @@ export default function Calls() {
     [startCommandForCall]
   );
 
+  const handleCloseReopenPrompt = useCallback(() => setReopenPrompt(null), []);
+
+  // Fall through from the reopen prompt to a brand-new command via the template picker.
+  const handleStartNewFromReopen = useCallback(() => {
+    const call = reopenPrompt?.call ?? null;
+    setReopenPrompt(null);
+    if (call) {
+      setTemplatePickerCall(call);
+    }
+  }, [reopenPrompt]);
+
+  const handleCloseTemplatePicker = useCallback(() => setTemplatePickerCall(null), []);
+
+  const handleTemplatePicked = useCallback(
+    (commandDefinitionId: number | null) => {
+      if (templatePickerCall) {
+        startCommandForCall(templatePickerCall, commandDefinitionId);
+      }
+    },
+    [templatePickerCall, startCommandForCall]
+  );
+
   const handleReopenCommand = useCallback(
     async (reason: string) => {
       if (!reopenPrompt) {
@@ -197,26 +219,10 @@ export default function Calls() {
         <Box className="flex-1">{renderContent()}</Box>
 
         {/* Prior ended command found — reopen it (with a reason) or start fresh */}
-        <ReopenCommandSheet
-          isOpen={reopenPrompt !== null}
-          onClose={() => setReopenPrompt(null)}
-          priorCommand={reopenPrompt?.priorCommand ?? null}
-          onReopen={handleReopenCommand}
-          onStartNew={() => {
-            const call = reopenPrompt?.call ?? null;
-            setReopenPrompt(null);
-            if (call) {
-              setTemplatePickerCall(call);
-            }
-          }}
-        />
+        <ReopenCommandSheet isOpen={reopenPrompt !== null} onClose={handleCloseReopenPrompt} priorCommand={reopenPrompt?.priorCommand ?? null} onReopen={handleReopenCommand} onStartNew={handleStartNewFromReopen} />
 
         {/* Command template picker for starting a new board */}
-        <StartCommandSheet
-          isOpen={templatePickerCall !== null}
-          onClose={() => setTemplatePickerCall(null)}
-          onStart={(commandDefinitionId) => (templatePickerCall ? startCommandForCall(templatePickerCall, commandDefinitionId) : undefined)}
-        />
+        <StartCommandSheet isOpen={templatePickerCall !== null} onClose={handleCloseTemplatePicker} onStart={handleTemplatePicked} />
 
         {/* FAB button for creating new call - only show if user has permission */}
         {canUserCreateCalls ? (

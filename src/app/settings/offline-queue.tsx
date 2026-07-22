@@ -58,9 +58,23 @@ export default function OfflineQueue() {
   const isOffline = !isConnected || !isNetworkReachable;
 
   const events = useMemo(() => [...queuedEvents].sort((a, b) => b.createdAt - a.createdAt), [queuedEvents]);
-  const pendingCount = useMemo(() => queuedEvents.filter((event) => event.status === QueuedEventStatus.PENDING || event.status === QueuedEventStatus.PROCESSING).length, [queuedEvents]);
-  const failedCount = useMemo(() => queuedEvents.filter((event) => event.status === QueuedEventStatus.FAILED).length, [queuedEvents]);
-  const completedCount = useMemo(() => queuedEvents.filter((event) => event.status === QueuedEventStatus.COMPLETED).length, [queuedEvents]);
+
+  // Tally every status bucket in one pass instead of filtering the queue three times.
+  const { pendingCount, failedCount, completedCount } = useMemo(() => {
+    let pending = 0;
+    let failed = 0;
+    let completed = 0;
+    for (const event of queuedEvents) {
+      if (event.status === QueuedEventStatus.PENDING || event.status === QueuedEventStatus.PROCESSING) {
+        pending += 1;
+      } else if (event.status === QueuedEventStatus.FAILED) {
+        failed += 1;
+      } else if (event.status === QueuedEventStatus.COMPLETED) {
+        completed += 1;
+      }
+    }
+    return { pendingCount: pending, failedCount: failed, completedCount: completed };
+  }, [queuedEvents]);
 
   const handleSyncNow = useCallback(() => {
     offlineEventManager.syncNow();

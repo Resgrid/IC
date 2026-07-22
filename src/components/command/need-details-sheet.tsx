@@ -14,6 +14,7 @@ import { Text } from '@/components/ui/text';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { VStack } from '@/components/ui/vstack';
 import { getNeedCategoryName, getNeedStatusBadgeAction, getNeedStatusName } from '@/lib/incident-command-utils';
+import { logger } from '@/lib/logging';
 import { type IncidentNeed, IncidentNeedStatus, type IncidentNeedUpdate } from '@/models/v4/incidentCommand/incidentCommandModels';
 
 /** i18n keys for the quick-pick reason chips shown above the note box. */
@@ -67,6 +68,14 @@ export const NeedDetailsSheet: React.FC<NeedDetailsSheetProps> = ({ isOpen, onCl
         .then((rows) => {
           if (!cancelled) {
             setUpdates(rows);
+          }
+        })
+        .catch((error) => {
+          // The store implementation resolves [] on failure, but the prop contract doesn't
+          // guarantee that — never leave a rejection unhandled.
+          logger.warn({ message: 'Failed to load need audit trail', context: { incidentNeedId: needId, error } });
+          if (!cancelled) {
+            setUpdates([]);
           }
         })
         .finally(() => {
