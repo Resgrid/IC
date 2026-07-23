@@ -187,7 +187,7 @@ export interface QueuedSaveObjectiveEvent extends Omit<QueuedEvent, 'data'> {
 
 export interface QueuedCompleteObjectiveEvent extends Omit<QueuedEvent, 'data'> {
   type: QueuedEventType.COMPLETE_OBJECTIVE;
-  data: { callId: string; tacticalObjectiveId: string };
+  data: { callId: string; tacticalObjectiveId: string; outcome?: number; note?: string | null };
 }
 
 export interface QueuedUpdateObjectiveProgressEvent extends Omit<QueuedEvent, 'data'> {
@@ -202,7 +202,7 @@ export interface QueuedSaveNeedEvent extends Omit<QueuedEvent, 'data'> {
 
 export interface QueuedSetNeedStatusEvent extends Omit<QueuedEvent, 'data'> {
   type: QueuedEventType.SET_NEED_STATUS;
-  data: { callId: string; incidentNeedId: string; status: number; quantityFulfilled?: number };
+  data: { callId: string; incidentNeedId: string; status: number; quantityFulfilled?: number; note?: string | null };
 }
 
 export interface QueuedUpdateCommandDetailsEvent extends Omit<QueuedEvent, 'data'> {

@@ -6,8 +6,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
+import { getCommandForCall } from '@/api/incidentCommand/incidentCommand';
 import { VideoFeedTabContent } from '@/components/call-video-feeds/video-feed-tab-content';
 import { CheckInTabContent } from '@/components/check-in-timers/check-in-tab-content';
+import { ReopenCommandSheet } from '@/components/command/reopen-command-sheet';
 import { StartCommandSheet } from '@/components/command/start-command-sheet';
 import { Loading } from '@/components/common/loading';
 import ZeroState from '@/components/common/zero-state';
@@ -25,6 +27,7 @@ import { VStack } from '@/components/ui/vstack';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { logger } from '@/lib/logging';
 import { openMapsWithDirections } from '@/lib/navigation';
+import { type IncidentCommand } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useLocationStore } from '@/stores/app/location-store';
 import { useCallDetailStore } from '@/stores/calls/detail-store';
 import { useCheckInTimerStore } from '@/stores/check-in-timers/store';
@@ -69,6 +72,8 @@ export default function CallDetail() {
   const [isCloseCallModalOpen, setIsCloseCallModalOpen] = useState(false);
   const [isSettingActive, setIsSettingActive] = useState(false);
   const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+  /** A prior ENDED command exists for this call — ask whether to reopen it before starting a new one. */
+  const [priorCommandPrompt, setPriorCommandPrompt] = useState<IncidentCommand | null>(null);
   const showToast = useToastStore((state) => state.showToast);
   const timerStatuses = useCheckInTimerStore((state) => state.timerStatuses);
   const startPolling = useCheckInTimerStore((state) => state.startPolling);
@@ -131,15 +136,38 @@ export default function CallDetail() {
     }
   };
 
-  const handleStartCommand = () => {
+  const handleStartCommand = async () => {
     if (!call) return;
-    // Existing boards open directly; new commands pick a template first
+    // Existing boards open directly; otherwise a prior ENDED command offers reopen before the template picker
     if (hasCommandBoard) {
       startCommandWithTemplate(null);
       return;
     }
+    try {
+      const prior = await getCommandForCall(call.CallId);
+      if (prior?.Data && prior.Data.Status !== 0) {
+        setPriorCommandPrompt(prior.Data);
+        return;
+      }
+    } catch {
+      // No prior command / lookup failed — fall through to a new command.
+    }
     setIsTemplatePickerOpen(true);
   };
+
+  const handleReopenCommand = useCallback(
+    async (reason: string) => {
+      if (!call || !priorCommandPrompt) return;
+      const incidentCommandId = priorCommandPrompt.IncidentCommandId;
+      setPriorCommandPrompt(null);
+      const ok = await useCommandStore.getState().reopenCommandForCall(call.CallId, incidentCommandId, reason || null);
+      showToast(ok ? 'success' : 'error', ok ? t('command.reopen_success') : t('command.reopen_error'));
+      if (ok) {
+        router.push('/command');
+      }
+    },
+    [call, priorCommandPrompt, showToast, t, router]
+  );
 
   // Initialize the call detail menu hook
   const { HeaderRightMenu, CallDetailActionSheet } = useCallDetailMenu({
@@ -587,6 +615,16 @@ export default function CallDetail() {
 
       {/* Command template picker for starting a new board */}
       <StartCommandSheet isOpen={isTemplatePickerOpen} onClose={() => setIsTemplatePickerOpen(false)} onStart={(commandDefinitionId) => startCommandWithTemplate(commandDefinitionId)} />
+      <ReopenCommandSheet
+        isOpen={priorCommandPrompt !== null}
+        onClose={() => setPriorCommandPrompt(null)}
+        priorCommand={priorCommandPrompt}
+        onReopen={handleReopenCommand}
+        onStartNew={() => {
+          setPriorCommandPrompt(null);
+          setIsTemplatePickerOpen(true);
+        }}
+      />
 
       {/* Call Detail Menu ActionSheet */}
       <CallDetailActionSheet />

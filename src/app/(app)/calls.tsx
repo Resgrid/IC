@@ -5,7 +5,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, RefreshControl, View } from 'react-native';
 
+import { getCommandForCall } from '@/api/incidentCommand/incidentCommand';
 import { CallCard } from '@/components/calls/call-card';
+import { ReopenCommandSheet } from '@/components/command/reopen-command-sheet';
 import { StartCommandSheet } from '@/components/command/start-command-sheet';
 import { Loading } from '@/components/common/loading';
 import ZeroState from '@/components/common/zero-state';
@@ -17,6 +19,7 @@ import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { logger } from '@/lib/logging';
 import { type CallResultData } from '@/models/v4/calls/callResultData';
+import { type IncidentCommand } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useCallsStore } from '@/stores/calls/store';
 import { useCommandStore } from '@/stores/command/store';
 import { securityStore } from '@/stores/security/store';
@@ -38,6 +41,8 @@ export default function Calls() {
   const { trackEvent } = useAnalytics();
   const [searchQuery, setSearchQuery] = useState('');
   const [templatePickerCall, setTemplatePickerCall] = useState<CallResultData | null>(null);
+  /** A prior ENDED command exists for this call — ask whether to reopen it before starting a new one. */
+  const [reopenPrompt, setReopenPrompt] = useState<{ call: CallResultData; priorCommand: IncidentCommand } | null>(null);
 
   const startCommandForCall = useCallback(
     async (call: CallResultData, commandDefinitionId: number | null) => {
@@ -56,17 +61,64 @@ export default function Calls() {
     [showToast, t]
   );
 
-  // Opens an existing board directly; for a new command, offer the department's
-  // command templates (ICS structures, event/security staffing plans, ...) first.
+  // Opens an existing board directly; otherwise checks for a prior ENDED command on the call
+  // (offering to reopen it) before falling back to the template picker for a brand-new command.
   const handleStartCommand = useCallback(
-    (call: CallResultData) => {
+    async (call: CallResultData) => {
       if (useCommandStore.getState().boards[call.CallId]) {
         startCommandForCall(call, null);
         return;
       }
+      try {
+        const prior = await getCommandForCall(call.CallId);
+        if (prior?.Data && prior.Data.Status !== 0) {
+          setReopenPrompt({ call, priorCommand: prior.Data });
+          return;
+        }
+      } catch {
+        // No prior command / lookup failed — fall through to a new command.
+      }
       setTemplatePickerCall(call);
     },
     [startCommandForCall]
+  );
+
+  const handleCloseReopenPrompt = useCallback(() => setReopenPrompt(null), []);
+
+  // Fall through from the reopen prompt to a brand-new command via the template picker.
+  const handleStartNewFromReopen = useCallback(() => {
+    const call = reopenPrompt?.call ?? null;
+    setReopenPrompt(null);
+    if (call) {
+      setTemplatePickerCall(call);
+    }
+  }, [reopenPrompt]);
+
+  const handleCloseTemplatePicker = useCallback(() => setTemplatePickerCall(null), []);
+
+  const handleTemplatePicked = useCallback(
+    (commandDefinitionId: number | null) => {
+      if (templatePickerCall) {
+        startCommandForCall(templatePickerCall, commandDefinitionId);
+      }
+    },
+    [templatePickerCall, startCommandForCall]
+  );
+
+  const handleReopenCommand = useCallback(
+    async (reason: string) => {
+      if (!reopenPrompt) {
+        return;
+      }
+      const { call, priorCommand } = reopenPrompt;
+      setReopenPrompt(null);
+      const ok = await useCommandStore.getState().reopenCommandForCall(call.CallId, priorCommand.IncidentCommandId, reason || null);
+      showToast(ok ? 'success' : 'error', ok ? t('command.reopen_success') : t('command.reopen_error'));
+      if (ok) {
+        router.push('/command');
+      }
+    },
+    [reopenPrompt, showToast, t]
   );
 
   // Fetch data when screen comes into focus
@@ -166,12 +218,11 @@ export default function Calls() {
         {/* Main content */}
         <Box className="flex-1">{renderContent()}</Box>
 
+        {/* Prior ended command found — reopen it (with a reason) or start fresh */}
+        <ReopenCommandSheet isOpen={reopenPrompt !== null} onClose={handleCloseReopenPrompt} priorCommand={reopenPrompt?.priorCommand ?? null} onReopen={handleReopenCommand} onStartNew={handleStartNewFromReopen} />
+
         {/* Command template picker for starting a new board */}
-        <StartCommandSheet
-          isOpen={templatePickerCall !== null}
-          onClose={() => setTemplatePickerCall(null)}
-          onStart={(commandDefinitionId) => (templatePickerCall ? startCommandForCall(templatePickerCall, commandDefinitionId) : undefined)}
-        />
+        <StartCommandSheet isOpen={templatePickerCall !== null} onClose={handleCloseTemplatePicker} onStart={handleTemplatePicked} />
 
         {/* FAB button for creating new call - only show if user has permission */}
         {canUserCreateCalls ? (

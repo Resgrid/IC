@@ -69,6 +69,14 @@ export enum TacticalObjectiveType {
 }
 
 /** Completion state of a tactical objective — mirrors Core TacticalObjectiveStatus. */
+/** How a completed tactical objective turned out (recorded at close-out). Mirrors Core. */
+export enum TacticalObjectiveOutcome {
+  NotSet = 0,
+  Successful = 1,
+  Partial = 2,
+  Unsuccessful = 3,
+}
+
 export enum TacticalObjectiveStatus {
   Pending = 0,
   Complete = 1,
@@ -83,6 +91,16 @@ export enum IncidentNeedCategory {
   Equipment = 3,
   Staffing = 4,
   Other = 5,
+  /** Request for SPECIFIC Resgrid entities (units/users/roles/groups), dispatched individually by command. */
+  Entity = 6,
+}
+
+/** What kind of Resgrid entity an IncidentNeedEntity requests — mirrors Core NeedEntityKind. */
+export enum NeedEntityKind {
+  Unit = 0,
+  User = 1,
+  Role = 2,
+  Group = 3,
 }
 
 /** Fulfillment state of an incident need — mirrors Core IncidentNeedStatus. */
@@ -101,8 +119,25 @@ export interface IncidentCommand {
   EstablishedByUserId: string;
   EstablishedOn: string;
   CurrentCommanderUserId: string;
+  /** Optional commander-supplied display name for the incident (falls back to the call name in UIs). */
+  Name?: string | null;
+  /** Free-form description of where the ICP/HQ (command post) is. */
+  CommandPostLocationText?: string | null;
   CommandPostLatitude?: string | null;
   CommandPostLongitude?: string | null;
+  /** Free-form description of where Staging is located. */
+  StagingLocationText?: string | null;
+  StagingLatitude?: string | null;
+  StagingLongitude?: string | null;
+  /** Free-form description of where Rehab is located. */
+  RehabLocationText?: string | null;
+  RehabLatitude?: string | null;
+  RehabLongitude?: string | null;
+  /** Saved incident-map view center; null until the incident map is created. */
+  MapCenterLatitude?: string | null;
+  MapCenterLongitude?: string | null;
+  /** Saved incident-map zoom level (0-22); null until the incident map is created. */
+  MapZoomLevel?: string | null;
   IncidentActionPlan?: string | null;
   IcsLevel: number;
   /** Optional commander-supplied estimate of when the incident will end. */
@@ -143,6 +178,8 @@ export interface CommandStructureNode {
   SecondaryObjectiveId?: string | null;
   /** Optional incident need this lane is fulfilling. */
   LinkedNeedId?: string | null;
+  /** Optional named incident map attached to this lane (e.g. the area it is working). */
+  LinkedMapId?: string | null;
   /** Primary lane lead when they are a Resgrid user; null for external leads. */
   PrimaryLeadUserId?: string | null;
   /** Primary lane lead display name (external leads). */
@@ -191,6 +228,10 @@ export interface TacticalObjective {
   AutoPopulated: boolean;
   CompletedByUserId?: string | null;
   CompletedOn?: string | null;
+  /** How the objective turned out at close-out. Maps to TacticalObjectiveOutcome. */
+  Outcome?: number;
+  /** Optional close-out note recorded when the objective was completed. */
+  CompletionNote?: string | null;
   /** Optional free-text detail describing the objective. */
   Description?: string | null;
   /** Progress toward completion, 0-100 (complete objectives are 100). */
@@ -251,6 +292,8 @@ export interface IncidentMapAnnotation {
   DepartmentId: number;
   CallId: number;
   AnnotationType: number;
+  /** The named IncidentMap this markup belongs to; null = the incident's main map. */
+  IncidentMapId?: string | null;
   GeoJson: string;
   IcsSymbolCode?: string | null;
   Label?: string | null;
@@ -340,6 +383,47 @@ export interface CommandTransfer {
   Notes?: string | null;
 }
 
+/** Visibility of an incident note/attachment. Mirrors Core IncidentContentVisibility. */
+export enum IncidentContentVisibility {
+  Internal = 0,
+  Public = 1,
+}
+
+/** Operational status note attached to an incident command. Mirrors Core IncidentNote. */
+export interface IncidentNote {
+  IncidentNoteId: string;
+  IncidentCommandId: string;
+  DepartmentId: number;
+  CallId: number;
+  /** Maps to Core IncidentNoteType (General/SituationUpdate/...). */
+  NoteType: number;
+  /** Maps to IncidentContentVisibility — Internal notes never reach the public feed. */
+  Visibility: number;
+  Title?: string | null;
+  Body: string;
+  ContainmentPercent?: number | null;
+  CreatedByUserId: string;
+  CreatedOn: string;
+  DeletedOn?: string | null;
+  ModifiedOn?: string | null;
+}
+
+/** Incident-level file metadata (Data itself is only served by DownloadAttachment). Mirrors Core IncidentAttachment. */
+export interface IncidentAttachment {
+  IncidentAttachmentId: string;
+  IncidentCommandId: string;
+  DepartmentId: number;
+  CallId: number;
+  Visibility: number;
+  FileName: string;
+  ContentType?: string | null;
+  ContentLength: number;
+  Description?: string | null;
+  UploadedByUserId: string;
+  UploadedOn: string;
+  DeletedOn?: string | null;
+}
+
 /** Full render-ready board — response of GetCommandBoard and Sync Bundle entries. */
 export interface IncidentCommandBoard {
   Command: IncidentCommand;
@@ -352,6 +436,63 @@ export interface IncidentCommandBoard {
   Annotations: IncidentMapAnnotation[];
   Accountability: PersonnelCallCheckInStatus[];
   Roles: IncidentRoleAssignment[];
+  /** Operational status notes (internal + public). */
+  Notes?: IncidentNote[];
+  /** Incident file metadata. */
+  Attachments?: IncidentAttachment[];
+  /** Named tactical maps (the main map lives on the Command itself). */
+  Maps?: IncidentMap[];
+}
+
+/**
+ * A named tactical map for the incident — own framing, description, optional expiry, full audit.
+ * The incident's MAIN map lives on IncidentCommand itself (MapCenterLatitude/Longitude + MapZoomLevel).
+ * Mirrors Core IncidentMap.
+ */
+export interface IncidentMap {
+  IncidentMapId: string;
+  IncidentCommandId: string;
+  DepartmentId: number;
+  CallId: number;
+  Name: string;
+  Description?: string | null;
+  CenterLatitude?: string | null;
+  CenterLongitude?: string | null;
+  /** Zoom level (0-22); null until the framing has been pinned. */
+  ZoomLevel?: string | null;
+  /** Optional expiry after which the map is stale (kept, but flagged in UIs). */
+  ExpiresOn?: string | null;
+  CreatedByUserId?: string | null;
+  CreatedOn: string;
+  UpdatedByUserId?: string | null;
+  UpdatedOn?: string | null;
+  DeletedOn?: string | null;
+  ModifiedOn?: string | null;
+}
+
+/** List-card projection for the incident list (GetCommandList). Mirrors Core IncidentCommandSummary. */
+export interface IncidentCommandSummary {
+  IncidentCommandId: string;
+  DepartmentId: number;
+  CallId: number;
+  /** Commander-supplied incident name; null when unnamed (fall back to the call name). */
+  Name?: string | null;
+  CallName?: string | null;
+  CallNumber?: string | null;
+  CallAddress?: string | null;
+  /** Maps to IncidentCommandStatus (0 = Active, 1 = Closed). */
+  Status: number;
+  EstablishedOn: string;
+  ClosedOn?: string | null;
+  CommanderUserId?: string | null;
+  CommanderName?: string | null;
+  CommandPostLocationText?: string | null;
+  CommandPostLatitude?: string | null;
+  CommandPostLongitude?: string | null;
+  /** Active (unreleased) personnel assignments placed in a lane or staging. */
+  AssignedPersonnelCount: number;
+  /** Active (unreleased) unit assignments placed in a lane or staging. */
+  AssignedUnitCount: number;
 }
 
 // ---- API result envelopes (mirror the standard v4 result shape) ----
@@ -383,6 +524,15 @@ export type AdHocUnitResult = V4Result<IncidentAdHocUnit>;
 export type AdHocUnitsResult = V4Result<IncidentAdHocUnit[]>;
 export type AdHocPersonnelResult = V4Result<IncidentAdHocPersonnel>;
 export type AdHocPersonnelListResult = V4Result<IncidentAdHocPersonnel[]>;
+export type IncidentNoteResult = V4Result<IncidentNote>;
+export type IncidentNotesResult = V4Result<IncidentNote[]>;
+export type IncidentNeedUpdatesResult = V4Result<IncidentNeedUpdate[]>;
+export type IncidentNeedEntitiesResult = V4Result<IncidentNeedEntity[]>;
+export type IncidentAttachmentResult = V4Result<IncidentAttachment>;
+export type IncidentAttachmentsResult = V4Result<IncidentAttachment[]>;
+export type IncidentCommandSummariesResult = V4Result<IncidentCommandSummary[]>;
+export type IncidentMapResult = V4Result<IncidentMap>;
+export type IncidentMapsResult = V4Result<IncidentMap[]>;
 
 // ---- Request inputs ----
 
@@ -414,6 +564,48 @@ export interface UpdateCommandDetailsInput {
   ImportantInformation?: string | null;
 }
 
+/** Input to reopen a previously closed command, with the caller's reason for reopening. */
+export interface ReopenCommandInput {
+  IncidentCommandId: string;
+  Reason?: string | null;
+}
+
+/**
+ * Input to update core incident metadata and the ICP/HQ, Staging, and Rehab locations.
+ * Null/omitted fields are left unchanged; empty strings clear. A location whose text is set while
+ * its coordinates are blank is geocoded server-side on save.
+ */
+export interface UpdateCommandInfoInput {
+  IncidentCommandId: string;
+  Name?: string | null;
+  EstablishedOn?: string | null;
+  EstimatedEndOn?: string | null;
+  ClearEstimatedEndOn?: boolean;
+  ImportantInformation?: string | null;
+  IcsLevel?: number | null;
+  CommandPostLocationText?: string | null;
+  CommandPostLatitude?: string | null;
+  CommandPostLongitude?: string | null;
+  StagingLocationText?: string | null;
+  StagingLatitude?: string | null;
+  StagingLongitude?: string | null;
+  RehabLocationText?: string | null;
+  RehabLatitude?: string | null;
+  RehabLongitude?: string | null;
+}
+
+/** Input to add an internal or public operational status note to the incident. */
+export interface AddIncidentNoteInput {
+  IncidentCommandId: string;
+  /** Maps to Core IncidentNoteType; 0 = General. */
+  NoteType: number;
+  /** Maps to IncidentContentVisibility. */
+  Visibility: number;
+  Title?: string | null;
+  Body: string;
+  ContainmentPercent?: number | null;
+}
+
 /** Input to set an objective's progress percentage (0-100; 100 completes it). */
 export interface UpdateObjectiveProgressInput {
   TacticalObjectiveId: string;
@@ -425,7 +617,49 @@ export interface SetNeedStatusInput {
   IncidentNeedId: string;
   /** Maps to IncidentNeedStatus. */
   Status: number;
+  /** New fulfilled quantity — may be LOWER than the current value (a fill got called off). */
   QuantityFulfilled?: number | null;
+  /** Optional context recorded on the audit trail and incident log ("Engine 1 from mutual aid"). */
+  Note?: string | null;
+}
+
+/** One requested entity under an Entity-category need. Mirrors Core IncidentNeedEntity. */
+export interface IncidentNeedEntity {
+  IncidentNeedEntityId: string;
+  IncidentNeedId: string;
+  IncidentCommandId: string;
+  DepartmentId: number;
+  CallId: number;
+  /** Maps to NeedEntityKind. */
+  EntityKind: number;
+  /** UnitId / UserId / PersonnelRoleId / DepartmentGroupId depending on the kind. */
+  EntityId: string;
+  /** Display-name snapshot at request time. */
+  EntityName?: string | null;
+  /** When the individual dispatch for this entity was queued; null when dispatch failed. */
+  DispatchedOn?: string | null;
+  CreatedByUserId?: string | null;
+  CreatedOn: string;
+}
+
+/** Append-only audit row for one fulfillment change on a need. Mirrors Core IncidentNeedUpdate. */
+export interface IncidentNeedUpdate {
+  IncidentNeedUpdateId: string;
+  IncidentNeedId: string;
+  IncidentCommandId: string;
+  DepartmentId: number;
+  CallId: number;
+  /** Maps to IncidentNeedStatus. */
+  PreviousStatus: number;
+  /** Maps to IncidentNeedStatus. */
+  NewStatus: number;
+  PreviousQuantityFulfilled: number;
+  NewQuantityFulfilled: number;
+  Note?: string | null;
+  CreatedByUserId?: string | null;
+  /** Resolved server-side for display — never a raw user GUID. */
+  CreatedByUserName?: string | null;
+  CreatedOn: string;
 }
 
 // ---- Sync models (SyncController) ----

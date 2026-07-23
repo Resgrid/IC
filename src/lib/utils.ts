@@ -427,3 +427,15 @@ export function getTimeAgoUtc(time: any): string {
   }
   return time;
 }
+
+/**
+ * Reduces a server-supplied file name to a safe basename for writing under a local directory:
+ * strips any path segments (both separators) and traversal sequences, never returns empty.
+ */
+export function sanitizeFileName(fileName: string | null | undefined, fallback = 'attachment'): string {
+  const base = (fileName ?? '')
+    .replace(/^.*[\\/]/, '')
+    .replace(/\.\./g, '')
+    .trim();
+  return base.length > 0 ? base : fallback;
+}

@@ -1,4 +1,5 @@
 import type {
+  AddIncidentNoteInput,
   CommandAccountabilityResult,
   CommandNodeResult,
   CommandStructureNode,
@@ -6,17 +7,28 @@ import type {
   CommandTransferResult,
   EstablishCommandInput,
   EvaluateAccountabilityResult,
+  IncidentAttachmentResult,
+  IncidentAttachmentsResult,
   IncidentCommandActionResult,
   IncidentCommandBoardResult,
   IncidentCommandResult,
+  IncidentCommandSummariesResult,
+  IncidentMap,
   IncidentMapAnnotation,
   IncidentMapAnnotationResult,
+  IncidentMapResult,
+  IncidentMapsResult,
   IncidentNeed,
+  IncidentNeedEntitiesResult,
   IncidentNeedResult,
   IncidentNeedsResult,
+  IncidentNeedUpdatesResult,
+  IncidentNoteResult,
+  IncidentNotesResult,
   IncidentTimer,
   IncidentTimerResult,
   MoveResourceInput,
+  ReopenCommandInput,
   ResourceAssignment,
   ResourceAssignmentResult,
   SetNeedStatusInput,
@@ -25,10 +37,11 @@ import type {
   TransferCommandInput,
   UpdateActionPlanInput,
   UpdateCommandDetailsInput,
+  UpdateCommandInfoInput,
   UpdateObjectiveProgressInput,
 } from '@/models/v4/incidentCommand/incidentCommandModels';
 
-import { createApiEndpoint } from '../common/client';
+import { api, createApiEndpoint } from '../common/client';
 
 // Core routes use path parameters (e.g. GetCommandBoard/{callId}), so endpoints
 // with a path parameter are created per call.
@@ -50,6 +63,95 @@ export const transferCommand = async (input: TransferCommandInput) => {
 
 export const closeCommand = async (incidentCommandId: string) => {
   const response = await createApiEndpoint(`/IncidentCommand/CloseCommand/${encodeURIComponent(incidentCommandId)}`).put<IncidentCommandResult>({});
+  return response.data;
+};
+
+/** Most recent command for a call across ALL statuses — lets the app detect a prior ended command and offer reopen. */
+export const getCommandForCall = async (callId: string | number) => {
+  const response = await createApiEndpoint(`/IncidentCommand/GetCommandForCall/${encodeURIComponent(String(callId))}`).get<IncidentCommandResult>();
+  return response.data;
+};
+
+export const reopenCommand = async (input: ReopenCommandInput) => {
+  const response = await createApiEndpoint('/IncidentCommand/ReopenCommand').put<IncidentCommandResult>({ ...input });
+  return response.data;
+};
+
+/** List-card summaries for the department's commands; includeClosed adds ended incidents. */
+export const getCommandList = async (includeClosed: boolean) => {
+  const response = await createApiEndpoint(`/IncidentCommand/GetCommandList?includeClosed=${includeClosed ? 'true' : 'false'}`).get<IncidentCommandSummariesResult>();
+  return response.data;
+};
+
+/** Board snapshot for one SPECIFIC command instance — including a closed one (read-only history view). */
+export const getCommandBoardById = async (incidentCommandId: string) => {
+  const response = await createApiEndpoint(`/IncidentCommand/GetCommandBoardById/${encodeURIComponent(incidentCommandId)}`).get<IncidentCommandBoardResult>();
+  return response.data;
+};
+
+export const updateCommandInfo = async (input: UpdateCommandInfoInput) => {
+  const response = await createApiEndpoint('/IncidentCommand/UpdateCommandInfo').put<IncidentCommandResult>({ ...input });
+  return response.data;
+};
+
+export const addIncidentNote = async (input: AddIncidentNoteInput) => {
+  const response = await createApiEndpoint('/IncidentCommand/AddNote').post<IncidentNoteResult>({ ...input });
+  return response.data;
+};
+
+export const getIncidentNotes = async (callId: string | number) => {
+  const response = await createApiEndpoint(`/IncidentCommand/GetNotes/${encodeURIComponent(String(callId))}`).get<IncidentNotesResult>();
+  return response.data;
+};
+
+export const removeIncidentNote = async (incidentNoteId: string) => {
+  const response = await createApiEndpoint(`/IncidentCommand/RemoveNote/${encodeURIComponent(incidentNoteId)}`).delete<IncidentCommandActionResult>();
+  return response.data;
+};
+
+export const getIncidentAttachments = async (callId: string | number) => {
+  const response = await createApiEndpoint(`/IncidentCommand/GetAttachments/${encodeURIComponent(String(callId))}`).get<IncidentAttachmentsResult>();
+  return response.data;
+};
+
+/** Uploads an incident file (multipart) — reports, images, documents attached at the incident level. */
+export const addIncidentAttachment = async (incidentCommandId: string, visibility: number, description: string | null, file: { uri: string; name: string; type: string }) => {
+  const formData = new FormData();
+  formData.append('IncidentCommandId', incidentCommandId);
+  formData.append('Visibility', String(visibility));
+  if (description) {
+    formData.append('Description', description);
+  }
+  formData.append('File', { uri: file.uri, name: file.name, type: file.type } as unknown as Blob);
+  // The shared endpoint helper pins JSON; multipart needs its own content type, so use the raw client.
+  const response = await api.post<IncidentAttachmentResult>('/IncidentCommand/AddAttachment', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+  return response.data;
+};
+
+export const removeIncidentAttachment = async (incidentAttachmentId: string) => {
+  const response = await createApiEndpoint(`/IncidentCommand/RemoveAttachment/${encodeURIComponent(incidentAttachmentId)}`).delete<IncidentCommandActionResult>();
+  return response.data;
+};
+
+/** Downloads an incident file's bytes as a Blob (auth handled by the shared client). */
+export const downloadIncidentAttachment = async (incidentAttachmentId: string) => {
+  const response = await api.get<Blob>(`/IncidentCommand/DownloadAttachment/${encodeURIComponent(incidentAttachmentId)}`, { responseType: 'blob' });
+  return response.data;
+};
+
+/** Named incident maps (additional tactical maps beyond the incident's main map). */
+export const saveIncidentMap = async (map: Partial<IncidentMap>) => {
+  const response = await createApiEndpoint('/IncidentCommand/SaveIncidentMap').post<IncidentMapResult>({ ...map });
+  return response.data;
+};
+
+export const deleteIncidentMap = async (incidentMapId: string) => {
+  const response = await createApiEndpoint(`/IncidentCommand/DeleteIncidentMap/${encodeURIComponent(incidentMapId)}`).delete<IncidentCommandActionResult>();
+  return response.data;
+};
+
+export const getIncidentMaps = async (callId: string | number) => {
+  const response = await createApiEndpoint(`/IncidentCommand/GetIncidentMaps/${encodeURIComponent(String(callId))}`).get<IncidentMapsResult>();
   return response.data;
 };
 
@@ -98,8 +200,9 @@ export const saveObjective = async (objective: Partial<TacticalObjective>) => {
   return response.data;
 };
 
-export const completeObjective = async (tacticalObjectiveId: string) => {
-  const response = await createApiEndpoint(`/IncidentCommand/CompleteObjective/${encodeURIComponent(tacticalObjectiveId)}`).post<TacticalObjectiveResult>({});
+/** Completes (closes out) an objective, recording how it turned out and an optional close-out note. */
+export const completeObjective = async (tacticalObjectiveId: string, outcome?: number, note?: string | null) => {
+  const response = await createApiEndpoint(`/IncidentCommand/CompleteObjective/${encodeURIComponent(tacticalObjectiveId)}`).post<TacticalObjectiveResult>({ Outcome: outcome ?? 0, Note: note ?? null });
   return response.data;
 };
 
@@ -123,6 +226,29 @@ export const getNeeds = async (callId: string | number) => {
   return response.data;
 };
 
+/** Creates an Entity need: the listed units/users/roles/groups are dispatched individually by command. */
+export const requestNeedEntities = async (incidentCommandId: string, name: string, description: string | null, entities: { EntityKind: number; EntityId: string }[]) => {
+  const response = await createApiEndpoint('/IncidentCommand/RequestNeedEntities').post<IncidentNeedResult>({
+    IncidentCommandId: incidentCommandId,
+    Name: name,
+    Description: description,
+    Entities: entities,
+  });
+  return response.data;
+};
+
+/** The requested entities under one Entity-category need. */
+export const getNeedEntities = async (incidentNeedId: string) => {
+  const response = await createApiEndpoint(`/IncidentCommand/GetNeedEntities/${encodeURIComponent(incidentNeedId)}`).get<IncidentNeedEntitiesResult>();
+  return response.data;
+};
+
+/** Audit trail for one need: every fulfillment change with note, author, and timestamp (newest first). */
+export const getNeedUpdates = async (incidentNeedId: string) => {
+  const response = await createApiEndpoint(`/IncidentCommand/GetNeedUpdates/${encodeURIComponent(incidentNeedId)}`).get<IncidentNeedUpdatesResult>();
+  return response.data;
+};
+
 export const updateCommandDetails = async (input: UpdateCommandDetailsInput) => {
   const response = await createApiEndpoint('/IncidentCommand/UpdateCommandDetails').put<IncidentCommandResult>({ ...input });
   return response.data;
@@ -135,6 +261,17 @@ export const startIncidentTimer = async (timer: Partial<IncidentTimer>) => {
 
 export const acknowledgeIncidentTimer = async (incidentTimerId: string) => {
   const response = await createApiEndpoint(`/IncidentCommand/AcknowledgeTimer/${encodeURIComponent(incidentTimerId)}`).post<IncidentTimerResult>({});
+  return response.data;
+};
+
+/** Creates/updates the incident map's saved view (center + zoom) so it opens consistently for everyone. */
+export const updateMapView = async (incidentCommandId: string, centerLatitude: string, centerLongitude: string, zoomLevel: string) => {
+  const response = await createApiEndpoint('/IncidentCommand/UpdateMapView').put<IncidentCommandResult>({
+    IncidentCommandId: incidentCommandId,
+    CenterLatitude: centerLatitude,
+    CenterLongitude: centerLongitude,
+    ZoomLevel: zoomLevel,
+  });
   return response.data;
 };
 

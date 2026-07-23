@@ -11,37 +11,38 @@ import ZeroState from '@/components/common/zero-state';
 import { Box } from '@/components/ui/box';
 import { FlatList } from '@/components/ui/flat-list';
 import { FocusAwareStatusBar } from '@/components/ui/focus-aware-status-bar';
-import { type IncidentCommandBoard } from '@/models/v4/incidentCommand/incidentCommandBoard';
-import { useCallsStore } from '@/stores/calls/store';
+import { HStack } from '@/components/ui/hstack';
+import { Pressable } from '@/components/ui/pressable';
+import { Text } from '@/components/ui/text';
+import { type IncidentCommandSummary } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useIncidentsStore } from '@/stores/command/incidents-store';
 
 export default function Incidents() {
   const { t } = useTranslation();
-  const incidents = useIncidentsStore((state) => state.incidents);
+  const summaries = useIncidentsStore((state) => state.summaries);
+  const includeClosed = useIncidentsStore((state) => state.includeClosed);
   const isLoading = useIncidentsStore((state) => state.isLoading);
   const error = useIncidentsStore((state) => state.error);
-  const fetchActiveIncidents = useIncidentsStore((state) => state.fetchActiveIncidents);
-  const calls = useCallsStore((state) => state.calls);
-  const fetchCalls = useCallsStore((state) => state.fetchCalls);
+  const fetchIncidents = useIncidentsStore((state) => state.fetchIncidents);
+  const setIncludeClosed = useIncidentsStore((state) => state.setIncludeClosed);
 
   useFocusEffect(
     useCallback(() => {
-      fetchActiveIncidents();
-      fetchCalls();
-    }, [fetchActiveIncidents, fetchCalls])
+      fetchIncidents();
+    }, [fetchIncidents])
   );
 
-  // Active commands carry only a numeric CallId; join the calls store (string CallId) for a human title.
-  const callTitle = useCallback(
-    (callId: number) => {
-      const call = calls.find((c) => c.CallId === String(callId));
-      return call?.Name || call?.Nature || t('incidents.unnamed');
-    },
-    [calls, t]
-  );
+  const handleOpen = useCallback((summary: IncidentCommandSummary) => {
+    // Ended incidents open the read-only history view for that SPECIFIC command instance.
+    if (summary.Status !== 0) {
+      router.push(`/incident/${summary.CallId}?commandId=${encodeURIComponent(summary.IncidentCommandId)}` as never);
+    } else {
+      router.push(`/incident/${summary.CallId}` as never);
+    }
+  }, []);
 
   const renderContent = () => {
-    if (isLoading && incidents.length === 0) {
+    if (isLoading && summaries.length === 0) {
       return <Loading text={t('incidents.loading')} />;
     }
 
@@ -50,12 +51,12 @@ export default function Incidents() {
     }
 
     return (
-      <FlatList<IncidentCommandBoard>
+      <FlatList<IncidentCommandSummary>
         testID="incidents-list"
-        data={incidents}
-        keyExtractor={(item: IncidentCommandBoard) => item.Command.IncidentCommandId}
-        renderItem={({ item }: { item: IncidentCommandBoard }) => <IncidentCard board={item} title={callTitle(item.Command.CallId)} onPress={() => router.push(`/incident/${item.Command.CallId}` as never)} />}
-        refreshControl={<RefreshControl refreshing={false} onRefresh={fetchActiveIncidents} />}
+        data={summaries}
+        keyExtractor={(item: IncidentCommandSummary) => item.IncidentCommandId}
+        renderItem={({ item }: { item: IncidentCommandSummary }) => <IncidentCard summary={item} onPress={() => handleOpen(item)} />}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={fetchIncidents} />}
         ListEmptyComponent={<ZeroState heading={t('incidents.no_incidents')} description={t('incidents.no_incidents_description')} icon={LayoutDashboard} />}
         contentContainerStyle={{ paddingBottom: 20 }}
       />
@@ -65,7 +66,18 @@ export default function Incidents() {
   return (
     <View className="size-full flex-1 bg-gray-50 dark:bg-gray-900">
       <FocusAwareStatusBar />
-      <Box className="flex-1 px-4 pt-4">{renderContent()}</Box>
+      <Box className="flex-1 px-4 pt-2">
+        {/* Active-only by default; the second chip adds ended incidents (read-only history) */}
+        <HStack space="sm" className="mb-3" testID="incidents-filter">
+          <Pressable onPress={() => setIncludeClosed(false)} className={`rounded-full px-4 py-2 ${!includeClosed ? 'bg-primary-500' : 'bg-gray-200 dark:bg-gray-700'}`} testID="incidents-filter-active">
+            <Text className={`text-sm font-semibold ${!includeClosed ? 'text-white' : 'text-gray-700 dark:text-gray-200'}`}>{t('incidents.filter_active')}</Text>
+          </Pressable>
+          <Pressable onPress={() => setIncludeClosed(true)} className={`rounded-full px-4 py-2 ${includeClosed ? 'bg-primary-500' : 'bg-gray-200 dark:bg-gray-700'}`} testID="incidents-filter-all">
+            <Text className={`text-sm font-semibold ${includeClosed ? 'text-white' : 'text-gray-700 dark:text-gray-200'}`}>{t('incidents.filter_all')}</Text>
+          </Pressable>
+        </HStack>
+        {renderContent()}
+      </Box>
     </View>
   );
 }

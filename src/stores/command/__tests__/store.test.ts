@@ -475,7 +475,7 @@ describe('Command Store (server-backed)', () => {
         await useCommandStore.getState().completeObjectiveEntry('101', 'obj-1');
       });
 
-      expect(mockCompleteObjective).toHaveBeenCalledWith('obj-1');
+      expect(mockCompleteObjective).toHaveBeenCalledWith('obj-1', undefined, undefined);
       expect(useCommandStore.getState().boards['101'].board?.Objectives[0].Status).toBe(TacticalObjectiveStatus.Complete);
     });
 

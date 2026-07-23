@@ -9,7 +9,7 @@ import { HStack } from '@/components/ui/hstack';
 import { Input, InputField } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import { type CommandStructureNode, type IncidentNeed, IncidentNeedStatus, type TacticalObjective, TacticalObjectiveStatus } from '@/models/v4/incidentCommand/incidentCommandModels';
+import { type CommandStructureNode, type IncidentMap, type IncidentNeed, IncidentNeedStatus, type TacticalObjective, TacticalObjectiveStatus } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { type PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
 
 /** One lead slot being edited: a Resgrid user OR an external contact. */
@@ -35,19 +35,22 @@ interface LaneDetailsSheetProps {
   node: CommandStructureNode | null;
   objectives: TacticalObjective[];
   needs: IncidentNeed[];
+  /** Named incident maps offered by the "attached map" picker. */
+  maps?: IncidentMap[];
   users: PersonnelInfoResultData[];
   /** Persist the edited lane fields (merged into the stored lane by the caller). */
   onSave: (commandStructureNodeId: string, patch: Partial<CommandStructureNode>) => void;
 }
 
 /** Edit an existing lane: leads (primary/secondary — Resgrid user or external contact) and linked objectives/need. */
-export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onClose, node, objectives, needs, users, onSave }) => {
+export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onClose, node, objectives, needs, maps, users, onSave }) => {
   const { t } = useTranslation();
   const [primaryLead, setPrimaryLead] = useState<LeadDraft>(emptyLead);
   const [secondaryLead, setSecondaryLead] = useState<LeadDraft>(emptyLead);
   const [primaryObjectiveId, setPrimaryObjectiveId] = useState<string | null>(null);
   const [secondaryObjectiveId, setSecondaryObjectiveId] = useState<string | null>(null);
   const [linkedNeedId, setLinkedNeedId] = useState<string | null>(null);
+  const [linkedMapId, setLinkedMapId] = useState<string | null>(null);
 
   // Re-seed the draft each time a lane is opened
   useEffect(() => {
@@ -57,6 +60,7 @@ export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onCl
       setPrimaryObjectiveId(node.PrimaryObjectiveId ?? null);
       setSecondaryObjectiveId(node.SecondaryObjectiveId ?? null);
       setLinkedNeedId(node.LinkedNeedId ?? null);
+      setLinkedMapId(node.LinkedMapId ?? null);
     }
   }, [node, isOpen]);
 
@@ -76,9 +80,10 @@ export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onCl
       PrimaryObjectiveId: primaryObjectiveId,
       SecondaryObjectiveId: secondaryObjectiveId,
       LinkedNeedId: linkedNeedId,
+      LinkedMapId: linkedMapId,
     });
     onClose();
-  }, [node, primaryLead, secondaryLead, primaryObjectiveId, secondaryObjectiveId, linkedNeedId, onSave, onClose]);
+  }, [node, primaryLead, secondaryLead, primaryObjectiveId, secondaryObjectiveId, linkedNeedId, linkedMapId, onSave, onClose]);
 
   const openObjectives = objectives.filter((o) => o.Status !== TacticalObjectiveStatus.Complete);
   const openNeeds = needs.filter((n) => n.Status !== IncidentNeedStatus.Cancelled && n.Status !== IncidentNeedStatus.Met);
@@ -198,6 +203,27 @@ export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onCl
                   testID={`lane-linked-need-${need.IncidentNeedId}`}
                 >
                   <ButtonText>{need.Name}</ButtonText>
+                </Button>
+              ))}
+            </HStack>
+          </VStack>
+
+          <VStack space="xs">
+            <Text className="text-sm font-medium text-gray-600 dark:text-gray-300">{t('command.linked_map_label')}</Text>
+            <HStack className="flex-wrap" space="sm">
+              <Button size="xs" variant={!linkedMapId ? 'solid' : 'outline'} className="mb-1" onPress={() => setLinkedMapId(null)} testID="lane-linked-map-none">
+                <ButtonText>{t('command.none_option')}</ButtonText>
+              </Button>
+              {(maps ?? []).map((map) => (
+                <Button
+                  key={map.IncidentMapId}
+                  size="xs"
+                  variant={linkedMapId === map.IncidentMapId ? 'solid' : 'outline'}
+                  className="mb-1"
+                  onPress={() => setLinkedMapId(map.IncidentMapId)}
+                  testID={`lane-linked-map-${map.IncidentMapId}`}
+                >
+                  <ButtonText>{map.Name}</ButtonText>
                 </Button>
               ))}
             </HStack>

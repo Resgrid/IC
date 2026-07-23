@@ -129,6 +129,7 @@ const NEED_CATEGORY_I18N_KEYS: Record<IncidentNeedCategory, string> = {
   [IncidentNeedCategory.Equipment]: 'command.need_category_equipment',
   [IncidentNeedCategory.Staffing]: 'command.need_category_staffing',
   [IncidentNeedCategory.Other]: 'command.need_category_other',
+  [IncidentNeedCategory.Entity]: 'command.need_category_entity',
 };
 
 export const NEED_CATEGORIES: IncidentNeedCategory[] = [
@@ -138,6 +139,7 @@ export const NEED_CATEGORIES: IncidentNeedCategory[] = [
   IncidentNeedCategory.Equipment,
   IncidentNeedCategory.Staffing,
   IncidentNeedCategory.Other,
+  IncidentNeedCategory.Entity,
 ];
 
 export const getNeedCategoryName = (t: TFunction, category: IncidentNeedCategory): string => {

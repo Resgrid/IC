@@ -16,9 +16,9 @@ import { NotificationInbox } from '@/components/notifications/NotificationInbox'
 import Sidebar from '@/components/sidebar/sidebar';
 import { FocusAwareStatusBar, View } from '@/components/ui';
 import { Button, ButtonText } from '@/components/ui/button';
-import { Drawer, DrawerBackdrop, DrawerBody, DrawerContent, DrawerFooter, DrawerHeader } from '@/components/ui/drawer';
 import { Icon } from '@/components/ui/icon';
 import { Pressable } from '@/components/ui/pressable';
+import { SideDrawer } from '@/components/ui/side-drawer';
 import { Text } from '@/components/ui/text';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useAppLifecycle } from '@/hooks/use-app-lifecycle';
@@ -475,14 +475,9 @@ export default function TabLayout() {
         {/* Drawer renders after init to avoid heavy re-renders during store settling.
             The menu is always a hamburger-toggled drawer — no persistent panel on tablets. */}
         {isInitComplete ? (
-          <Drawer isOpen={isOpen} onClose={handleCloseDrawer} {...({} as any)}>
-            <DrawerBackdrop onPress={handleCloseDrawer} />
-            <DrawerContent className="w-4/5 max-w-[360px] bg-white p-1 dark:bg-gray-900">
-              <DrawerBody>
-                <Sidebar onClose={handleCloseDrawer} />
-              </DrawerBody>
-            </DrawerContent>
-          </Drawer>
+          <SideDrawer isOpen={isOpen} onClose={handleCloseDrawer} testID="app-side-drawer">
+            <Sidebar onClose={handleCloseDrawer} />
+          </SideDrawer>
         ) : null}
 
         {/* Main content area */}
