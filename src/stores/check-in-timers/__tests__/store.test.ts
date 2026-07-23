@@ -21,7 +21,7 @@ jest.mock('react-native-mmkv', () => ({
 import { describe, expect, it, jest, beforeEach } from '@jest/globals';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
-import { getCheckInHistory, getTimerStatuses, getTimersForCall, performCheckIn } from '@/api/check-in-timers/check-in-timers';
+import { getCallPersonnelCheckInStatuses, getCheckInHistory, getTimerStatuses, getTimersForCall, performCheckIn, toggleCallTimers } from '@/api/check-in-timers/check-in-timers';
 import { useCheckInTimerStore } from '../store';
 
 jest.mock('@/api/check-in-timers/check-in-timers');
@@ -42,6 +42,8 @@ const mockGetTimerStatuses = getTimerStatuses as jest.MockedFunction<typeof getT
 const mockGetTimersForCall = getTimersForCall as jest.MockedFunction<typeof getTimersForCall>;
 const mockGetCheckInHistory = getCheckInHistory as jest.MockedFunction<typeof getCheckInHistory>;
 const mockPerformCheckIn = performCheckIn as jest.MockedFunction<typeof performCheckIn>;
+const mockGetCallPersonnelCheckInStatuses = getCallPersonnelCheckInStatuses as jest.MockedFunction<typeof getCallPersonnelCheckInStatuses>;
+const mockToggleCallTimers = toggleCallTimers as jest.MockedFunction<typeof toggleCallTimers>;
 
 describe('useCheckInTimerStore', () => {
   beforeEach(() => {
@@ -57,21 +59,52 @@ describe('useCheckInTimerStore', () => {
   it('should have correct initial state', () => {
     const state = useCheckInTimerStore.getState();
     expect(state.timerStatuses).toEqual([]);
+    expect(state.personnelStatuses).toEqual([]);
     expect(state.resolvedTimers).toEqual([]);
     expect(state.checkInHistory).toEqual([]);
     expect(state.isLoadingStatuses).toBe(false);
     expect(state.isLoadingHistory).toBe(false);
     expect(state.isCheckingIn).toBe(false);
+    expect(state.isTogglingTimers).toBe(false);
     expect(state.statusError).toBeNull();
     expect(state.checkInError).toBeNull();
+  });
+
+  describe('fetchPersonnelStatuses', () => {
+    it('loads and sorts per-user accountability from the check-in timer service', async () => {
+      mockGetCallPersonnelCheckInStatuses.mockResolvedValue({
+        CallId: 1,
+        HasActivePersonnelTimer: true,
+        DurationMinutes: 20,
+        WarningThresholdMinutes: 5,
+        Data: [
+          { UserId: 'safe', FullName: 'Safe User', LastCheckIn: null, NeedsCheckIn: false, MinutesRemaining: 12, Status: 'Green' },
+          { UserId: 'critical', FullName: 'Critical User', LastCheckIn: null, NeedsCheckIn: true, MinutesRemaining: -2, Status: 'Critical' },
+        ],
+        PageSize: 2,
+        Timestamp: '',
+        Version: '',
+        Node: '',
+        RequestId: '',
+        Status: '',
+        Environment: '',
+      });
+
+      await act(async () => {
+        await useCheckInTimerStore.getState().fetchPersonnelStatuses(1);
+      });
+
+      expect(useCheckInTimerStore.getState().personnelStatuses.map((status) => status.UserId)).toEqual(['critical', 'safe']);
+      expect(useCheckInTimerStore.getState().hasActivePersonnelTimer).toBe(true);
+    });
   });
 
   describe('fetchTimerStatuses', () => {
     it('should fetch and sort timer statuses by severity', async () => {
       const mockData = [
-        { TargetEntityId: '1', Status: 'Ok', ElapsedMinutes: 5, DurationMinutes: 30, TargetType: 0, TargetTypeName: 'Unit', TargetName: 'Engine 1', UnitId: '1', LastCheckIn: '', WarningThresholdMinutes: 20 },
-        { TargetEntityId: '2', Status: 'Overdue', ElapsedMinutes: 35, DurationMinutes: 30, TargetType: 0, TargetTypeName: 'Unit', TargetName: 'Ladder 1', UnitId: '2', LastCheckIn: '', WarningThresholdMinutes: 20 },
-        { TargetEntityId: '3', Status: 'Warning', ElapsedMinutes: 22, DurationMinutes: 30, TargetType: 0, TargetTypeName: 'Unit', TargetName: 'Rescue 1', UnitId: '3', LastCheckIn: '', WarningThresholdMinutes: 20 },
+        { TargetEntityId: '1', Status: 'Ok', ElapsedMinutes: 5, DurationMinutes: 30, TargetType: 0, TargetTypeName: 'Unit', TargetName: 'Engine 1', UnitId: 1, LastCheckIn: '', WarningThresholdMinutes: 20 },
+        { TargetEntityId: '2', Status: 'Overdue', ElapsedMinutes: 35, DurationMinutes: 30, TargetType: 0, TargetTypeName: 'Unit', TargetName: 'Ladder 1', UnitId: 2, LastCheckIn: '', WarningThresholdMinutes: 20 },
+        { TargetEntityId: '3', Status: 'Warning', ElapsedMinutes: 22, DurationMinutes: 30, TargetType: 0, TargetTypeName: 'Unit', TargetName: 'Rescue 1', UnitId: 3, LastCheckIn: '', WarningThresholdMinutes: 20 },
       ];
 
       mockGetTimerStatuses.mockResolvedValue({ Data: mockData, PageSize: 0, Timestamp: '', Version: '', Node: '', RequestId: '', Status: '', Environment: '' });
@@ -97,7 +130,7 @@ describe('useCheckInTimerStore', () => {
       const { result } = renderHook(() => useCheckInTimerStore());
 
       await act(async () => {
-        await result.current.fetchTimerStatuses(1);
+        await expect(result.current.fetchTimerStatuses(1)).rejects.toThrow('Network error');
       });
 
       await waitFor(() => {
@@ -168,6 +201,21 @@ describe('useCheckInTimerStore', () => {
       });
       // Should not have increased
       expect(mockGetTimerStatuses).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('setCallTimersEnabled', () => {
+    it('activates timers through the call timer endpoint', async () => {
+      mockToggleCallTimers.mockResolvedValue({ Data: {}, PageSize: 1, Timestamp: '', Version: '', Node: '', RequestId: '', Status: '', Environment: '' });
+
+      let enabled = false;
+      await act(async () => {
+        enabled = await useCheckInTimerStore.getState().setCallTimersEnabled(1, true);
+      });
+
+      expect(enabled).toBe(true);
+      expect(mockToggleCallTimers).toHaveBeenCalledWith(1, true);
+      expect(useCheckInTimerStore.getState().isTogglingTimers).toBe(false);
     });
   });
 

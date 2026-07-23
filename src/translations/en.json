@@ -342,6 +342,12 @@
     "type_unit": "Unit"
   },
   "command": {
+    "accountability_activate": "Activate Check-In Timers",
+    "accountability_activation_error": "Failed to activate check-in timers",
+    "accountability_activation_success": "Check-in timers activated",
+    "accountability_inactive_description": "Accountability is inactive for this call. Activate the call's check-in timers to begin tracking personnel and unit types.",
+    "accountability_no_configured_timers": "Check-in timers are active, but no timers are configured for this call.",
+    "accountability_no_matching_unit": "No unit of this type is assigned to the command board.",
     "accountability_section": "Accountability",
     "acknowledge": "Acknowledge",
     "active_badge": "Active Command",

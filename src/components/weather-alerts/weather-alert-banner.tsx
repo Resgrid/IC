@@ -1,7 +1,7 @@
 import { AlertTriangle, X } from 'lucide-react-native';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pressable } from 'react-native';
+import { type GestureResponderEvent, Pressable } from 'react-native';
 
 import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
@@ -23,11 +23,21 @@ export const WeatherAlertBanner: React.FC<WeatherAlertBannerProps> = ({ alerts, 
     return null;
   }
 
+  const handleBannerPress = () => {
+    onDismiss();
+    onPress();
+  };
+
+  const handleDismissPress = (event?: GestureResponderEvent) => {
+    event?.stopPropagation();
+    onDismiss();
+  };
+
   const topAlert = alerts[0];
   const bgColor = getSeverityColor(topAlert.Severity);
 
   return (
-    <Pressable onPress={onPress}>
+    <Pressable onPress={handleBannerPress}>
       <Box style={{ backgroundColor: bgColor }} className="mx-4 mb-2 rounded-lg p-3">
         <HStack className="items-center justify-between">
           <HStack className="flex-1 items-center space-x-2">
@@ -43,12 +53,7 @@ export const WeatherAlertBanner: React.FC<WeatherAlertBannerProps> = ({ alerts, 
             </Box>
           ) : null}
 
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation?.();
-              onDismiss();
-            }}
-          >
+          <Pressable accessibilityLabel={t('common.dismiss')} accessibilityRole="button" className="ml-1 p-2" hitSlop={8} onPress={handleDismissPress} testID="weather-alert-banner-dismiss">
             <Icon as={X} size="sm" color="#FFFFFF" />
           </Pressable>
         </HStack>

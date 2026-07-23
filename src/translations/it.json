@@ -342,6 +342,12 @@
     "type_unit": "Unità"
   },
   "command": {
+    "accountability_activate": "Attiva timer di check-in",
+    "accountability_activation_error": "Impossibile attivare i timer di check-in",
+    "accountability_activation_success": "Timer di check-in attivati",
+    "accountability_inactive_description": "La responsabilità è inattiva per questa chiamata. Attiva i timer di check-in per monitorare personale e tipi di unità.",
+    "accountability_no_configured_timers": "I timer di check-in sono attivi, ma non ne è configurato nessuno per questa chiamata.",
+    "accountability_no_matching_unit": "Nessuna unità di questo tipo è assegnata al quadro di comando.",
     "accountability_section": "Controllo del personale",
     "acknowledge": "Conferma",
     "active_badge": "Comando attivo",

@@ -70,7 +70,7 @@ const createMockTimer = (overrides: Partial<CheckInTimerStatusResultData> = {}):
   TargetTypeName: 'Unit',
   TargetEntityId: '1',
   TargetName: 'Engine 1',
-  UnitId: '1',
+  UnitId: 1,
   LastCheckIn: '2026-04-12T10:00:00Z',
   DurationMinutes: 30,
   WarningThresholdMinutes: 20,

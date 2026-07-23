@@ -108,12 +108,12 @@ describe('CheckInBottomSheet', () => {
     expect(getByText('check_in.confirm')).toBeTruthy();
   });
 
-  it('should render all check-in type buttons', () => {
-    const { getByText } = render(<CheckInBottomSheet isOpen={true} onClose={jest.fn()} callId={1} />);
+  it('renders non-IC check-in types because IC check-in is restricted to the command accountability section', () => {
+    const { getByText, queryByText } = render(<CheckInBottomSheet isOpen={true} onClose={jest.fn()} callId={1} />);
 
     expect(getByText('check_in.type_personnel')).toBeTruthy();
     expect(getByText('check_in.type_unit')).toBeTruthy();
-    expect(getByText('check_in.type_ic')).toBeTruthy();
+    expect(queryByText('check_in.type_ic')).toBeNull();
     expect(getByText('check_in.type_par')).toBeTruthy();
     expect(getByText('check_in.type_hazmat')).toBeTruthy();
     expect(getByText('check_in.type_sector_rotation')).toBeTruthy();

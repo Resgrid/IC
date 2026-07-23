@@ -1,9 +1,8 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import Mapbox from '@/components/maps/mapbox';
-import { getSeverityColor } from '@/lib/weather-alert-utils';
-import { parseCenterLocation, parsePolygonGeoJSON } from '@/lib/weather-alert-utils';
+import { getPolygonBounds, getSeverityColor, parseCenterLocation, parsePolygonGeoJSON } from '@/lib/weather-alert-utils';
 import { type WeatherAlertResultData } from '@/models/v4/weatherAlerts/weatherAlertResultData';
 
 interface WeatherAlertDetailMapProps {
@@ -11,34 +10,18 @@ interface WeatherAlertDetailMapProps {
 }
 
 export const WeatherAlertDetailMap: React.FC<WeatherAlertDetailMapProps> = ({ alert }) => {
-  const cameraRef = useRef<any>(null);
   const severityColor = getSeverityColor(alert.Severity);
 
   const polygonGeoJSON = useMemo(() => parsePolygonGeoJSON(alert.Polygon), [alert.Polygon]);
   const centerLocation = useMemo(() => parseCenterLocation(alert.CenterGeoLocation), [alert.CenterGeoLocation]);
 
-  // Compute bounds from polygon for camera
   const bounds = useMemo(() => {
-    if (!polygonGeoJSON || !polygonGeoJSON.geometry) return null;
-
-    const geometry = polygonGeoJSON.geometry as GeoJSON.Polygon;
-    const coords = geometry.coordinates?.[0];
-    if (!coords || coords.length === 0) return null;
-
-    let minLng = Infinity,
-      maxLng = -Infinity,
-      minLat = Infinity,
-      maxLat = -Infinity;
-    for (const [lng, lat] of coords) {
-      if (lng < minLng) minLng = lng;
-      if (lng > maxLng) maxLng = lng;
-      if (lat < minLat) minLat = lat;
-      if (lat > maxLat) maxLat = lat;
-    }
+    if (!polygonGeoJSON) return null;
+    const polygonBounds = getPolygonBounds(polygonGeoJSON);
+    if (!polygonBounds) return null;
 
     return {
-      ne: [maxLng, maxLat] as [number, number],
-      sw: [minLng, minLat] as [number, number],
+      ...polygonBounds,
       paddingTop: 40,
       paddingBottom: 40,
       paddingLeft: 40,
@@ -56,15 +39,17 @@ export const WeatherAlertDetailMap: React.FC<WeatherAlertDetailMapProps> = ({ al
         zoomLevel: 8,
       };
     }
-    return { zoomLevel: 4 };
+    return null;
   }, [bounds, centerLocation]);
+
+  if (!cameraProps) return null;
 
   return (
     <View style={styles.container}>
       <Mapbox.MapView style={styles.map} scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false}>
-        <Mapbox.Camera ref={cameraRef} {...cameraProps} animationDuration={0} />
+        <Mapbox.Camera {...cameraProps} animationDuration={0} />
 
-        {polygonGeoJSON ? (
+        {polygonGeoJSON && bounds ? (
           <Mapbox.ShapeSource id="alert-polygon" shape={polygonGeoJSON}>
             <Mapbox.FillLayer
               id="alert-polygon-fill"
@@ -83,7 +68,7 @@ export const WeatherAlertDetailMap: React.FC<WeatherAlertDetailMapProps> = ({ al
           </Mapbox.ShapeSource>
         ) : null}
 
-        {!polygonGeoJSON && centerLocation ? (
+        {!bounds && centerLocation ? (
           <Mapbox.PointAnnotation id="alert-center" coordinate={[centerLocation.longitude, centerLocation.latitude]}>
             <View style={[styles.marker, { backgroundColor: severityColor }]} />
           </Mapbox.PointAnnotation>

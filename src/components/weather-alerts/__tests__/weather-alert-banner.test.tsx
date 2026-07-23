@@ -5,7 +5,7 @@ import { WeatherAlertBanner } from '../weather-alert-banner';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, params?: any) => (params ? `${key} ${JSON.stringify(params)}` : key),
+    t: (key: string, params?: Record<string, unknown>) => (params ? `${key} ${JSON.stringify(params)}` : key),
   }),
 }));
 
@@ -68,10 +68,30 @@ describe('WeatherAlertBanner', () => {
     expect(screen.getByText(/more_alerts/)).toBeTruthy();
   });
 
-  it('should call onPress when banner is pressed', () => {
+  it('should dismiss before navigating when banner is pressed', () => {
+    const callOrder: string[] = [];
+    mockOnDismiss.mockImplementation(() => callOrder.push('dismiss'));
+    mockOnPress.mockImplementation(() => callOrder.push('press'));
+
     render(<WeatherAlertBanner alerts={[createMockAlert()]} onPress={mockOnPress} onDismiss={mockOnDismiss} />);
     fireEvent.press(screen.getByText('Tornado Warning for County'));
+
+    expect(mockOnDismiss).toHaveBeenCalledTimes(1);
     expect(mockOnPress).toHaveBeenCalledTimes(1);
+    expect(callOrder).toEqual(['dismiss', 'press']);
+  });
+
+  it('should dismiss without navigating when the close button is pressed', () => {
+    const stopPropagation = jest.fn();
+    render(<WeatherAlertBanner alerts={[createMockAlert()]} onPress={mockOnPress} onDismiss={mockOnDismiss} />);
+
+    const dismissButton = screen.getByTestId('weather-alert-banner-dismiss');
+    fireEvent.press(dismissButton, { stopPropagation });
+
+    expect(stopPropagation).toHaveBeenCalledTimes(1);
+    expect(mockOnDismiss).toHaveBeenCalledTimes(1);
+    expect(mockOnPress).not.toHaveBeenCalled();
+    expect(dismissButton.props.hitSlop).toBe(8);
   });
 
   it('should use event name when headline is empty', () => {

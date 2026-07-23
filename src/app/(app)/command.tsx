@@ -8,6 +8,7 @@ import { VideoFeedTabContent } from '@/components/call-video-feeds/video-feed-ta
 import CallFilesModal from '@/components/calls/call-files-modal';
 import CallImagesModal from '@/components/calls/call-images-modal';
 import CallNotesModal from '@/components/calls/call-notes-modal';
+import { AccountabilitySection } from '@/components/command/accountability-section';
 import { AddAssignmentSheet } from '@/components/command/add-assignment-sheet';
 import { AddLaneSheet } from '@/components/command/add-lane-sheet';
 import { AddResourceSheet } from '@/components/command/add-resource-sheet';
@@ -43,9 +44,8 @@ import { Icon } from '@/components/ui/icon';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import { getIncidentRoleName, getParBadgeAction } from '@/lib/incident-command-utils';
+import { getIncidentRoleName } from '@/lib/incident-command-utils';
 import { isWeb } from '@/lib/platform';
-import { getTimeAgoUtc } from '@/lib/utils';
 import { type IncidentNeedStatus, ResourceAssignmentKind } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useCallsStore } from '@/stores/calls/store';
@@ -73,7 +73,6 @@ export default function CommandBoard() {
   const releaseAdHocUnitEntry = useCommandStore((state) => state.releaseAdHocUnitEntry);
   const addAdHocPersonnel = useCommandStore((state) => state.addAdHocPersonnel);
   const releaseAdHocPersonnelEntry = useCommandStore((state) => state.releaseAdHocPersonnelEntry);
-  const refreshAccountability = useCommandStore((state) => state.refreshAccountability);
   const addNode = useCommandStore((state) => state.addNode);
   const deleteNode = useCommandStore((state) => state.deleteNode);
   const assignResourceToNode = useCommandStore((state) => state.assignResourceToNode);
@@ -107,6 +106,7 @@ export default function CommandBoard() {
   const activeCall = useCoreStore((state) => state.activeCall);
   const activePriority = useCoreStore((state) => state.activePriority);
   const calls = useCallsStore((state) => state.calls);
+  const fetchCalls = useCallsStore((state) => state.fetchCalls);
   const users = useRolesStore((state) => state.users);
   const fetchUsers = useRolesStore((state) => state.fetchUsers);
   const unitRoles = useRolesStore((state) => state.roles);
@@ -232,12 +232,11 @@ export default function CommandBoard() {
   const handleRefresh = useCallback(() => {
     if (activeBoardCallId) {
       refreshBoard(activeBoardCallId);
-      refreshAccountability(activeBoardCallId);
       fetchTimeline(activeBoardCallId);
       fetchVoiceChannels(activeBoardCallId);
       fetchTransmissionLog(activeBoardCallId);
     }
-  }, [activeBoardCallId, refreshBoard, refreshAccountability, fetchTimeline, fetchVoiceChannels, fetchTransmissionLog]);
+  }, [activeBoardCallId, refreshBoard, fetchTimeline, fetchVoiceChannels, fetchTransmissionLog]);
 
   const handleTransferCommand = useCallback(
     async (toUserId: string) => {
@@ -433,8 +432,7 @@ export default function CommandBoard() {
   }
 
   const activeRoles = (boardState.board?.Roles ?? []).filter((r) => !r.RemovedOn);
-  const accountability = boardState.board?.Accountability ?? [];
-  const summaryCall = activeCall?.CallId === boardState.callId ? activeCall : (calls.find((c) => c.CallId === boardState.callId) ?? null);
+  const summaryCall = calls.find((c) => c.CallId === boardState.callId) ?? (activeCall?.CallId === boardState.callId ? activeCall : null);
 
   // Weather location: the ICP when set, otherwise the call's own coordinates.
   const icpLatitude = parseFloat(boardState.board?.Command?.CommandPostLatitude ?? '');
@@ -781,37 +779,12 @@ export default function CommandBoard() {
             ))}
           </CommandSection>
 
-          {/* Accountability / PAR — computed server-side from check-in timers (read-only) */}
-          <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID="command-accountability-section">
-            <HStack className="mb-3 items-center justify-between">
-              <HStack space="sm" className="items-center">
-                <Heading size="sm">{t('command.accountability_section')}</Heading>
-                <Text className="text-sm text-gray-500 dark:text-gray-400">({accountability.length})</Text>
-              </HStack>
-              <Button size="xs" variant="outline" onPress={() => refreshAccountability(boardState.callId)} testID="command-accountability-evaluate">
-                <ButtonIcon as={RefreshCw} />
-                <ButtonText>{t('command.evaluate')}</ButtonText>
-              </Button>
-            </HStack>
-
-            {accountability.length === 0 ? (
-              <Text className="py-2 text-center text-sm text-gray-500 dark:text-gray-400">{t('command.no_accountability')}</Text>
-            ) : (
-              <VStack space="sm">
-                {accountability.map((entry) => (
-                  <HStack key={entry.UserId} className="items-center justify-between rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900" testID={`accountability-${entry.UserId}`}>
-                    <VStack className="flex-1">
-                      <Text className="text-base text-gray-900 dark:text-white">{entry.FullName}</Text>
-                      <Text className="text-sm text-gray-500 dark:text-gray-400">{entry.LastCheckIn ? `${t('command.last_check_in')}: ${getTimeAgoUtc(entry.LastCheckIn)}` : t('command.no_check_in_yet')}</Text>
-                    </VStack>
-                    <Badge action={getParBadgeAction(entry.Status)} variant="solid">
-                      <BadgeText className="text-white">{entry.Status === 'Green' ? t('command.par_green') : entry.Status === 'Warning' ? t('command.par_warning') : t('command.par_critical')}</BadgeText>
-                    </Badge>
-                  </HStack>
-                ))}
-              </VStack>
-            )}
-          </Box>
+          <AccountabilitySection
+            callId={parseInt(boardState.callId, 10)}
+            initialTimersEnabled={summaryCall?.CheckInTimersEnabled ?? false}
+            units={units.filter((unit) => trackedUnitIds.includes(unit.UnitId))}
+            onTimersActivated={fetchCalls}
+          />
 
           {/* Auto-logged, time-stamped incident log */}
           <TimelineSection entries={boardState.timeline ?? []} onRefresh={() => fetchTimeline(boardState.callId)} />

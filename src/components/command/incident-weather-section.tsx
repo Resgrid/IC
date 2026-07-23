@@ -15,7 +15,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { logger } from '@/lib/logging';
-import { getSeverityColor, isAlertActive } from '@/lib/weather-alert-utils';
+import { formatWeatherAlertDate, getSeverityColor, isAlertActive } from '@/lib/weather-alert-utils';
 import { type WeatherAlertResultData } from '@/models/v4/weatherAlerts/weatherAlertResultData';
 
 /** Radius (miles) around the incident location to pull weather alerts for. */
@@ -80,7 +80,7 @@ export const IncidentWeatherSection: React.FC<IncidentWeatherSectionProps> = ({ 
                   </Text>
                   {alert.ExpiresUtc ? (
                     <Text className="text-xs text-gray-500 dark:text-gray-400" numberOfLines={1}>
-                      {t('command.incident_weather_expires', { when: new Date(alert.ExpiresUtc).toLocaleString() })}
+                      {t('command.incident_weather_expires', { when: formatWeatherAlertDate(alert.ExpiresUtc) })}
                     </Text>
                   ) : null}
                 </VStack>
