@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logging';
 import { type CallPersonnelCheckInStatusResult } from '@/models/v4/checkIn/callPersonnelCheckInStatusResult';
 import { type CheckInRecordResult } from '@/models/v4/checkIn/checkInRecordResult';
 import { type CheckInTimerStatusResult } from '@/models/v4/checkIn/checkInTimerStatusResult';
@@ -10,7 +11,9 @@ const getTimerStatusesApi = createApiEndpoint('/CheckInTimers/GetTimerStatuses')
 const getTimersForCallApi = createApiEndpoint('/CheckInTimers/GetTimersForCall');
 const performCheckInApi = createApiEndpoint('/CheckInTimers/PerformCheckIn');
 const getCheckInHistoryApi = createApiEndpoint('/CheckInTimers/GetCheckInHistory');
-const getCallPersonnelCheckInStatusesApi = createApiEndpoint('/CheckInTimers/GetCallPersonnelCheckInStatuses');
+const CALL_PERSONNEL_CHECK_IN_STATUSES_ENDPOINT = '/CheckInTimers/GetCallPersonnelCheckInStatuses';
+const CALL_PERSONNEL_CHECK_IN_STATUSES_ENDPOINT_NAME = 'GetCallPersonnelCheckInStatuses';
+const getCallPersonnelCheckInStatusesApi = createApiEndpoint(CALL_PERSONNEL_CHECK_IN_STATUSES_ENDPOINT);
 
 export interface PerformCheckInInput {
   CallId: number;
@@ -56,11 +59,37 @@ export const getCheckInHistory = async (callId: number) => {
   return response.data;
 };
 
+export class CallPersonnelCheckInStatusesFetchError extends Error {
+  public readonly code = 'CALL_PERSONNEL_CHECK_IN_STATUSES_FETCH_FAILED';
+
+  constructor(
+    public readonly callId: number,
+    public readonly endpointName: string,
+    cause: unknown
+  ) {
+    super('Unable to load personnel check-in statuses', { cause });
+    this.name = 'CallPersonnelCheckInStatusesFetchError';
+  }
+}
+
 export const getCallPersonnelCheckInStatuses = async (callId: number) => {
-  const response = await getCallPersonnelCheckInStatusesApi.get<CallPersonnelCheckInStatusResult>({
-    callId: encodeURIComponent(callId),
-  });
-  return response.data;
+  try {
+    const response = await getCallPersonnelCheckInStatusesApi.get<CallPersonnelCheckInStatusResult>({
+      callId: encodeURIComponent(callId),
+    });
+    return response.data;
+  } catch (error) {
+    logger.error({
+      message: 'Failed to fetch call personnel check-in statuses',
+      context: {
+        callId,
+        endpointName: CALL_PERSONNEL_CHECK_IN_STATUSES_ENDPOINT_NAME,
+        endpoint: CALL_PERSONNEL_CHECK_IN_STATUSES_ENDPOINT,
+        error,
+      },
+    });
+    throw new CallPersonnelCheckInStatusesFetchError(callId, CALL_PERSONNEL_CHECK_IN_STATUSES_ENDPOINT_NAME, error);
+  }
 };
 
 export const toggleCallTimers = async (callId: number, enabled: boolean) => {

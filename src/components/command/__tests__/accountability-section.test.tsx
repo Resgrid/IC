@@ -28,6 +28,7 @@ const mockSetCallTimersEnabled = jest.fn().mockResolvedValue(true);
 const mockStartPolling = jest.fn();
 const mockStopPolling = jest.fn();
 const mockShowToast = jest.fn();
+const mockLoggerWarn = jest.fn();
 
 interface MockCheckInState {
   timerStatuses: CheckInTimerStatusResultData[];
@@ -63,6 +64,12 @@ jest.mock('@/stores/app/location-store', () => ({
 
 jest.mock('@/stores/toast/store', () => ({
   useToastStore: (selector: (state: { showToast: typeof mockShowToast }) => unknown) => selector({ showToast: mockShowToast }),
+}));
+
+jest.mock('@/lib/logging', () => ({
+  logger: {
+    warn: (...args: unknown[]) => mockLoggerWarn(...args),
+  },
 }));
 
 jest.mock('@/lib/utils', () => ({
@@ -121,6 +128,11 @@ const createState = (overrides: Partial<MockCheckInState> = {}): MockCheckInStat
 describe('AccountabilitySection', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFetchTimerStatuses.mockResolvedValue(undefined);
+    mockFetchPersonnelStatuses.mockResolvedValue(undefined);
+    mockFetchResolvedTimers.mockResolvedValue(undefined);
+    mockPerformCheckIn.mockResolvedValue('success');
+    mockSetCallTimersEnabled.mockResolvedValue(true);
     mockCheckInState = createState();
   });
 
@@ -136,6 +148,26 @@ describe('AccountabilitySection', () => {
     await waitFor(() => {
       expect(mockSetCallTimersEnabled).toHaveBeenCalledWith(101, true);
       expect(onTimersActivated).toHaveBeenCalled();
+    });
+
+    unmount();
+  });
+
+  it('renders successful timer data when one accountability request fails', async () => {
+    const personnelError = new Error('personnel status unavailable');
+    mockFetchPersonnelStatuses.mockRejectedValue(personnelError);
+    mockCheckInState = createState({ timerStatuses: [icTimer] });
+
+    const { getByTestId, unmount } = render(<AccountabilitySection callId={101} initialTimersEnabled={true} units={[]} />);
+
+    await waitFor(() => expect(getByTestId('accountability-timer-2-')).toBeTruthy());
+    expect(mockLoggerWarn).toHaveBeenCalledWith({
+      message: 'Accountability data source failed to refresh',
+      context: {
+        callId: 101,
+        dataSource: 'personnelStatuses',
+        error: personnelError,
+      },
     });
 
     unmount();

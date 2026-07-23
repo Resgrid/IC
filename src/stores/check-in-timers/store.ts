@@ -74,6 +74,7 @@ export const useCheckInTimerStore = create<CheckInTimerState>((set, get) => ({
       const message = error instanceof Error ? error.message : 'Failed to fetch timer statuses';
       logger.error({ message: 'Failed to fetch timer statuses', context: { error, callId } });
       set({ statusError: message, isLoadingStatuses: false });
+      throw error;
     }
   },
 
@@ -85,6 +86,7 @@ export const useCheckInTimerStore = create<CheckInTimerState>((set, get) => ({
       set({ personnelStatuses: sorted, hasActivePersonnelTimer: result.HasActivePersonnelTimer === true });
     } catch (error) {
       logger.error({ message: 'Failed to fetch personnel check-in statuses', context: { error, callId } });
+      throw error;
     }
   },
 
@@ -94,6 +96,7 @@ export const useCheckInTimerStore = create<CheckInTimerState>((set, get) => ({
       set({ resolvedTimers: Array.isArray(result.Data) ? result.Data : [] });
     } catch (error) {
       logger.error({ message: 'Failed to fetch resolved timers', context: { error, callId } });
+      throw error;
     }
   },
 
@@ -114,10 +117,9 @@ export const useCheckInTimerStore = create<CheckInTimerState>((set, get) => ({
       await performCheckIn(input);
       set({ isCheckingIn: false });
       // Re-fetch statuses after successful check-in
-      get().fetchTimerStatuses(input.CallId);
-      if (input.CheckInType === 0) {
-        get().fetchPersonnelStatuses(input.CallId);
-      }
+      const refreshes = [get().fetchTimerStatuses(input.CallId)];
+      if (input.CheckInType === 0) refreshes.push(get().fetchPersonnelStatuses(input.CallId));
+      void Promise.allSettled(refreshes);
       return 'success' as CheckInResult;
     } catch (error) {
       const isOffline = isAxiosError(error) && (!error.response || error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED');
@@ -161,13 +163,14 @@ export const useCheckInTimerStore = create<CheckInTimerState>((set, get) => ({
       clearInterval(_pollingInterval);
     }
 
-    // Fetch immediately
-    get().fetchTimerStatuses(callId);
-    get().fetchPersonnelStatuses(callId);
+    const refreshPollingData = () => {
+      void Promise.allSettled([get().fetchTimerStatuses(callId), get().fetchPersonnelStatuses(callId)]);
+    };
 
+    // Fetch immediately
+    refreshPollingData();
     const interval = setInterval(() => {
-      get().fetchTimerStatuses(callId);
-      get().fetchPersonnelStatuses(callId);
+      refreshPollingData();
     }, intervalMs);
 
     set({ _pollingInterval: interval });

@@ -7,9 +7,17 @@ jest.mock('@/api/common/client', () => ({
   })),
 }));
 
+const mockLoggerError = jest.fn();
+
+jest.mock('@/lib/logging', () => ({
+  logger: {
+    error: (...args: unknown[]) => mockLoggerError(...args),
+  },
+}));
+
 import { createApiEndpoint } from '@/api/common/client';
 
-import { performCheckIn, toggleCallTimers } from '../check-in-timers';
+import { CallPersonnelCheckInStatusesFetchError, getCallPersonnelCheckInStatuses, performCheckIn, toggleCallTimers } from '../check-in-timers';
 
 interface MockEndpoint {
   get: jest.Mock;
@@ -27,6 +35,7 @@ const getEndpoint = (path: string): MockEndpoint => {
 
 describe('check-in timer API', () => {
   beforeEach(() => {
+    mockLoggerError.mockReset();
     mockCreateApiEndpoint.mock.results.forEach((result) => {
       if (result.type === 'return') {
         const endpoint = result.value as unknown as MockEndpoint;
@@ -35,6 +44,30 @@ describe('check-in timer API', () => {
         endpoint.put.mockReset();
         endpoint.delete.mockReset();
       }
+    });
+  });
+
+  it('maps personnel status transport failures to an application error with call context', async () => {
+    const endpoint = getEndpoint('/CheckInTimers/GetCallPersonnelCheckInStatuses');
+    const transportError = new Error('network unavailable');
+    endpoint.get.mockRejectedValue(transportError);
+
+    await expect(getCallPersonnelCheckInStatuses(101)).rejects.toMatchObject({
+      name: 'CallPersonnelCheckInStatusesFetchError',
+      code: 'CALL_PERSONNEL_CHECK_IN_STATUSES_FETCH_FAILED',
+      callId: 101,
+      endpointName: 'GetCallPersonnelCheckInStatuses',
+      cause: transportError,
+    } satisfies Partial<CallPersonnelCheckInStatusesFetchError>);
+
+    expect(mockLoggerError).toHaveBeenCalledWith({
+      message: 'Failed to fetch call personnel check-in statuses',
+      context: {
+        callId: 101,
+        endpointName: 'GetCallPersonnelCheckInStatuses',
+        endpoint: '/CheckInTimers/GetCallPersonnelCheckInStatuses',
+        error: transportError,
+      },
     });
   });
 

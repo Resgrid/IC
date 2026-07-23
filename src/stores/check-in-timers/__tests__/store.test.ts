@@ -130,7 +130,7 @@ describe('useCheckInTimerStore', () => {
       const { result } = renderHook(() => useCheckInTimerStore());
 
       await act(async () => {
-        await result.current.fetchTimerStatuses(1);
+        await expect(result.current.fetchTimerStatuses(1)).rejects.toThrow('Network error');
       });
 
       await waitFor(() => {

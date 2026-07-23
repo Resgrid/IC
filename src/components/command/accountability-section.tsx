@@ -10,6 +10,7 @@ import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { getParBadgeAction } from '@/lib/incident-command-utils';
+import { logger } from '@/lib/logging';
 import { getTimeAgoUtc } from '@/lib/utils';
 import type { CheckInTimerStatusResultData } from '@/models/v4/checkIn/checkInTimerStatusResultData';
 import type { UnitResultData } from '@/models/v4/units/unitResultData';
@@ -20,6 +21,7 @@ import { useToastStore } from '@/stores/toast/store';
 
 const PERSONNEL_CHECK_IN_TYPE = 0;
 const UNIT_TYPE_CHECK_IN_TYPE = 1;
+const ACCOUNTABILITY_DATA_SOURCES = ['timerStatuses', 'personnelStatuses', 'resolvedTimers'] as const;
 
 interface AccountabilitySectionProps {
   callId: number;
@@ -59,8 +61,27 @@ export const AccountabilitySection: React.FC<AccountabilitySectionProps> = ({ ca
   const accountabilityCount = visiblePersonnelStatuses.length + visibleTimers.length;
 
   const refresh = useCallback(async () => {
-    await Promise.all([fetchTimerStatuses(callId), fetchPersonnelStatuses(callId), fetchResolvedTimers(callId)]);
-    setLoadedCallId(callId);
+    const results = await Promise.allSettled([fetchTimerStatuses(callId), fetchPersonnelStatuses(callId), fetchResolvedTimers(callId)]);
+    let successfulRequestCount = 0;
+
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        successfulRequestCount += 1;
+      } else {
+        logger.warn({
+          message: 'Accountability data source failed to refresh',
+          context: {
+            callId,
+            dataSource: ACCOUNTABILITY_DATA_SOURCES[index],
+            error: result.reason,
+          },
+        });
+      }
+    });
+
+    if (successfulRequestCount > 0) {
+      setLoadedCallId(callId);
+    }
   }, [callId, fetchPersonnelStatuses, fetchResolvedTimers, fetchTimerStatuses]);
 
   useEffect(() => {
