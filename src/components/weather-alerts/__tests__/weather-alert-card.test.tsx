@@ -14,6 +14,7 @@ jest.mock('@/lib/utils', () => ({
 }));
 
 jest.mock('@/lib/weather-alert-utils', () => ({
+  ...jest.requireActual('@/lib/weather-alert-utils'),
   getSeverityColor: jest.fn(() => '#D32F2F'),
   getSeverityTranslationKey: jest.fn(() => 'weather_alerts.severity.severe'),
   getCategoryIcon: jest.fn(() => {
@@ -42,7 +43,7 @@ const createMockAlert = (overrides = {}) => ({
   CenterGeoLocation: '',
   EffectiveUtc: '2026-04-15T10:00:00Z',
   OnsetUtc: '',
-  ExpiresUtc: '2026-04-15T14:00:00Z',
+  ExpiresUtc: '04/15/2026 2:00:00 PM',
   Ends: '',
   ReceivedOnUtc: '',
   UpdatedOnUtc: '',
@@ -71,6 +72,13 @@ describe('WeatherAlertCard', () => {
   it('should render severity badge', () => {
     render(<WeatherAlertCard alert={createMockAlert()} />);
     expect(screen.getByText('weather_alerts.severity.severe')).toBeTruthy();
+  });
+
+  it('should format the department-local expiry date without showing Invalid Date', () => {
+    render(<WeatherAlertCard alert={createMockAlert()} />);
+
+    expect(screen.queryByText(/Invalid Date/)).toBeNull();
+    expect(screen.getByText(/weather_alerts\.detail\.expires:/)).toBeTruthy();
   });
 
   it('should render without headline when empty', () => {

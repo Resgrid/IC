@@ -18,7 +18,6 @@ import { useToastStore } from '@/stores/toast/store';
 const CHECK_IN_TYPES = [
   { value: 0, key: 'type_personnel' },
   { value: 1, key: 'type_unit' },
-  { value: 2, key: 'type_ic' },
   { value: 3, key: 'type_par' },
   { value: 4, key: 'type_hazmat' },
   { value: 5, key: 'type_sector_rotation' },

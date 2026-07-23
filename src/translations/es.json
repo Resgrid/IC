@@ -342,6 +342,12 @@
     "type_unit": "Unidad"
   },
   "command": {
+    "accountability_activate": "Activar temporizadores de registro",
+    "accountability_activation_error": "No se pudieron activar los temporizadores de registro",
+    "accountability_activation_success": "Temporizadores de registro activados",
+    "accountability_inactive_description": "La rendición de cuentas está inactiva para esta llamada. Active los temporizadores de registro para comenzar a supervisar al personal y los tipos de unidad.",
+    "accountability_no_configured_timers": "Los temporizadores de registro están activos, pero no hay ninguno configurado para esta llamada.",
+    "accountability_no_matching_unit": "No hay ninguna unidad de este tipo asignada al tablero de mando.",
     "accountability_section": "Rendición de cuentas",
     "acknowledge": "Confirmar",
     "active_badge": "Comando activo",

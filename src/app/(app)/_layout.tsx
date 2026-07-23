@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Platform, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { OfflineStatusBar } from '@/components/common/offline-status-bar';
+import { OfflineStatusToast } from '@/components/common/offline-status-toast';
 import { NotificationButton } from '@/components/notifications/NotificationButton';
 import { NotificationInbox } from '@/components/notifications/NotificationInbox';
 import Sidebar from '@/components/sidebar/sidebar';
@@ -23,6 +23,7 @@ import { Text } from '@/components/ui/text';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useAppLifecycle } from '@/hooks/use-app-lifecycle';
 import { useSignalRLifecycle } from '@/hooks/use-signalr-lifecycle';
+import { getAppHeaderHeight } from '@/lib/app-shell-layout';
 import { useAuthStore } from '@/lib/auth';
 import { logger } from '@/lib/logging';
 import { useIsFirstTime } from '@/lib/storage';
@@ -311,6 +312,10 @@ export default function TabLayout() {
   const screenOptions = React.useMemo(
     () => ({
       headerShown: true,
+      headerStatusBarHeight: insets.top,
+      headerStyle: {
+        height: getAppHeaderHeight(insets.top, isLandscape),
+      },
       tabBarShowLabel: true,
       tabBarIconStyle: {
         width: 24,
@@ -335,7 +340,7 @@ export default function TabLayout() {
         borderTopColor: 'rgba(0, 0, 0, 0.1)',
       },
     }),
-    [isLandscape, insets.bottom]
+    [isLandscape, insets.bottom, insets.top]
   );
 
   // Memoize header callbacks to prevent new function refs every render
@@ -482,8 +487,7 @@ export default function TabLayout() {
 
         {/* Main content area */}
         <View className="w-full flex-1">
-          {/* Offline / pending-sync status strip */}
-          {isInitComplete ? <OfflineStatusBar /> : null}
+          {isInitComplete ? <OfflineStatusToast /> : null}
           <Tabs screenOptions={screenOptions}>
             <Tabs.Screen name="index" options={indexOptions} />
 
@@ -538,7 +542,8 @@ interface CreateDrawerMenuButtonProps {
 const CreateDrawerMenuButton = ({ setIsOpen }: CreateDrawerMenuButtonProps) => {
   return (
     <Pressable
-      className="p-3"
+      className="p-2"
+      hitSlop={4}
       testID="drawer-menu-button"
       onPress={() => {
         setIsOpen(true);
@@ -552,7 +557,8 @@ const CreateDrawerMenuButton = ({ setIsOpen }: CreateDrawerMenuButtonProps) => {
 const CreateHeaderBackButton = () => {
   return (
     <Pressable
-      className="p-3"
+      className="p-2"
+      hitSlop={4}
       testID="header-back-button"
       onPress={() => {
         if (router.canGoBack()) {

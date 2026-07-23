@@ -342,6 +342,12 @@
     "type_unit": "Einheit"
   },
   "command": {
+    "accountability_activate": "Check-in-Timer aktivieren",
+    "accountability_activation_error": "Check-in-Timer konnten nicht aktiviert werden",
+    "accountability_activation_success": "Check-in-Timer aktiviert",
+    "accountability_inactive_description": "Die Anwesenheitskontrolle ist für diesen Einsatz inaktiv. Aktivieren Sie die Check-in-Timer, um Personal und Einheitstypen zu überwachen.",
+    "accountability_no_configured_timers": "Check-in-Timer sind aktiv, aber für diesen Einsatz sind keine Timer konfiguriert.",
+    "accountability_no_matching_unit": "Dem Einsatzboard ist keine Einheit dieses Typs zugewiesen.",
     "accountability_section": "Personalübersicht",
     "acknowledge": "Bestätigen",
     "active_badge": "Aktive Führung",

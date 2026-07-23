@@ -26,7 +26,7 @@ const alert = (overrides: Record<string, unknown> = {}) => ({
   Event: 'Severe Thunderstorm Warning',
   Severity: 1,
   Status: 0,
-  ExpiresUtc: '2100-01-01T00:00:00Z',
+  ExpiresUtc: '12/31/2100 11:59:59 PM',
   ...overrides,
 });
 
@@ -34,7 +34,7 @@ describe('IncidentWeatherSection', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('fetches alerts for the incident location and lists active ones', async () => {
-    mockGetAlertsNearLocation.mockResolvedValue({ Data: [alert(), alert({ WeatherAlertId: 'wa-expired', ExpiresUtc: '2000-01-01T00:00:00Z' })] });
+    mockGetAlertsNearLocation.mockResolvedValue({ Data: [alert(), alert({ WeatherAlertId: 'wa-expired', ExpiresUtc: '01/01/2000 12:00:00 AM' })] });
 
     const { getByTestId, queryByTestId, unmount } = render(<IncidentWeatherSection latitude={34.05} longitude={-118.24} isIcpLocation={true} />);
 

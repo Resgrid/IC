@@ -342,6 +342,12 @@
     "type_unit": "Unité"
   },
   "command": {
+    "accountability_activate": "Activer les minuteurs de pointage",
+    "accountability_activation_error": "Échec de l’activation des minuteurs de pointage",
+    "accountability_activation_success": "Minuteurs de pointage activés",
+    "accountability_inactive_description": "Le suivi des effectifs est inactif pour cet appel. Activez les minuteurs de pointage pour suivre le personnel et les types d’unités.",
+    "accountability_no_configured_timers": "Les minuteurs de pointage sont actifs, mais aucun n’est configuré pour cet appel.",
+    "accountability_no_matching_unit": "Aucune unité de ce type n’est affectée au tableau de commandement.",
     "accountability_section": "Contrôle des effectifs",
     "acknowledge": "Acquitter",
     "active_badge": "Commandement actif",

@@ -1,3 +1,4 @@
+import { type CallPersonnelCheckInStatusResult } from '@/models/v4/checkIn/callPersonnelCheckInStatusResult';
 import { type CheckInRecordResult } from '@/models/v4/checkIn/checkInRecordResult';
 import { type CheckInTimerStatusResult } from '@/models/v4/checkIn/checkInTimerStatusResult';
 import { type PerformCheckInResult } from '@/models/v4/checkIn/performCheckInResult';
@@ -9,11 +10,12 @@ const getTimerStatusesApi = createApiEndpoint('/CheckInTimers/GetTimerStatuses')
 const getTimersForCallApi = createApiEndpoint('/CheckInTimers/GetTimersForCall');
 const performCheckInApi = createApiEndpoint('/CheckInTimers/PerformCheckIn');
 const getCheckInHistoryApi = createApiEndpoint('/CheckInTimers/GetCheckInHistory');
-const toggleCallTimersApi = createApiEndpoint('/CheckInTimers/ToggleCallTimers');
+const getCallPersonnelCheckInStatusesApi = createApiEndpoint('/CheckInTimers/GetCallPersonnelCheckInStatuses');
 
 export interface PerformCheckInInput {
   CallId: number;
   CheckInType: number;
+  UserId?: string;
   UnitId?: number;
   Latitude?: string;
   Longitude?: string;
@@ -38,6 +40,7 @@ export const performCheckIn = async (input: PerformCheckInInput) => {
   const response = await performCheckInApi.post<PerformCheckInResult>({
     CallId: input.CallId,
     CheckInType: input.CheckInType,
+    UserId: input.UserId,
     UnitId: input.UnitId,
     Latitude: input.Latitude,
     Longitude: input.Longitude,
@@ -53,10 +56,15 @@ export const getCheckInHistory = async (callId: number) => {
   return response.data;
 };
 
-export const toggleCallTimers = async (callId: number, enabled: boolean) => {
-  const response = await toggleCallTimersApi.put<PerformCheckInResult>({
-    CallId: callId,
-    Enabled: enabled,
+export const getCallPersonnelCheckInStatuses = async (callId: number) => {
+  const response = await getCallPersonnelCheckInStatusesApi.get<CallPersonnelCheckInStatusResult>({
+    callId: encodeURIComponent(callId),
   });
+  return response.data;
+};
+
+export const toggleCallTimers = async (callId: number, enabled: boolean) => {
+  const endpoint = createApiEndpoint(`/CheckInTimers/ToggleCallTimers?callId=${encodeURIComponent(callId)}&enabled=${encodeURIComponent(enabled)}`);
+  const response = await endpoint.put<PerformCheckInResult>({});
   return response.data;
 };

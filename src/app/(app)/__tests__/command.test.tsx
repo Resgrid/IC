@@ -68,6 +68,13 @@ jest.mock('@/components/command/add-resource-sheet', () => ({
   AddResourceSheet: () => null,
 }));
 
+jest.mock('@/components/command/accountability-section', () => {
+  const React = require('react');
+  return {
+    AccountabilitySection: (props: any) => React.createElement('View', { testID: 'command-accountability-section', ...props }),
+  };
+});
+
 // The incident-info editor pulls in the Mapbox pin picker — keep the native module out of this suite.
 jest.mock('@/components/command/command-details-sheet', () => ({
   CommandDetailsSheet: () => null,
@@ -137,7 +144,6 @@ const mockRemoveRole = jest.fn();
 const mockMoveResourceAssignment = jest.fn();
 const mockReleaseResourceAssignment = jest.fn();
 const mockFetchTimeline = jest.fn();
-const mockRefreshAccountability = jest.fn();
 
 const serverBoard = (callId: string, overrides: Record<string, unknown> = {}) => ({
   callId,
@@ -172,7 +178,6 @@ const setupStores = ({ boards = {} as Record<string, unknown>, activeCallId = nu
     releaseAdHocUnitEntry: jest.fn(),
     addAdHocPersonnel: jest.fn(),
     releaseAdHocPersonnelEntry: jest.fn(),
-    refreshAccountability: mockRefreshAccountability,
     moveResourceAssignment: mockMoveResourceAssignment,
     releaseResourceAssignment: mockReleaseResourceAssignment,
     startTimer: jest.fn(),
@@ -252,10 +257,9 @@ describe('CommandBoard', () => {
     unmount();
   });
 
-  it('renders server roles, ad-hoc units, and PAR accountability rows', () => {
+  it('renders server roles and ad-hoc units while accountability is owned by the timer section', () => {
     const board = serverBoard('101', {
       Roles: [{ IncidentRoleAssignmentId: 'ra-1', IncidentCommandId: 'cmd-101', DepartmentId: 1, CallId: 101, UserId: 'u-9', RoleType: 7, AssignedByUserId: 'u1', AssignedOn: '2026-07-19T10:00:00Z' }],
-      Accountability: [{ UserId: 'u-2', FullName: 'Crew A Leader', LastCheckIn: '2026-07-19T10:30:00Z', NeedsCheckIn: false, MinutesRemaining: 12, Status: 'Green', DurationMinutes: 20, WarningThresholdMinutes: 5 }],
     }) as any;
     board.adHocUnits = [{ IncidentAdHocUnitId: 'ah-1', DepartmentId: 1, CallId: 101, Name: 'Mutual Aid Engine', Type: 'Engine', CreatedByUserId: 'u1', CreatedOn: '2026-07-19T10:00:00Z' }];
 
@@ -270,8 +274,7 @@ describe('CommandBoard', () => {
 
     expect(getByText('Sam Jones')).toBeTruthy();
     expect(getByText('Mutual Aid Engine')).toBeTruthy();
-    expect(getByText('Crew A Leader')).toBeTruthy();
-    expect(getByText('command.par_green')).toBeTruthy();
+    expect(getByTestId('command-accountability-section')).toBeTruthy();
 
     fireEvent.press(getByTestId('assignment-remove-ra-1'));
     expect(mockRemoveRole).toHaveBeenCalledWith('101', 'ra-1');
@@ -377,7 +380,6 @@ describe('CommandBoard', () => {
 
     fireEvent.press(getByTestId('command-refresh'));
     expect(mockRefreshBoard).toHaveBeenCalledWith('101');
-    expect(mockRefreshAccountability).toHaveBeenCalledWith('101');
 
     unmount();
   });

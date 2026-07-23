@@ -342,6 +342,12 @@
     "type_unit": "Enhet"
   },
   "command": {
+    "accountability_activate": "Aktivera incheckningstimers",
+    "accountability_activation_error": "Det gick inte att aktivera incheckningstimers",
+    "accountability_activation_success": "Incheckningstimers aktiverade",
+    "accountability_inactive_description": "Ansvarsuppföljningen är inaktiv för detta larm. Aktivera incheckningstimers för att följa personal och enhetstyper.",
+    "accountability_no_configured_timers": "Incheckningstimers är aktiva, men inga timers är konfigurerade för detta larm.",
+    "accountability_no_matching_unit": "Ingen enhet av den här typen är tilldelad kommandotavlan.",
     "accountability_section": "Personalkontroll",
     "acknowledge": "Kvittera",
     "active_badge": "Aktiv ledning",

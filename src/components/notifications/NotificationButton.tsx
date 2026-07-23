@@ -20,7 +20,7 @@ export const NotificationButton = ({ onPress }: NotificationButtonProps) => {
   if (isLoading) return <ActivityIndicator />;
 
   return (
-    <Pressable onPress={onPress} className="mr-2 p-2" testID="notification-button">
+    <Pressable onPress={onPress} className="mr-2 p-2" hitSlop={4} testID="notification-button">
       <View className="relative">
         <BellIcon size={24} className="text-primary-500 dark:text-primary-400" strokeWidth={2} />
 

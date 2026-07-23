@@ -342,6 +342,12 @@
     "type_unit": "Підрозділ"
   },
   "command": {
+    "accountability_activate": "Увімкнути таймери реєстрації",
+    "accountability_activation_error": "Не вдалося увімкнути таймери реєстрації",
+    "accountability_activation_success": "Таймери реєстрації увімкнено",
+    "accountability_inactive_description": "Контроль особового складу для цього виклику неактивний. Увімкніть таймери реєстрації, щоб відстежувати персонал і типи підрозділів.",
+    "accountability_no_configured_timers": "Таймери реєстрації активні, але для цього виклику їх не налаштовано.",
+    "accountability_no_matching_unit": "До командної дошки не призначено підрозділ цього типу.",
     "accountability_section": "Облік персоналу",
     "acknowledge": "Підтвердити",
     "active_badge": "Активне управління",

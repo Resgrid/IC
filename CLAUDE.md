@@ -46,9 +46,9 @@ Some tasks require scanning **every file** -- e.g. "find all dead exports", "lis
 
 ---
 
-# Resgrid Unit — AI Coding Guidelines
+# Resgrid IC — AI Coding Guidelines
 
-> **Resgrid Unit** is a multi-platform emergency response mobile application built with TypeScript, React Native, Expo (managed + prebuild), targeting iOS, Android, Web, and Electron.
+> **Resgrid IC** is a multi-platform emergency response mobile application built with TypeScript, React Native, Expo (managed + prebuild), targeting iOS, Android, Web, and Electron.
 
 ---
 

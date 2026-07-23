@@ -98,24 +98,116 @@ export const parseCenterLocation = (centerStr: string): { latitude: number; long
 
   try {
     const [lat, lng] = centerStr.split(',').map(Number);
-    if (isNaN(lat) || isNaN(lng)) return null;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
     return { latitude: lat, longitude: lng };
   } catch {
     return null;
   }
 };
 
+export interface WeatherAlertMapBounds {
+  ne: [number, number];
+  sw: [number, number];
+}
+
+export const getPolygonBounds = (feature: GeoJSON.Feature): WeatherAlertMapBounds | null => {
+  const { geometry } = feature;
+  if (!geometry || (geometry.type !== 'Polygon' && geometry.type !== 'MultiPolygon')) return null;
+
+  const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+  let minLongitude = Infinity;
+  let maxLongitude = -Infinity;
+  let minLatitude = Infinity;
+  let maxLatitude = -Infinity;
+  let hasValidCoordinate = false;
+
+  for (const polygon of polygons) {
+    for (const ring of polygon) {
+      for (const position of ring) {
+        const [longitude, latitude] = position;
+        if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90) continue;
+
+        hasValidCoordinate = true;
+        minLongitude = Math.min(minLongitude, longitude);
+        maxLongitude = Math.max(maxLongitude, longitude);
+        minLatitude = Math.min(minLatitude, latitude);
+        maxLatitude = Math.max(maxLatitude, latitude);
+      }
+    }
+  }
+
+  if (!hasValidCoordinate) return null;
+
+  return {
+    ne: [maxLongitude, maxLatitude],
+    sw: [minLongitude, minLatitude],
+  };
+};
+
+const DEPARTMENT_DATE_PATTERN = /^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})(?:\s+(AM|PM))?$/i;
+
+export const parseWeatherAlertDate = (value?: string | null): Date | null => {
+  const trimmedValue = value?.trim();
+  if (!trimmedValue) return null;
+
+  const departmentDateParts = DEPARTMENT_DATE_PATTERN.exec(trimmedValue);
+  if (departmentDateParts) {
+    const [, monthValue, dayValue, yearValue, hourValue, minuteValue, secondValue, meridiemValue] = departmentDateParts;
+    const month = Number(monthValue);
+    const day = Number(dayValue);
+    const year = Number(yearValue);
+    const minute = Number(minuteValue);
+    const second = Number(secondValue);
+    let hour = Number(hourValue);
+
+    if (meridiemValue) {
+      if (hour < 1 || hour > 12) return null;
+      hour = (hour % 12) + (meridiemValue.toUpperCase() === 'PM' ? 12 : 0);
+    } else if (hour < 0 || hour > 23) {
+      return null;
+    }
+
+    const date = new Date(year, month - 1, day, hour, minute, second);
+    const isValid =
+      month >= 1 &&
+      month <= 12 &&
+      minute >= 0 &&
+      minute <= 59 &&
+      second >= 0 &&
+      second <= 59 &&
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day &&
+      date.getHours() === hour &&
+      date.getMinutes() === minute &&
+      date.getSeconds() === second;
+
+    return isValid ? date : null;
+  }
+
+  const timestamp = Date.parse(trimmedValue);
+  return Number.isNaN(timestamp) ? null : new Date(timestamp);
+};
+
+export const formatWeatherAlertDate = (value?: string | null): string => {
+  const trimmedValue = value?.trim() ?? '';
+  return parseWeatherAlertDate(trimmedValue)?.toLocaleString() ?? trimmedValue;
+};
+
 export const sortAlertsBySeverity = (alerts: WeatherAlertResultData[]): WeatherAlertResultData[] => {
   return [...alerts].sort((a, b) => {
     if (a.Severity !== b.Severity) return a.Severity - b.Severity;
-    return new Date(b.EffectiveUtc).getTime() - new Date(a.EffectiveUtc).getTime();
+    const bEffectiveAt = parseWeatherAlertDate(b.EffectiveUtc)?.getTime() ?? 0;
+    const aEffectiveAt = parseWeatherAlertDate(a.EffectiveUtc)?.getTime() ?? 0;
+    return bEffectiveAt - aEffectiveAt;
   });
 };
 
 export const isAlertActive = (alert: WeatherAlertResultData): boolean => {
   if (alert.Status !== WeatherAlertStatus.Active) return false;
   if (alert.ExpiresUtc) {
-    return new Date(alert.ExpiresUtc).getTime() > Date.now();
+    const expiresAt = parseWeatherAlertDate(alert.ExpiresUtc);
+    return expiresAt ? expiresAt.getTime() > Date.now() : true;
   }
   return true;
 };

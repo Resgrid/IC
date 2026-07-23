@@ -342,6 +342,12 @@
     "type_unit": "Jednostka"
   },
   "command": {
+    "accountability_activate": "Włącz zegary meldunkowe",
+    "accountability_activation_error": "Nie udało się włączyć zegarów meldunkowych",
+    "accountability_activation_success": "Zegary meldunkowe zostały włączone",
+    "accountability_inactive_description": "Kontrola stanu jest nieaktywna dla tego zdarzenia. Włącz zegary meldunkowe, aby monitorować personel i typy jednostek.",
+    "accountability_no_configured_timers": "Zegary meldunkowe są aktywne, ale dla tego zdarzenia nie skonfigurowano żadnych zegarów.",
+    "accountability_no_matching_unit": "Do tablicy dowodzenia nie przypisano jednostki tego typu.",
     "accountability_section": "Rozliczalność",
     "acknowledge": "Potwierdź",
     "active_badge": "Aktywne dowodzenie",

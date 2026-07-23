@@ -342,6 +342,12 @@
     "type_unit": "الوحدة"
   },
   "command": {
+    "accountability_activate": "تفعيل مؤقتات تسجيل الوصول",
+    "accountability_activation_error": "تعذر تفعيل مؤقتات تسجيل الوصول",
+    "accountability_activation_success": "تم تفعيل مؤقتات تسجيل الوصول",
+    "accountability_inactive_description": "نظام المساءلة غير نشط لهذه المكالمة. فعّل مؤقتات تسجيل الوصول لبدء متابعة الأفراد وأنواع الوحدات.",
+    "accountability_no_configured_timers": "مؤقتات تسجيل الوصول نشطة، ولكن لا توجد مؤقتات مهيأة لهذه المكالمة.",
+    "accountability_no_matching_unit": "لا توجد وحدة من هذا النوع معيّنة في لوحة القيادة.",
     "accountability_section": "المساءلة",
     "acknowledge": "تأكيد",
     "active_badge": "قيادة نشطة",
