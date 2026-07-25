@@ -98,6 +98,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'android.permission.READ_PHONE_NUMBERS',
       'android.permission.MANAGE_OWN_CALLS',
     ],
+    // Media is selected through Android's system Photo Picker. Block broad media
+    // and legacy storage permissions even when a transitive native dependency
+    // contributes them during manifest merging.
+    blockedPermissions: [
+      'android.permission.READ_MEDIA_IMAGES',
+      'android.permission.READ_MEDIA_VIDEO',
+      'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+      'android.permission.READ_EXTERNAL_STORAGE',
+      'android.permission.WRITE_EXTERNAL_STORAGE',
+    ],
   },
   web: {
     favicon: './assets/favicon.png',

@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Keyboard, Modal, SafeAreaView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { KeyboardStickyView } from 'react-native-keyboard-controller';
 
+import { launchCallImagePicker } from '@/components/calls/call-image-picker';
 import { Loading } from '@/components/common/loading';
 import ZeroState from '@/components/common/zero-state';
 import { useAnalytics } from '@/hooks/use-analytics';
@@ -111,16 +112,7 @@ const CallImagesModal: React.FC<CallImagesModalProps> = ({ isOpen, onClose, call
 
   const handleImageSelect = async () => {
     try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (permissionResult.status !== 'granted') {
-        alert(t('common.permission_denied'));
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        quality: 0.8,
-      });
+      const result = await launchCallImagePicker();
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         const filename = asset.fileName || `image_${Date.now()}.png`;
