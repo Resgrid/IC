@@ -46,7 +46,13 @@ export class CacheManager {
       return null;
     }
 
-    const cacheItem: CacheItem<T> = JSON.parse(cached);
+    let cacheItem: CacheItem<T>;
+    try {
+      cacheItem = JSON.parse(cached);
+    } catch {
+      storage.delete(key);
+      return null;
+    }
 
     if (this.isExpired(cacheItem.timestamp, cacheItem.expiresIn)) {
       // Keep the entry on disk — getStale() serves it as an offline fallback.
@@ -68,8 +74,13 @@ export class CacheManager {
       return null;
     }
 
-    const cacheItem: CacheItem<T> = JSON.parse(cached);
-    return cacheItem.data;
+    try {
+      const cacheItem: CacheItem<T> = JSON.parse(cached);
+      return cacheItem.data;
+    } catch {
+      storage.delete(key);
+      return null;
+    }
   }
 
   remove(endpoint: string, params?: Record<string, unknown>): void {

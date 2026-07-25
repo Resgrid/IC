@@ -1,12 +1,9 @@
-import { Platform } from 'react-native';
+// TypeScript-facing barrel for './callkeep.service' imports. Metro and jest
+// resolve the platform-specific files (callkeep.service.ios.ts /
+// callkeep.service.android.ts / callkeep.service.web.ts) BEFORE this file, so
+// at runtime this module is shadowed and never bundled. It exists so tsc can
+// type-check those imports. It re-exports the web implementation because it
+// has no native dependencies.
 
-import { callKeepService as androidCallKeepService } from './callkeep.service.android';
-import { callKeepService as iosCallKeepService } from './callkeep.service.ios';
-import { callKeepService as webCallKeepService } from './callkeep.service.web';
-
-// Export the appropriate platform-specific implementation
-export const callKeepService = Platform.OS === 'ios' ? iosCallKeepService : Platform.OS === 'web' ? webCallKeepService : androidCallKeepService;
-
-// Re-export types from iOS (they're the same in both)
-export type { CallKeepConfig } from './callkeep.service.ios';
-export { CallKeepService } from './callkeep.service.ios';
+export type { CallKeepConfig } from './callkeep.service.web';
+export { CallKeepService, callKeepService } from './callkeep.service.web';

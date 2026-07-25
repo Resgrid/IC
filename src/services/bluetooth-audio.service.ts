@@ -185,7 +185,8 @@ class BluetoothAudioService {
           });
 
           // If direct connection fails, start scanning to find the device
-          this.startScanning(5000); // 5 second scan
+          // Await so scan failures (BT off, permission denied) stay inside this try/catch
+          await this.startScanning(5000); // 5 second scan
         }
       } else {
         logger.info({

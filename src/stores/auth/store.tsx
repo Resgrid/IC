@@ -5,7 +5,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { logger } from '@/lib/logging';
 
-import { loginRequest, refreshTokenRequest, ssoExternalTokenRequest } from '../../lib/auth/api';
+import { loginRequest, refreshTokenSingleFlight, ssoExternalTokenRequest } from '../../lib/auth/api';
 import type { AuthResponse, AuthState, LoginCredentials, SsoLoginCredentials } from '../../lib/auth/types';
 import { type ProfileModel } from '../../lib/auth/types';
 import { getAuth } from '../../lib/auth/utils';
@@ -32,8 +32,9 @@ const useAuthStore = create<AuthState>()(
             const payload = sanitizeJson(base64.decode(response.authResponse!.id_token!.split('.')[1]));
 
             setItem<AuthResponse>('authResponse', response.authResponse!);
+            const expiresInSeconds = response.authResponse?.expires_in ?? 3600;
             const now = new Date();
-            const expiresOn = new Date(now.getTime() + response.authResponse?.expires_in! * 1000).getTime().toString();
+            const expiresOn = new Date(now.getTime() + expiresInSeconds * 1000).getTime().toString();
 
             const profileData = JSON.parse(payload) as ProfileModel;
 
@@ -63,10 +64,10 @@ const useAuthStore = create<AuthState>()(
 
             // Schedule proactive token refresh before expiry
             // expires_in is in seconds, so convert to milliseconds and refresh 1 minute before expiry
-            const refreshDelayMs = Math.max((response.authResponse!.expires_in - 60) * 1000, 60000);
+            const refreshDelayMs = Math.max((expiresInSeconds - 60) * 1000, 60000);
             logger.info({
               message: 'Login successful, scheduling token refresh',
-              context: { refreshDelayMs, expiresInSeconds: response.authResponse!.expires_in },
+              context: { refreshDelayMs, expiresInSeconds },
             });
             // Clear any existing refresh timer before scheduling a new one
             const existingTimeoutId = get().refreshTimeoutId;
@@ -98,7 +99,8 @@ const useAuthStore = create<AuthState>()(
             const payload = sanitizeJson(base64.decode(response.authResponse.id_token!.split('.')[1]));
 
             setItem<AuthResponse>('authResponse', response.authResponse);
-            const expiresOn = new Date(Date.now() + response.authResponse.expires_in * 1000).getTime().toString();
+            const expiresInSeconds = response.authResponse.expires_in ?? 3600;
+            const expiresOn = new Date(Date.now() + expiresInSeconds * 1000).getTime().toString();
 
             const profileData = JSON.parse(payload) as ProfileModel;
 
@@ -114,7 +116,7 @@ const useAuthStore = create<AuthState>()(
 
             Sentry.setUser({ id: profileData.sub, username: profileData.name });
 
-            const refreshDelayMs = Math.max((response.authResponse.expires_in - 60) * 1000, 60000);
+            const refreshDelayMs = Math.max((expiresInSeconds - 60) * 1000, 60000);
             logger.info({
               message: 'SSO login successful, scheduling token refresh',
               context: { refreshDelayMs, provider: credentials.provider },
@@ -166,7 +168,7 @@ const useAuthStore = create<AuthState>()(
             return;
           }
 
-          const response = await refreshTokenRequest(refreshToken);
+          const response = await refreshTokenSingleFlight(refreshToken);
 
           // Update the stored auth response for hydration
           setItem<AuthResponse>('authResponse', response);
@@ -180,10 +182,11 @@ const useAuthStore = create<AuthState>()(
 
           // Set up next token refresh - refresh 1 minute before expiry
           // expires_in is in seconds, so convert to milliseconds
-          const refreshDelayMs = Math.max((response.expires_in - 60) * 1000, 60000); // At least 1 minute
+          const expiresInSeconds = response.expires_in ?? 3600;
+          const refreshDelayMs = Math.max((expiresInSeconds - 60) * 1000, 60000); // At least 1 minute
           logger.info({
             message: 'Token refreshed successfully, scheduling next refresh',
-            context: { refreshDelayMs, expiresInSeconds: response.expires_in },
+            context: { refreshDelayMs, expiresInSeconds },
           });
           // Clear any existing refresh timer before scheduling a new one
           const existingTimeoutId = get().refreshTimeoutId;

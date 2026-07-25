@@ -33,11 +33,8 @@ const ContactNoteCard: React.FC<ContactNoteCardProps> = ({ note }) => {
   const { colorScheme } = useColorScheme();
 
   const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString();
-    } catch {
-      return dateString;
-    }
+    const date = new Date(dateString);
+    return Number.isNaN(date.getTime()) ? dateString : date.toLocaleDateString();
   };
 
   // Fallback display for empty or plain text notes
@@ -239,9 +236,9 @@ export const ContactNotesList: React.FC<ContactNotesListProps> = ({ contactId })
 
   // Sort notes by date (newest first)
   const sortedNotes = [...notes].sort((a, b) => {
-    const dateA = new Date(a.AddedOnUtc || a.AddedOn);
-    const dateB = new Date(b.AddedOnUtc || b.AddedOn);
-    return dateB.getTime() - dateA.getTime();
+    const dateA = new Date(a.AddedOnUtc || a.AddedOn).getTime() || 0;
+    const dateB = new Date(b.AddedOnUtc || b.AddedOn).getTime() || 0;
+    return dateB - dateA;
   });
 
   return (

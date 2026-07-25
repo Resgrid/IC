@@ -323,14 +323,9 @@ describe('SignalRService - Enhanced Features', () => {
       
       // Advance timers to trigger the scheduled reconnect
       jest.advanceTimersByTime(5000);
-      
-      // Assert that no reconnection attempt occurs
-      // The reconnect logic should not be called because the hub was explicitly disconnected
-      expect(mockLogger.debug).toHaveBeenCalledWith({
-        message: `Hub ${mockConfig.name} config was removed, skipping reconnection attempt`,
-      });
-      
-      // Ensure no actual reconnection attempt was made
+
+      // The pending reconnect timer is cancelled by disconnectFromHub, so the
+      // timer callback never runs and no reconnection is attempted
       expect(mockLogger.info).not.toHaveBeenCalledWith(
         expect.objectContaining({
           message: expect.stringContaining('attempting to reconnect to hub'),

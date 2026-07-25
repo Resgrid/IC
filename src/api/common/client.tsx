@@ -1,6 +1,6 @@
 import axios, { type AxiosError, type AxiosInstance, type InternalAxiosRequestConfig, isAxiosError } from 'axios';
 
-import { refreshTokenRequest } from '@/lib/auth/api';
+import { refreshTokenSingleFlight } from '@/lib/auth/api';
 import { logger } from '@/lib/logging';
 import { getBaseApiUrl } from '@/lib/storage/app';
 import useAuthStore from '@/stores/auth/store';
@@ -8,6 +8,7 @@ import useAuthStore from '@/stores/auth/store';
 // Create axios instance with default config
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: getBaseApiUrl(),
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -83,7 +84,7 @@ axiosInstance.interceptors.response.use(
           throw new Error('No refresh token available');
         }
 
-        const response = await refreshTokenRequest(refreshToken);
+        const response = await refreshTokenSingleFlight(refreshToken);
         const { access_token, refresh_token: newRefreshToken } = response;
 
         // Update tokens in store

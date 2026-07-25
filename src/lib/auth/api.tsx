@@ -9,6 +9,7 @@ import type { AuthResponse, LoginCredentials, LoginResponse, SsoLoginCredentials
 
 const authApi = axios.create({
   baseURL: getBaseApiUrl(),
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/x-www-form-urlencoded',
   },
@@ -86,6 +87,23 @@ export const refreshTokenRequest = async (refreshToken: string): Promise<AuthRes
     });
     throw error;
   }
+};
+
+/**
+ * Single-flight wrapper around refreshTokenRequest. Concurrent callers
+ * (axios 401 interceptor and the proactive refresh timer in the auth store)
+ * share one in-flight request so the rotating refresh token is only
+ * consumed once; every caller receives the same new token pair.
+ */
+let inFlightRefresh: Promise<AuthResponse> | null = null;
+
+export const refreshTokenSingleFlight = (refreshToken: string): Promise<AuthResponse> => {
+  if (!inFlightRefresh) {
+    inFlightRefresh = refreshTokenRequest(refreshToken).finally(() => {
+      inFlightRefresh = null;
+    });
+  }
+  return inFlightRefresh;
 };
 
 /**

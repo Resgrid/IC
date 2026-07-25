@@ -170,7 +170,8 @@ describe('PushNotificationService (expo-notifications transport)', () => {
       expect(mockAddNotificationReceivedListener).toHaveBeenCalledTimes(1);
       expect(mockAddNotificationResponseReceivedListener).toHaveBeenCalledTimes(1);
       expect(mockOnForegroundEvent).toHaveBeenCalledTimes(1);
-      expect(mockOnBackgroundEvent).toHaveBeenCalledTimes(1);
+      // Background handler is registered at module scope (see test below), not in initialize()
+      expect(mockOnBackgroundEvent).not.toHaveBeenCalled();
       // iOS platform mock: no Android channels, but categories set
       expect(mockSetNotificationCategories).toHaveBeenCalledTimes(1);
       expect(mockCreateChannel).not.toHaveBeenCalled();
@@ -339,6 +340,17 @@ describe('PushNotificationService (expo-notifications transport)', () => {
 
       expect(token).toBeNull();
       expect(mockRegisterDevice).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('module scope', () => {
+    it('registers the notifee background handler at module load (headless/killed state)', () => {
+      jest.isolateModules(() => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require('../push-notification');
+      });
+
+      expect(mockOnBackgroundEvent).toHaveBeenCalledTimes(1);
     });
   });
 

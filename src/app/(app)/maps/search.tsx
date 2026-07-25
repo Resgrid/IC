@@ -25,7 +25,7 @@ const SEGMENTS: { labelKey: string; value: SearchFilter }[] = [
   { labelKey: 'maps.custom', value: 'custom' },
 ];
 
-export default function MapSearch() {
+export default function MapSearch(): React.JSX.Element {
   const { t } = useTranslation();
   const searchResults = useMapsStore((state) => state.searchResults);
   const isLoading = useMapsStore((state) => state.isLoading);

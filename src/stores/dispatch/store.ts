@@ -76,7 +76,7 @@ export const useDispatchStore = create<DispatchState>((set, get) => ({
       const categorizedUnits: RecipientsResultData[] = [];
 
       // Categorize recipients based on Type field
-      recipients.Data.forEach((recipient) => {
+      (recipients.Data ?? []).forEach((recipient) => {
         if (recipient.Type === 'Personnel') {
           categorizedUsers.push(recipient);
         } else if (recipient.Type === 'Groups') {

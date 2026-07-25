@@ -22,10 +22,7 @@ export const setActiveCallId = (value: string) => setItem<string>(ACTIVE_CALL_ID
 
 export const getActiveCallId = () => {
   const activeCallId = getItem<string>(ACTIVE_CALL_ID);
-  if (!activeCallId) {
-    return activeCallId;
-  }
-  return '';
+  return activeCallId ?? null;
 };
 
 export const removeDeviceUuid = () => removeItem(DEVICE_UUID);

@@ -17,7 +17,15 @@ const IS_FIRST_TIME = 'IS_FIRST_TIME';
 
 export function getItem<T>(key: string): T | null {
   const value = storage.getString(key);
-  return value ? JSON.parse(value) : null;
+  if (!value) {
+    return null;
+  }
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    storage.delete(key);
+    return null;
+  }
 }
 
 export async function setItem<T>(key: string, value: T) {

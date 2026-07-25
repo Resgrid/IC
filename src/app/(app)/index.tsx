@@ -254,7 +254,7 @@ function MapContent() {
         const mapDataAndMarkers = await getMapDataAndMarkers(abortController.signal);
 
         if (mapDataAndMarkers && mapDataAndMarkers.Data) {
-          setMapPins(mapDataAndMarkers.Data.MapMakerInfos);
+          setMapPins(mapDataAndMarkers.Data.MapMakerInfos ?? []);
         }
       } catch (error) {
         // Don't log aborted requests as errors

@@ -234,42 +234,10 @@ class PushNotificationService {
         this.showModalForData(detail.notification.data, detail.notification.title, detail.notification.body);
       }
     });
-
-    notifee.onBackgroundEvent(async ({ type, detail }) => {
-      logger.info({
-        message: 'Notifee background event',
-        context: { type, detail: { id: detail.notification?.id, data: detail.notification?.data } },
-      });
-
-      if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'check-in') {
-        await this.handleCheckInAction();
-      }
-
-      if (type === EventType.PRESS && detail.notification) {
-        this.showModalForData(detail.notification.data, detail.notification.title, detail.notification.body);
-      }
-    });
   }
 
-  private async handleCheckInAction(): Promise<void> {
-    logger.info({ message: 'Check-in action pressed from notification' });
-    const activeCall = useCoreStore.getState().activeCall;
-    if (!activeCall) {
-      return;
-    }
-
-    const callId = parseInt(activeCall.CallId, 10);
-    if (Number.isNaN(callId)) {
-      logger.error({ message: 'Check-in action aborted: invalid CallId', context: { CallId: activeCall.CallId } });
-      return;
-    }
-
-    await useCheckInTimerStore.getState().performCheckIn({
-      CallId: callId,
-      CheckInType: CHECK_IN_TYPE_PERSONNEL,
-      Latitude: useLocationStore.getState().latitude?.toString(),
-      Longitude: useLocationStore.getState().longitude?.toString(),
-    });
+  public async handleCheckInAction(): Promise<void> {
+    await handleCheckInActionFromEvent();
   }
 
   async initialize(): Promise<void> {
@@ -430,6 +398,52 @@ class PushNotificationService {
       this.notifeeForegroundUnsubscribe = null;
     }
   }
+}
+
+/**
+ * Shared check-in action handler for foreground and background notifee events.
+ * Never throws: a rejected promise inside a notifee event handler is an
+ * unhandled rejection that can kill the headless background task.
+ */
+const handleCheckInActionFromEvent = async (): Promise<void> => {
+  try {
+    logger.info({ message: 'Check-in action pressed from notification' });
+    const activeCall = useCoreStore.getState().activeCall;
+    if (!activeCall) {
+      return;
+    }
+
+    const callId = parseInt(activeCall.CallId, 10);
+    if (Number.isNaN(callId)) {
+      logger.error({ message: 'Check-in action aborted: invalid CallId', context: { CallId: activeCall.CallId } });
+      return;
+    }
+
+    // performCheckIn queues the event offline when the network request fails
+    await useCheckInTimerStore.getState().performCheckIn({
+      CallId: callId,
+      CheckInType: CHECK_IN_TYPE_PERSONNEL,
+      Latitude: useLocationStore.getState().latitude?.toString(),
+      Longitude: useLocationStore.getState().longitude?.toString(),
+    });
+  } catch (error) {
+    logger.error({
+      message: 'Check-in action failed',
+      context: { error },
+    });
+  }
+};
+
+// Notifee requires the background event handler to be registered at module
+// scope: when the app is killed, only the headless JS task runs and
+// initialize() is never called, so a registration inside initialize() would
+// never fire for action presses from the killed state.
+if (Platform.OS !== 'web') {
+  notifee.onBackgroundEvent(async ({ type, detail }) => {
+    if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'check-in') {
+      await handleCheckInActionFromEvent();
+    }
+  });
 }
 
 export const pushNotificationService = PushNotificationService.getInstance();
