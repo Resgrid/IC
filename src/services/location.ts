@@ -141,7 +141,12 @@ class LocationService {
               timestamp: pos.timestamp,
             };
             useLocationStore.getState().setLocation(loc);
-            sendLocationToAPI(loc);
+            void sendLocationToAPI(loc).catch((error) => {
+              logger.error({
+                message: 'Failed to send web location update to API',
+                context: { error },
+              });
+            });
           },
           (err) => {
             logger.warn({ message: 'Web geolocation error', context: { code: err.code, msg: err.message } });
@@ -216,7 +221,12 @@ class LocationService {
             },
           });
           useLocationStore.getState().setLocation(location);
-          sendLocationToAPI(location); // Send to API for foreground updates
+          void sendLocationToAPI(location).catch((error) => {
+            logger.error({
+              message: 'Failed to send foreground location update to API',
+              context: { error },
+            });
+          });
         }
       );
     } else {
@@ -283,7 +293,12 @@ class LocationService {
             },
           });
           useLocationStore.getState().setLocation(location);
-          sendLocationToAPI(location); // Send to API for background updates
+          void sendLocationToAPI(location).catch((error) => {
+            logger.error({
+              message: 'Failed to send background location update to API',
+              context: { error },
+            });
+          });
         }
       );
 
