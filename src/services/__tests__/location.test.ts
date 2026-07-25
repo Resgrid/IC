@@ -484,6 +484,27 @@ describe('LocationService', () => {
       expect(mockLocationStoreState.setLocation).toHaveBeenCalledWith(mockLocationObject);
       expect(mockSetUnitLocation).not.toHaveBeenCalled();
     });
+
+    it('should catch and log rejected background location API sends', async () => {
+      await locationService.startBackgroundUpdates();
+
+      const locationCallback = mockLocation.watchPositionAsync.mock.calls[0][1];
+      const catchSpy = jest.spyOn(Promise.prototype, 'catch');
+
+      locationCallback(mockLocationObject);
+
+      const rejectionHandler = catchSpy.mock.calls[0]?.[0];
+      catchSpy.mockRestore();
+
+      const networkError = new Error('Location API request failed');
+      expect(rejectionHandler).toEqual(expect.any(Function));
+      rejectionHandler?.(networkError);
+
+      expect(mockLogger.error).toHaveBeenCalledWith({
+        message: 'Failed to send background location update to API',
+        context: { error: networkError },
+      });
+    });
   });
 
   describe('API Integration', () => {

@@ -310,6 +310,7 @@ jest.mock('@/components/ui/html-renderer', () => ({
 // Mock date-fns
 jest.mock('date-fns', () => ({
   format: (date: any, formatStr: string) => `formatted-${formatStr}`,
+  isValid: (date: any) => date instanceof Date && !Number.isNaN(date.getTime()),
 }));
 
 // Mock lucide-react-native icons

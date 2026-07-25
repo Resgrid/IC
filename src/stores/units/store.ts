@@ -27,7 +27,7 @@ export const useUnitsStore = create<UnitsState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const [unitsResponse, unitStatusesResponse, currentStatusesResponse] = await Promise.all([getUnits(), getAllUnitStatuses(), getUnitCurrentStatuses()]);
-      set({ units: unitsResponse.Data, unitStatuses: unitStatusesResponse.Data, unitCurrentStatuses: currentStatusesResponse.Data ?? [], isLoading: false });
+      set({ units: unitsResponse.Data ?? [], unitStatuses: unitStatusesResponse.Data ?? [], unitCurrentStatuses: currentStatusesResponse.Data ?? [], isLoading: false });
     } catch (error) {
       set({ error: 'Failed to fetch units', isLoading: false });
     }

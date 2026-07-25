@@ -565,6 +565,29 @@ export const useLiveKitStore = create<LiveKitState>((set, get) => ({
         set({ isTalking });
       });
 
+      room.on(RoomEvent.Reconnecting, () => {
+        logger.warn({
+          message: 'LiveKit room connection lost, attempting to reconnect',
+          context: { roomName: roomInfo.Name },
+        });
+      });
+
+      room.on(RoomEvent.Disconnected, () => {
+        logger.warn({
+          message: 'LiveKit room disconnected (server kick or unrecoverable network loss)',
+          context: { roomName: roomInfo.Name },
+        });
+        // Only clean up if this room is still the active one (avoids racing a manual disconnect)
+        if (get().currentRoom === room) {
+          Promise.resolve(get().disconnectFromRoom()).catch((cleanupError: unknown) => {
+            logger.error({
+              message: 'Failed to clean up after LiveKit room disconnect',
+              context: { error: cleanupError },
+            });
+          });
+        }
+      });
+
       // Connect to the room
       logger.info({
         message: 'Connecting to LiveKit room',
@@ -762,8 +785,23 @@ export const useLiveKitStore = create<LiveKitState>((set, get) => ({
   disconnectFromRoom: async () => {
     const { currentRoom } = get();
     if (currentRoom) {
-      await currentRoom.disconnect();
-      await audioService.playDisconnectedFromAudioRoomSound();
+      // If disconnect throws, CallKeep/foreground-service/state cleanup must still run
+      try {
+        await currentRoom.disconnect();
+      } catch (disconnectError) {
+        logger.warn({
+          message: 'Failed to disconnect LiveKit room cleanly, continuing cleanup',
+          context: { error: disconnectError },
+        });
+      }
+      try {
+        await audioService.playDisconnectedFromAudioRoomSound();
+      } catch (soundError) {
+        logger.warn({
+          message: 'Failed to play disconnect sound, continuing cleanup',
+          context: { error: soundError },
+        });
+      }
 
       // Stop the native audio session that was started during connectToRoom
       if (Platform.OS !== 'web') {

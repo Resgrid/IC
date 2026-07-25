@@ -20,7 +20,7 @@ import { VStack } from '@/components/ui/vstack';
 import { type IndoorMapFloorResultData } from '@/models/v4/mapping/indoorMapResultData';
 import { useMapsStore } from '@/stores/maps/store';
 
-export default function IndoorMapViewer() {
+export default function IndoorMapViewer(): React.JSX.Element {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const currentIndoorMap = useMapsStore((state) => state.currentIndoorMap);

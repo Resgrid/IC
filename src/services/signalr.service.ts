@@ -36,6 +36,7 @@ class SignalRService {
   private connectionLocks: Map<string, Promise<void>> = new Map();
   private reconnectingHubs: Set<string> = new Set();
   private hubStates: Map<string, HubConnectingState> = new Map();
+  private reconnectTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
   private readonly RECONNECT_INTERVAL = 5000; // 5 seconds
 
@@ -194,7 +195,8 @@ class SignalRService {
           isGeolocationHub
             ? {}
             : {
-                accessTokenFactory: () => token,
+                // Read the token lazily so automatic reconnects use the current access token
+                accessTokenFactory: () => useAuthStore.getState().accessToken ?? token,
               }
         )
         .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
@@ -325,7 +327,8 @@ class SignalRService {
 
       const connection = new HubConnectionBuilder()
         .withUrl(config.url, {
-          accessTokenFactory: () => token,
+          // Read the token lazily so automatic reconnects use the current access token
+          accessTokenFactory: () => useAuthStore.getState().accessToken ?? token,
         })
         .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
         .configureLogging(signalRLogLevel)
@@ -401,7 +404,15 @@ class SignalRService {
           message: `Scheduling reconnection attempt ${currentAttempts}/${this.MAX_RECONNECT_ATTEMPTS} for hub: ${hubName}`,
         });
 
-        setTimeout(async () => {
+        // Cancel any pending reconnect timer before scheduling a new one
+        const pendingTimer = this.reconnectTimers.get(hubName);
+        if (pendingTimer) {
+          clearTimeout(pendingTimer);
+          this.reconnectTimers.delete(hubName);
+        }
+
+        const reconnectTimer = setTimeout(async () => {
+          this.reconnectTimers.delete(hubName);
           try {
             // Check if the hub config was removed (e.g., by explicit disconnect)
             const currentHubConfig = this.hubConfigs.get(hubName);
@@ -481,6 +492,7 @@ class SignalRService {
             // This prevents rapid retry loops that could overwhelm the server
           }
         }, this.RECONNECT_INTERVAL);
+        this.reconnectTimers.set(hubName, reconnectTimer);
       } else {
         logger.error({
           message: `No stored config found for hub: ${hubName}, cannot attempt reconnection`,
@@ -505,6 +517,13 @@ class SignalRService {
   }
 
   public async disconnectFromHub(hubName: string): Promise<void> {
+    // Cancel any pending reconnection attempt so it doesn't fire after teardown
+    const pendingTimer = this.reconnectTimers.get(hubName);
+    if (pendingTimer) {
+      clearTimeout(pendingTimer);
+      this.reconnectTimers.delete(hubName);
+    }
+
     // Wait for any ongoing connection attempt to complete
     const existingLock = this.connectionLocks.get(hubName);
     if (existingLock) {
@@ -620,7 +639,16 @@ class SignalRService {
   }
 
   private emit(event: string, data: unknown): void {
-    this.eventListeners.get(event)?.forEach((callback) => callback(data));
+    this.eventListeners.get(event)?.forEach((callback) => {
+      try {
+        callback(data);
+      } catch (error) {
+        logger.error({
+          message: `Error in SignalR event listener for event: ${event}`,
+          context: { error },
+        });
+      }
+    });
   }
 }
 

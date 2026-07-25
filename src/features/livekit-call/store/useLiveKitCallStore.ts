@@ -226,8 +226,10 @@ export const useLiveKitCallStore = create<LiveKitCallState>((set, get) => ({
           autoSubscribe: true, // Subscribe to all tracks by default
         };
 
-        //await newRoom.connect(LIVEKIT_URL, token, connectOptions);
-        // Connection success is handled by the ConnectionStateChanged event listener
+        void connectOptions;
+        // Token fetching is not implemented: no LiveKit token endpoint exists in the API layer.
+        // Fail fast instead of leaving isConnecting=true forever.
+        throw new Error('LiveKit room connection is not available.');
       } catch (err: any) {
         logger.error({
           message: 'Failed to connect to LiveKit room',

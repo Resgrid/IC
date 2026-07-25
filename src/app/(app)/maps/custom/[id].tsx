@@ -17,7 +17,7 @@ import { VStack } from '@/components/ui/vstack';
 import { type CustomMapLayerResultData } from '@/models/v4/mapping/customMapResultData';
 import { useMapsStore } from '@/stores/maps/store';
 
-export default function CustomMapViewer() {
+export default function CustomMapViewer(): React.JSX.Element {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const currentCustomMap = useMapsStore((state) => state.currentCustomMap);

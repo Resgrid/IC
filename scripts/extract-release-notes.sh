@@ -11,11 +11,12 @@ export GH_TOKEN=$5
 # Function to extract release notes from PR body
 extract_release_notes() {
   local body="$1"
-  
+
   # First pass: Remove everything between CodeRabbit comment markers using sed
-  local cleaned_body="$(printf '%s\n' "$body" \
+  local cleaned_body
+  cleaned_body="$(printf '%s\n' "$body" \
     | sed '/<!-- This is an auto-generated comment: release notes by coderabbit.ai -->/,/<!-- end of auto-generated comment: release notes by coderabbit.ai -->/d')"
-  
+
   # Second pass: Remove the "Summary by CodeRabbit" section
   cleaned_body="$(printf '%s\n' "$cleaned_body" \
     | awk '
@@ -24,33 +25,48 @@ extract_release_notes() {
       /^## / && skip==1 { skip=0 }
       skip==0 { print }
     ')"
-  
-  # Third pass: Remove any remaining HTML comment lines
+
+  # Third pass: Replace PR-only description headings with release-friendly headings
+  cleaned_body="$(printf '%s\n' "$cleaned_body" \
+    | awk '
+      /^#+[[:space:]]+PR Description[[:space:]]*$/ {
+        sub(/PR Description[[:space:]]*$/, "Description")
+      }
+      { print }
+    ')"
+
+  # Fourth pass: Remove any remaining HTML comment lines
   cleaned_body="$(printf '%s\n' "$cleaned_body" | sed '/^<!--.*-->$/d' | sed '/^<!--/d' | sed '/^-->$/d')"
-  
-  # Fourth pass: Remove specific CodeRabbit lines
+
+  # Fifth pass: Remove specific CodeRabbit lines
   cleaned_body="$(printf '%s\n' "$cleaned_body" \
     | (grep -v '✏️ Tip: You can customize this high-level summary in your review settings\.' || true) \
     | (grep -v '<!-- This is an auto-generated comment: release notes by coderabbit.ai -->' || true) \
     | (grep -v '<!-- end of auto-generated comment: release notes by coderabbit.ai -->' || true))"
-  
-  # Fifth pass: Trim leading and trailing whitespace/empty lines
+
+  # Sixth pass: Trim leading and trailing whitespace/empty lines
   cleaned_body="$(printf '%s\n' "$cleaned_body" | sed '/^$/d' | awk 'NF {p=1} p')"
-  
+
   # Try to extract content under "## Release Notes" heading if it exists
-  local notes="$(printf '%s\n' "$cleaned_body" \
+  local notes
+  notes="$(printf '%s\n' "$cleaned_body" \
     | awk 'f && /^## /{exit} /^## Release Notes/{f=1; next} f')"
-  
+
   # If no specific "Release Notes" section found, use the entire cleaned body
   if [ -z "$notes" ]; then
     notes="$cleaned_body"
   fi
-  
+
   # Final trim
   notes="$(printf '%s\n' "$notes" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-  
+
   printf '%s\n' "$notes"
 }
+
+if [ "${1:-}" = "--extract-only" ]; then
+  extract_release_notes "$(cat)"
+  exit 0
+fi
 
 # Determine source of release notes
 NOTES=""

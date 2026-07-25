@@ -213,6 +213,7 @@ jest.mock('react-native-svg', () => ({
 // Mock date-fns
 jest.mock('date-fns', () => ({
   format: jest.fn(() => '2024-01-01 12:00'),
+  isValid: jest.fn(() => true),
 }));
 
 // Mock HtmlRenderer

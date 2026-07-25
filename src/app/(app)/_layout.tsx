@@ -3,7 +3,7 @@
 import { NovuProvider } from '@novu/react-native';
 import Countly from 'countly-sdk-react-native-bridge';
 import * as NavigationBar from 'expo-navigation-bar';
-import { Redirect, router, SplashScreen, Tabs } from 'expo-router';
+import { Redirect, router, SplashScreen, Tabs, usePathname } from 'expo-router';
 import { ArrowLeft, ClipboardList, CloudAlert, LayoutDashboard, Map, Megaphone, Menu, Navigation, Settings } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +26,7 @@ import { useSignalRLifecycle } from '@/hooks/use-signalr-lifecycle';
 import { getAppHeaderHeight } from '@/lib/app-shell-layout';
 import { useAuthStore } from '@/lib/auth';
 import { logger } from '@/lib/logging';
+import { getMapsHeaderState } from '@/lib/maps-route';
 import { useIsFirstTime } from '@/lib/storage';
 import { type GetConfigResultData } from '@/models/v4/configs/getConfigResultData';
 import { audioService } from '@/services/audio.service';
@@ -51,6 +52,8 @@ export default function TabLayout() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isLandscape = width > height;
+  const pathname = usePathname();
+  const mapsHeaderState = useMemo(() => getMapsHeaderState(pathname), [pathname]);
   const { isActive, appState } = useAppLifecycle();
   const { trackEvent } = useAnalytics();
 
@@ -429,6 +432,20 @@ export default function TabLayout() {
     [t, weatherAlertsIcon, headerLeftMap, headerRightNotification]
   );
 
+  // The Maps browser is a hidden tab route so its entire nested stack retains the
+  // authenticated app shell. The landing page gets the drawer menu; child routes
+  // get a back button while the tab bar remains available.
+  const mapsOptions = useMemo(
+    () => ({
+      href: null,
+      title: t(mapsHeaderState.titleKey),
+      headerShown: true as const,
+      headerLeft: mapsHeaderState.showMenu ? headerLeftMap : headerLeftBack,
+      headerRight: headerRightNotification,
+    }),
+    [t, mapsHeaderState, headerLeftMap, headerLeftBack, headerRightNotification]
+  );
+
   // POI detail renders inside the tab shell (app header + tab bar stay visible) but has no tab
   // bar entry of its own; the header shows a back button instead of the drawer menu.
   const poiDetailOptions = useMemo(
@@ -503,6 +520,8 @@ export default function TabLayout() {
             {/* weather-alerts is registered so its route file resolves, but hidden from the
                 tab bar (href: null). IC shell shows: Map, Calls, Settings. */}
             <Tabs.Screen name="weather-alerts" options={weatherAlertsOptions} />
+
+            <Tabs.Screen name="maps" options={mapsOptions} />
 
             <Tabs.Screen name="settings" options={settingsOptions} />
 

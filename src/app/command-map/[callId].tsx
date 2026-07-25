@@ -67,6 +67,10 @@ export default function CommandMapScreen() {
 
   // Latest camera framing, captured from map movement so "Save View" pins exactly what's on screen.
   const cameraStateRef = useRef<{ center: [number, number]; zoom: number } | null>(null);
+  const cameraRef = useRef<any>(null); // Using any due to imperative handle
+  // Tracks what the camera was auto-centered on so higher-priority targets
+  // arriving later (saved view > ICP > first pin) can still recenter.
+  const autoCenterPriorityRef = useRef<0 | 1 | 2>(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,8 +116,43 @@ export default function CommandMapScreen() {
       return { centerCoordinate: [first.Longitude, first.Latitude] as [number, number], zoomLevel: 13 };
     }
     return { centerCoordinate: DEFAULT_CENTER, zoomLevel: 4 };
+    // incidentPins intentionally omitted: pins arrive async and are applied via the recenter effect below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [command?.MapCenterLatitude, command?.MapCenterLongitude, command?.MapZoomLevel, namedMap?.CenterLatitude, namedMap?.CenterLongitude, namedMap?.ZoomLevel]);
+  }, [
+    command?.MapCenterLatitude,
+    command?.MapCenterLongitude,
+    command?.MapZoomLevel,
+    command?.CommandPostLatitude,
+    command?.CommandPostLongitude,
+    namedMap?.CenterLatitude,
+    namedMap?.CenterLongitude,
+    namedMap?.ZoomLevel,
+  ]);
+
+  // initialCamera is only applied at mount (defaultSettings). Pins and the ICP
+  // arrive asynchronously after mount, so recenter imperatively once they load.
+  useEffect(() => {
+    const hasSavedView = Boolean(namedMap?.CenterLatitude && namedMap?.CenterLongitude) || Boolean(command?.MapCenterLatitude && command?.MapCenterLongitude);
+    if (hasSavedView) {
+      return;
+    }
+
+    const icpLat = parseFloat(command?.CommandPostLatitude ?? '');
+    const icpLon = parseFloat(command?.CommandPostLongitude ?? '');
+    if (Number.isFinite(icpLat) && Number.isFinite(icpLon)) {
+      if (autoCenterPriorityRef.current < 2) {
+        autoCenterPriorityRef.current = 2;
+        cameraRef.current?.setCamera({ centerCoordinate: [icpLon, icpLat], zoomLevel: 14, animationDuration: 500 });
+      }
+      return;
+    }
+
+    const first = incidentPins[0];
+    if (first && autoCenterPriorityRef.current < 1) {
+      autoCenterPriorityRef.current = 1;
+      cameraRef.current?.setCamera({ centerCoordinate: [first.Longitude, first.Latitude], zoomLevel: 13, animationDuration: 500 });
+    }
+  }, [incidentPins, namedMap, command]);
 
   const handleCameraChanged = useCallback((state: { properties?: { center?: number[]; zoom?: number } }) => {
     const center = state?.properties?.center;
@@ -233,7 +272,7 @@ export default function CommandMapScreen() {
       <FocusAwareStatusBar />
 
       <Mapbox.MapView style={styles.map} onPress={handleMapPress} onCameraChanged={handleCameraChanged} testID="command-map-view">
-        <Mapbox.Camera defaultSettings={initialCamera} />
+        <Mapbox.Camera ref={cameraRef} defaultSettings={initialCamera} />
         <AnnotationLayers annotations={annotations} onAnnotationPress={(annotationId) => (mode === 'none' ? setPendingDeleteId(annotationId) : undefined)} />
         <IncidentLocationMarkers command={command} />
         {draftShape.features.length > 0 ? (

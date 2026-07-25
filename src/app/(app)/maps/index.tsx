@@ -21,7 +21,7 @@ import { type IndoorMapResultData } from '@/models/v4/mapping/indoorMapResultDat
 import { type ActiveLayerSummary } from '@/models/v4/mapping/mappingResults';
 import { useMapsStore } from '@/stores/maps/store';
 
-export default function MapsHome() {
+export default function MapsHome(): React.JSX.Element {
   const { t } = useTranslation();
 
   const getCustomMapTypeLabel = (type: number): string => {

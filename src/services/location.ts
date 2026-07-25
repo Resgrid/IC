@@ -79,10 +79,18 @@ class LocationService {
       context: { nextAppState, backgroundEnabled: this.isBackgroundGeolocationEnabled },
     });
 
-    if (nextAppState === 'background' && this.isBackgroundGeolocationEnabled) {
-      await this.startBackgroundUpdates();
-    } else if (nextAppState === 'active') {
-      await this.stopBackgroundUpdates();
+    // AppState event handlers don't handle promise rejections — catch everything
+    try {
+      if (nextAppState === 'background' && this.isBackgroundGeolocationEnabled) {
+        await this.startBackgroundUpdates();
+      } else if (nextAppState === 'active') {
+        await this.stopBackgroundUpdates();
+      }
+    } catch (error) {
+      logger.error({
+        message: 'Location service failed to handle app state change',
+        context: { error, nextAppState },
+      });
     }
   };
 
@@ -133,7 +141,12 @@ class LocationService {
               timestamp: pos.timestamp,
             };
             useLocationStore.getState().setLocation(loc);
-            sendLocationToAPI(loc);
+            void sendLocationToAPI(loc).catch((error) => {
+              logger.error({
+                message: 'Failed to send web location update to API',
+                context: { error },
+              });
+            });
           },
           (err) => {
             logger.warn({ message: 'Web geolocation error', context: { code: err.code, msg: err.message } });
@@ -208,7 +221,12 @@ class LocationService {
             },
           });
           useLocationStore.getState().setLocation(location);
-          sendLocationToAPI(location); // Send to API for foreground updates
+          void sendLocationToAPI(location).catch((error) => {
+            logger.error({
+              message: 'Failed to send foreground location update to API',
+              context: { error },
+            });
+          });
         }
       );
     } else {
@@ -243,31 +261,55 @@ class LocationService {
       return;
     }
 
+    // Re-check background permission: starting updates while backgrounded
+    // without background permission throws
+    const { status: backgroundStatus } = await Location.getBackgroundPermissionsAsync();
+    if (backgroundStatus !== 'granted') {
+      logger.warn({
+        message: 'Skipping background location updates: background permission not granted',
+        context: { backgroundStatus },
+      });
+      return;
+    }
+
     logger.info({
       message: 'Starting background location updates',
     });
 
-    this.backgroundSubscription = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.Balanced,
-        timeInterval: 60000,
-        distanceInterval: 20,
-      },
-      (location) => {
-        logger.info({
-          message: 'Background location update received',
-          context: {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            heading: location.coords.heading,
-          },
-        });
-        useLocationStore.getState().setLocation(location);
-        sendLocationToAPI(location); // Send to API for background updates
-      }
-    );
+    try {
+      this.backgroundSubscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 60000,
+          distanceInterval: 20,
+        },
+        (location) => {
+          logger.info({
+            message: 'Background location update received',
+            context: {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+              heading: location.coords.heading,
+            },
+          });
+          useLocationStore.getState().setLocation(location);
+          void sendLocationToAPI(location).catch((error) => {
+            logger.error({
+              message: 'Failed to send background location update to API',
+              context: { error },
+            });
+          });
+        }
+      );
 
-    useLocationStore.getState().setBackgroundEnabled(true);
+      useLocationStore.getState().setBackgroundEnabled(true);
+    } catch (error) {
+      this.backgroundSubscription = null;
+      logger.error({
+        message: 'Failed to start background location updates',
+        context: { error },
+      });
+    }
   }
 
   async stopBackgroundUpdates(): Promise<void> {
