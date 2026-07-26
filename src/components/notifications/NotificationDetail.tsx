@@ -32,14 +32,19 @@ export const NotificationDetail = ({ notification, onClose, onDelete, onNavigate
   const { refetch } = useNotifications();
   const slideAnim = React.useRef(new Animated.Value(SIDEBAR_WIDTH)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const markedAsReadRef = React.useRef<string | null>(null);
 
   useEffect(() => {
-    // Mark as read when opened - we'll just refetch to sync with server
-    if (!notification.read && notification.id) {
+    // Mark as read when opened - refetch once per notification to sync with server.
+    // Guarded by a ref so an unstable `refetch` reference cannot cause a refetch loop.
+    if (!notification.read && notification.id && markedAsReadRef.current !== notification.id) {
+      markedAsReadRef.current = notification.id;
       refetch();
     }
+  }, [notification.id, notification.read, refetch]);
 
-    // Animate in
+  useEffect(() => {
+    // Animate in (slideAnim/fadeAnim are stable refs)
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: 0,
@@ -52,7 +57,7 @@ export const NotificationDetail = ({ notification, onClose, onDelete, onNavigate
         useNativeDriver: true,
       }),
     ]).start();
-  }, [notification, refetch, slideAnim, fadeAnim]);
+  }, [slideAnim, fadeAnim]);
 
   const handleClose = () => {
     // Animate out

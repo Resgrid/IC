@@ -3,7 +3,7 @@ import { useColorScheme } from 'nativewind';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FlatList, Keyboard, Modal, SafeAreaView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { KeyboardStickyView } from 'react-native-keyboard-controller';
+import { KeyboardProvider, KeyboardStickyView } from 'react-native-keyboard-controller';
 
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useAuthStore } from '@/lib/auth';
@@ -105,64 +105,66 @@ const CallNotesModal = ({ isOpen, onClose, callId }: CallNotesModalProps) => {
 
   return (
     <Modal visible={isOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
-      <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
-        {/* Header */}
-        <View style={[styles.header, isDark && styles.headerDark]}>
-          <Heading size="lg">{t('callNotes.title')}</Heading>
-          <TouchableOpacity onPress={handleClose} style={styles.closeButton} testID="close-button">
-            <X size={24} color={isDark ? '#D1D5DB' : '#374151'} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Input className="w-full rounded-lg bg-gray-100 dark:bg-gray-700">
-            <InputSlot>
-              <SearchIcon size={20} className="text-gray-500" />
-            </InputSlot>
-            <InputField placeholder={t('callNotes.searchPlaceholder')} value={searchQuery} onChangeText={setSearchQuery} />
-          </Input>
-        </View>
-
-        {/* Notes List */}
-        <View style={styles.listContainer}>
-          {isNotesLoading ? (
-            <Loading />
-          ) : filteredNotes.length > 0 ? (
-            <FlatList
-              data={filteredNotes}
-              renderItem={renderNote}
-              keyExtractor={(item) => item.CallNoteId}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={true}
-              keyboardShouldPersistTaps="handled"
-            />
-          ) : (
-            <ZeroState heading={t('callNotes.noNotesFound')} />
-          )}
-        </View>
-
-        {/* Add Note Section - Sticks to keyboard */}
-        <KeyboardStickyView offset={{ opened: 0, closed: 0 }}>
-          <View style={[styles.footer, isDark && styles.footerDark]}>
-            <VStack space="sm" className="w-full">
-              <Text className="font-medium">{t('callNotes.addNoteLabel')}</Text>
-              <Textarea size="md" className="min-h-[70px] w-full">
-                <TextareaInput placeholder={t('callNotes.addNotePlaceholder')} value={newNote} onChangeText={setNewNote} testID="new-note-input" />
-              </Textarea>
-            </VStack>
-
-            <HStack space="sm" className="mt-3 w-full justify-between">
-              <Button variant="outline" onPress={handleClose} testID="cancel-button" className="flex-1">
-                <ButtonText>{t('common.cancel')}</ButtonText>
-              </Button>
-              <Button onPress={handleAddNote} className="flex-1 bg-blue-600 dark:bg-blue-500" isDisabled={!newNote.trim() || isNotesLoading}>
-                <ButtonText>{t('callNotes.addNote')}</ButtonText>
-              </Button>
-            </HStack>
+      <KeyboardProvider>
+        <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
+          {/* Header */}
+          <View style={[styles.header, isDark && styles.headerDark]}>
+            <Heading size="lg">{t('callNotes.title')}</Heading>
+            <TouchableOpacity onPress={handleClose} style={styles.closeButton} testID="close-button">
+              <X size={24} color={isDark ? '#D1D5DB' : '#374151'} />
+            </TouchableOpacity>
           </View>
-        </KeyboardStickyView>
-      </SafeAreaView>
+
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <Input className="w-full rounded-lg bg-gray-100 dark:bg-gray-700">
+              <InputSlot>
+                <SearchIcon size={20} className="text-gray-500" />
+              </InputSlot>
+              <InputField placeholder={t('callNotes.searchPlaceholder')} value={searchQuery} onChangeText={setSearchQuery} />
+            </Input>
+          </View>
+
+          {/* Notes List */}
+          <View style={styles.listContainer}>
+            {isNotesLoading ? (
+              <Loading />
+            ) : filteredNotes.length > 0 ? (
+              <FlatList
+                data={filteredNotes}
+                renderItem={renderNote}
+                keyExtractor={(item) => item.CallNoteId}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="handled"
+              />
+            ) : (
+              <ZeroState heading={t('callNotes.noNotesFound')} />
+            )}
+          </View>
+
+          {/* Add Note Section - Sticks to keyboard */}
+          <KeyboardStickyView offset={{ opened: 0, closed: 0 }}>
+            <View style={[styles.footer, isDark && styles.footerDark]}>
+              <VStack space="sm" className="w-full">
+                <Text className="font-medium">{t('callNotes.addNoteLabel')}</Text>
+                <Textarea size="md" className="min-h-[70px] w-full">
+                  <TextareaInput placeholder={t('callNotes.addNotePlaceholder')} value={newNote} onChangeText={setNewNote} testID="new-note-input" />
+                </Textarea>
+              </VStack>
+
+              <HStack space="sm" className="mt-3 w-full justify-between">
+                <Button variant="outline" onPress={handleClose} testID="cancel-button" className="flex-1">
+                  <ButtonText>{t('common.cancel')}</ButtonText>
+                </Button>
+                <Button onPress={handleAddNote} className="flex-1 bg-blue-600 dark:bg-blue-500" isDisabled={!newNote.trim() || isNotesLoading}>
+                  <ButtonText>{t('callNotes.addNote')}</ButtonText>
+                </Button>
+              </HStack>
+            </View>
+          </KeyboardStickyView>
+        </SafeAreaView>
+      </KeyboardProvider>
     </Modal>
   );
 };

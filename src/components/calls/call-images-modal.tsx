@@ -7,7 +7,7 @@ import { useColorScheme } from 'nativewind';
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Keyboard, Modal, SafeAreaView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { KeyboardStickyView } from 'react-native-keyboard-controller';
+import { KeyboardProvider, KeyboardStickyView } from 'react-native-keyboard-controller';
 
 import { launchCallImagePicker } from '@/components/calls/call-image-picker';
 import { Loading } from '@/components/common/loading';
@@ -216,6 +216,14 @@ const CallImagesModal: React.FC<CallImagesModalProps> = ({ isOpen, onClose, call
     setFullScreenImage({ source, name });
   }, []);
 
+  const handleStartAddImage = useCallback(() => {
+    setIsAddingImage(true);
+  }, []);
+
+  const handleCloseFullScreenImage = useCallback(() => {
+    setFullScreenImage(null);
+  }, []);
+
   const getActiveImage = () => {
     if (!validImages || validImages.length === 0 || activeIndex < 0 || activeIndex >= validImages.length) return null;
     return validImages[activeIndex];
@@ -410,30 +418,32 @@ const CallImagesModal: React.FC<CallImagesModalProps> = ({ isOpen, onClose, call
   return (
     <>
       <Modal visible={isOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
-        <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
-          {/* Header */}
-          <View style={[styles.header, isDark && styles.headerDark]}>
-            <Heading size="lg">{isAddingImage ? t('callImages.add_new') : t('callImages.title')}</Heading>
-            <HStack className="items-center space-x-2">
-              {!isAddingImage && !isLoadingImages ? (
-                <Button size="sm" variant="outline" onPress={() => setIsAddingImage(true)}>
-                  <ButtonIcon as={PlusIcon} />
-                  <ButtonText>{t('callImages.add')}</ButtonText>
-                </Button>
-              ) : null}
-              <TouchableOpacity onPress={handleClose} style={styles.closeButton} testID="close-button">
-                <X size={24} color={isDark ? '#D1D5DB' : '#374151'} />
-              </TouchableOpacity>
-            </HStack>
-          </View>
+        <KeyboardProvider>
+          <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
+            {/* Header */}
+            <View style={[styles.header, isDark && styles.headerDark]}>
+              <Heading size="lg">{isAddingImage ? t('callImages.add_new') : t('callImages.title')}</Heading>
+              <HStack className="items-center space-x-2">
+                {!isAddingImage && !isLoadingImages ? (
+                  <Button size="sm" variant="outline" onPress={handleStartAddImage}>
+                    <ButtonIcon as={PlusIcon} />
+                    <ButtonText>{t('callImages.add')}</ButtonText>
+                  </Button>
+                ) : null}
+                <TouchableOpacity onPress={handleClose} style={styles.closeButton} testID="close-button">
+                  <X size={24} color={isDark ? '#D1D5DB' : '#374151'} />
+                </TouchableOpacity>
+              </HStack>
+            </View>
 
-          {/* Content */}
-          <View style={styles.contentContainer}>{renderContent()}</View>
-        </SafeAreaView>
+            {/* Content */}
+            <View style={styles.contentContainer}>{renderContent()}</View>
+          </SafeAreaView>
+        </KeyboardProvider>
       </Modal>
 
       {/* Full Screen Image Modal */}
-      <FullScreenImageModal isOpen={!!fullScreenImage} onClose={() => setFullScreenImage(null)} imageSource={fullScreenImage?.source || { uri: '' }} imageName={fullScreenImage?.name} />
+      <FullScreenImageModal isOpen={!!fullScreenImage} onClose={handleCloseFullScreenImage} imageSource={fullScreenImage?.source || { uri: '' }} imageName={fullScreenImage?.name} />
     </>
   );
 };
