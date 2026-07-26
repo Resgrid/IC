@@ -1,7 +1,9 @@
 import { useNotifications } from '@novu/react-native';
+import { router } from 'expo-router';
 import { CheckCircle, ChevronRight, Circle, ExternalLink, MoreVertical, Trash2, X } from 'lucide-react-native';
 import { colorScheme } from 'nativewind';
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Animated, Dimensions, Platform, Pressable, RefreshControl, SafeAreaView, StatusBar, StyleSheet, View } from 'react-native';
 
 import { deleteMessage } from '@/api/novu/inbox';
@@ -20,13 +22,50 @@ const { width } = Dimensions.get('window');
 const SIDEBAR_WIDTH = Math.min(width * 0.85, 400);
 const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0;
 
+/** The notification item shape returned by Novu's useNotifications hook. */
+type NovuNotification = NonNullable<ReturnType<typeof useNotifications>['notifications']>[number];
+
+/**
+ * Maps a Novu inbox notification to our display payload. Reference info comes from the trigger
+ * payload (`data`): either explicit referenceType/referenceId, or the eventCode prefix scheme
+ * the server uses (C{callId} = call, N/M{messageId} = message/notification).
+ */
+const toNotificationPayload = (item: NovuNotification): NotificationPayload => {
+  const data = (item.data ?? {}) as Record<string, unknown>;
+  const eventCode = typeof data.eventCode === 'string' ? data.eventCode : undefined;
+  const eventId = typeof data.eventId === 'string' ? data.eventId : undefined;
+
+  let referenceType = typeof data.referenceType === 'string' ? data.referenceType : undefined;
+  let referenceId = typeof data.referenceId === 'string' ? data.referenceId : undefined;
+
+  if ((!referenceType || !referenceId) && eventCode && eventCode.length > 1) {
+    const prefix = eventCode.charAt(0).toUpperCase();
+    if (prefix === 'C') {
+      referenceType = 'call';
+      referenceId = referenceId ?? eventId ?? eventCode.slice(1);
+    }
+  }
+
+  return {
+    id: item.id,
+    title: item.subject,
+    body: item.body,
+    createdAt: item.createdAt,
+    read: item.isRead,
+    type: typeof data.type === 'string' ? data.type : undefined,
+    referenceId,
+    referenceType: referenceType as NotificationPayload['referenceType'],
+    metadata: data,
+  };
+};
+
 interface NotificationInboxProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
 interface NotificationRowProps {
-  item: any;
+  item: NovuNotification;
   isSelectionMode: boolean;
   isSelected: boolean;
   onPress: (notification: NotificationPayload) => void;
@@ -45,20 +84,7 @@ const formatNotificationDate = (createdAt: string | undefined | null): string =>
 const formatNotificationTime = (createdAt: string | undefined | null): string => parseNotificationDate(createdAt)?.toLocaleTimeString() ?? '';
 
 const NotificationRow = React.memo<NotificationRowProps>(({ item, isSelectionMode, isSelected, onPress, onLongPress, onNavigateToReference }) => {
-  const notification: NotificationPayload = React.useMemo(
-    () => ({
-      id: item.id,
-      title: item.subject,
-      body: item.body,
-      createdAt: item.createdAt,
-      read: item.read,
-      type: item.type,
-      referenceId: item.payload?.referenceId,
-      referenceType: item.payload?.referenceType,
-      metadata: item.payload?.metadata,
-    }),
-    [item]
-  );
+  const notification: NotificationPayload = React.useMemo(() => toNotificationPayload(item), [item]);
 
   const formattedDate = React.useMemo(() => formatNotificationDate(notification.createdAt), [notification.createdAt]);
   const formattedTime = React.useMemo(() => formatNotificationTime(notification.createdAt), [notification.createdAt]);
@@ -72,8 +98,8 @@ const NotificationRow = React.memo<NotificationRowProps>(({ item, isSelectionMod
   }, [onNavigateToReference, notification.referenceType, notification.referenceId]);
 
   return (
-    <Pressable onPress={handlePress} onLongPress={handleLongPress} style={[styles.notificationItem, !item.read ? styles.unreadNotificationItem : {}, isSelected ? styles.selectedNotificationItem : {}]}>
-      {!item.read ? <View style={styles.unreadIndicator} /> : null}
+    <Pressable onPress={handlePress} onLongPress={handleLongPress} style={[styles.notificationItem, !notification.read ? styles.unreadNotificationItem : {}, isSelected ? styles.selectedNotificationItem : {}]}>
+      {!notification.read ? <View style={styles.unreadIndicator} /> : null}
 
       {isSelectionMode ? (
         <View style={styles.selectionIndicator}>
@@ -82,7 +108,7 @@ const NotificationRow = React.memo<NotificationRowProps>(({ item, isSelectionMod
       ) : null}
 
       <View style={styles.notificationContent}>
-        <Text style={[styles.notificationBody, !item.read ? styles.unreadNotificationText : {}]}>{notification.title}</Text>
+        <Text style={[styles.notificationBody, !notification.read ? styles.unreadNotificationText : {}]}>{notification.title}</Text>
         <Text style={styles.timestamp}>
           {formattedDate} {formattedTime}
         </Text>
@@ -106,8 +132,9 @@ const NotificationRow = React.memo<NotificationRowProps>(({ item, isSelectionMod
 NotificationRow.displayName = 'NotificationRow';
 
 export const NotificationInbox = ({ isOpen, onClose }: NotificationInboxProps) => {
+  const { t } = useTranslation();
   const userId = useAuthStore((state) => state.userId);
-  const config = useCoreStore((state: any) => state.config);
+  const config = useCoreStore((state) => state.config);
   const { notifications, isLoading, fetchMore, hasMore, refetch } = useNotifications();
   const showToast = useToastStore((state) => state.showToast);
   const [selectedNotification, setSelectedNotification] = useState<NotificationPayload | null>(null);
@@ -201,20 +228,20 @@ export const NotificationInbox = ({ isOpen, onClose }: NotificationInboxProps) =
     setSelectedNotificationIds(new Set());
   }, []);
 
-  const selectAllNotifications = () => {
-    const allIds = notifications?.map((item: any) => item.id) || [];
+  const selectAllNotifications = React.useCallback(() => {
+    const allIds = notifications?.map((item) => item.id) ?? [];
     setSelectedNotificationIds(new Set(allIds));
-  };
+  }, [notifications]);
 
-  const deselectAllNotifications = () => {
+  const deselectAllNotifications = React.useCallback(() => {
     setSelectedNotificationIds(new Set());
-  };
+  }, []);
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = React.useCallback(() => {
     if (selectedNotificationIds.size > 0) {
       setShowDeleteConfirmModal(true);
     }
-  };
+  }, [selectedNotificationIds.size]);
 
   const confirmBulkDelete = React.useCallback(async () => {
     setIsDeletingSelected(true);
@@ -224,40 +251,41 @@ export const NotificationInbox = ({ isOpen, onClose }: NotificationInboxProps) =
       const deletePromises = Array.from(selectedNotificationIds).map((id) => deleteMessage(id));
       await Promise.all(deletePromises);
 
-      showToast('success', `${selectedNotificationIds.size} notification${selectedNotificationIds.size > 1 ? 's' : ''} removed`);
+      showToast('success', t('notifications.delete_success', { count: selectedNotificationIds.size }));
       exitSelectionMode();
       refetch();
-    } catch (error) {
-      showToast('error', 'Failed to remove notifications');
+    } catch {
+      showToast('error', t('notifications.delete_error'));
     } finally {
       setIsDeletingSelected(false);
     }
-  }, [selectedNotificationIds, showToast, exitSelectionMode, refetch]);
+  }, [selectedNotificationIds, showToast, exitSelectionMode, refetch, t]);
 
   const handleDeleteNotification = React.useCallback(
-    async (_id: string) => {
+    async (id: string) => {
       try {
-        await deleteMessage(_id);
-        showToast('success', 'Notification removed');
+        await deleteMessage(id);
+        showToast('success', t('notifications.delete_one_success'));
         refetch();
-      } catch (error) {
-        showToast('error', 'Failed to remove notification');
+      } catch {
+        showToast('error', t('notifications.delete_one_error'));
       }
     },
-    [showToast, refetch]
+    [showToast, refetch, t]
   );
 
   const handleNavigateToReference = React.useCallback(
     (referenceType: string, referenceId: string) => {
-      // TODO: Implement navigation based on reference type
-      console.log('Navigate to:', referenceType, referenceId);
       onClose();
+      if (referenceType === 'call') {
+        router.push(`/call/${referenceId}`);
+      }
     },
     [onClose]
   );
 
   const renderItem = React.useCallback(
-    ({ item }: { item: any }) => (
+    ({ item }: { item: NovuNotification }) => (
       <NotificationRow
         item={item}
         isSelectionMode={isSelectionMode}
@@ -283,10 +311,10 @@ export const NotificationInbox = ({ isOpen, onClose }: NotificationInboxProps) =
   const renderEmpty = React.useCallback(
     () => (
       <View style={styles.emptyContainer}>
-        <Text>No updates available</Text>
+        <Text>{t('notifications.empty')}</Text>
       </View>
     ),
-    []
+    [t]
   );
 
   if (!isOpen) {
@@ -316,23 +344,23 @@ export const NotificationInbox = ({ isOpen, onClose }: NotificationInboxProps) =
                 {isSelectionMode ? (
                   <>
                     <View style={styles.selectionHeader}>
-                      <Text style={styles.selectionCount}>{selectedNotificationIds.size} selected</Text>
+                      <Text style={styles.selectionCount}>{t('notifications.selected_count', { count: selectedNotificationIds.size })}</Text>
                       <View style={styles.selectionActions}>
                         <Button onPress={selectedNotificationIds.size === notifications?.length ? deselectAllNotifications : selectAllNotifications} variant="outline" className="mr-2">
-                          <Text>{selectedNotificationIds.size === notifications?.length ? 'Deselect All' : 'Select All'}</Text>
+                          <Text>{selectedNotificationIds.size === notifications?.length ? t('notifications.deselect_all') : t('notifications.select_all')}</Text>
                         </Button>
                         <Button onPress={handleBulkDelete} variant="outline" className="mr-2" disabled={selectedNotificationIds.size === 0 || isDeletingSelected}>
                           {isDeletingSelected ? <ActivityIndicator size="small" color="#ef4444" /> : <Trash2 size={16} className="text-red-500" strokeWidth={2} />}
                         </Button>
                         <Button onPress={exitSelectionMode} variant="outline">
-                          <Text>Cancel</Text>
+                          <Text>{t('common.cancel')}</Text>
                         </Button>
                       </View>
                     </View>
                   </>
                 ) : (
                   <>
-                    <Text style={styles.headerTitle}>Notifications</Text>
+                    <Text style={styles.headerTitle}>{t('notifications.title')}</Text>
                     <View style={styles.headerActions}>
                       <Pressable onPress={enterSelectionMode} style={styles.actionButton}>
                         <MoreVertical size={24} className="text-primary-500 dark:text-primary-400" strokeWidth={2} />
@@ -351,7 +379,7 @@ export const NotificationInbox = ({ isOpen, onClose }: NotificationInboxProps) =
                 </View>
               ) : !userId || !config ? (
                 <View style={styles.loadingContainer}>
-                  <Text>Unable to load notifications</Text>
+                  <Text>{t('notifications.load_error')}</Text>
                 </View>
               ) : (
                 <FlatList
@@ -372,23 +400,21 @@ export const NotificationInbox = ({ isOpen, onClose }: NotificationInboxProps) =
       </Animated.View>
 
       {/* Delete Confirmation Modal */}
-      <Modal isOpen={showDeleteConfirmModal} onClose={() => setShowDeleteConfirmModal(false)} {...({} as any)}>
+      <Modal isOpen={showDeleteConfirmModal} onClose={() => setShowDeleteConfirmModal(false)}>
         <ModalBackdrop />
         <ModalContent>
           <ModalHeader>
-            <Text className="text-lg font-semibold">Confirm Delete</Text>
+            <Text className="text-lg font-semibold">{t('notifications.confirm_delete_title')}</Text>
           </ModalHeader>
           <ModalBody>
-            <Text>
-              Are you sure you want to delete {selectedNotificationIds.size} notification{selectedNotificationIds.size > 1 ? 's' : ''}? This action cannot be undone.
-            </Text>
+            <Text>{t('notifications.confirm_delete_message', { count: selectedNotificationIds.size })}</Text>
           </ModalBody>
           <ModalFooter>
             <Button variant="outline" onPress={() => setShowDeleteConfirmModal(false)} className="mr-2">
-              <Text>Cancel</Text>
+              <Text>{t('common.cancel')}</Text>
             </Button>
             <Button variant="solid" onPress={confirmBulkDelete} className="bg-red-500">
-              <Text className="text-white">Delete</Text>
+              <Text className="text-white">{t('common.delete')}</Text>
             </Button>
           </ModalFooter>
         </ModalContent>

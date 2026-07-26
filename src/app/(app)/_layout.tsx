@@ -304,7 +304,7 @@ export default function TabLayout() {
   } | null>(null);
   if (novuReady) {
     lastNovuConfig.current = {
-      subscriberId: `${rights?.DepartmentCode}_User_${userId}`,
+      subscriberId: `${rights?.DepartmentCode}_IC_User_${userId}`,
       applicationIdentifier: config!.NovuApplicationId,
       backendUrl: config!.NovuBackendApiUrl,
       socketUrl: config!.NovuSocketUrl,

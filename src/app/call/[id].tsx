@@ -1,6 +1,6 @@
 import { format, isValid } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { ClockIcon, FileTextIcon, ImageIcon, InfoIcon, LoaderIcon, PaperclipIcon, RouteIcon, TimerIcon, UserIcon, UsersIcon, VideoIcon } from 'lucide-react-native';
+import { ClockIcon, FileTextIcon, ImageIcon, InfoIcon, LoaderIcon, MessageSquareIcon, PaperclipIcon, RouteIcon, TimerIcon, UserIcon, UsersIcon, VideoIcon } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,7 @@ import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { getCommandForCall } from '@/api/incidentCommand/incidentCommand';
 import { VideoFeedTabContent } from '@/components/call-video-feeds/video-feed-tab-content';
 import { CheckInTabContent } from '@/components/check-in-timers/check-in-tab-content';
+import { MessageCommanderSheet } from '@/components/command/message-commander-sheet';
 import { ReopenCommandSheet } from '@/components/command/reopen-command-sheet';
 import { StartCommandSheet } from '@/components/command/start-command-sheet';
 import { Loading } from '@/components/common/loading';
@@ -27,7 +28,7 @@ import { VStack } from '@/components/ui/vstack';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { logger } from '@/lib/logging';
 import { openMapsWithDirections } from '@/lib/navigation';
-import { type IncidentCommand } from '@/models/v4/incidentCommand/incidentCommandModels';
+import { type IncidentCommand, IncidentRoleType } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useLocationStore } from '@/stores/app/location-store';
 import { useCallDetailStore } from '@/stores/calls/detail-store';
 import { useCheckInTimerStore } from '@/stores/check-in-timers/store';
@@ -66,6 +67,9 @@ export default function CallDetail() {
   const canUserCreateCalls = securityStore((state) => state.rights?.CanCreateCalls);
   const activeBoardCallId = useCommandStore((state) => state.activeCallId);
   const hasCommandBoard = useCommandStore((state) => !!(callId && state.boards[callId]));
+  const commandBoard = useCommandStore((state) => (callId ? state.boards[callId]?.board : undefined));
+  const commanderUserId = commandBoard?.Command?.CurrentCommanderUserId ?? null;
+  const [isMessageSheetOpen, setIsMessageSheetOpen] = useState(false);
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [isImagesModalOpen, setIsImagesModalOpen] = useState(false);
   const [isFilesModalOpen, setIsFilesModalOpen] = useState(false);
@@ -167,6 +171,16 @@ export default function CallDetail() {
       }
     },
     [call, priorCommandPrompt, showToast, t, router]
+  );
+
+  const handleSendCommandMessage = useCallback(
+    async (title: string | null, body: string, includeDeputies: boolean) => {
+      if (!call) return false;
+      const ok = await useCommandStore.getState().sendMessageToCommander(call.CallId, title, body, includeDeputies);
+      showToast(ok ? 'success' : 'error', ok ? t('command.message_send_success') : t('command.message_send_error'));
+      return ok;
+    },
+    [call, showToast, t]
   );
 
   // Initialize the call detail menu hook
@@ -531,6 +545,11 @@ export default function CallDetail() {
                   <Text className="text-xs font-semibold text-white">{t('command.active_badge')}</Text>
                 </Box>
               ) : null}
+              {commanderUserId ? (
+                <Button testID="message-commander-button" variant="outline" size="sm" onPress={() => setIsMessageSheetOpen(true)} accessibilityLabel={t('command.message_commander')}>
+                  <ButtonIcon as={MessageSquareIcon} />
+                </Button>
+              ) : null}
               <Button
                 testID="start-command-button"
                 variant="solid"
@@ -615,6 +634,13 @@ export default function CallDetail() {
 
       {/* Command template picker for starting a new board */}
       <StartCommandSheet isOpen={isTemplatePickerOpen} onClose={() => setIsTemplatePickerOpen(false)} onStart={(commandDefinitionId) => startCommandWithTemplate(commandDefinitionId)} />
+      <MessageCommanderSheet
+        isOpen={isMessageSheetOpen}
+        onClose={() => setIsMessageSheetOpen(false)}
+        commanderName={null}
+        hasDeputies={(commandBoard?.Roles ?? []).some((r) => r.RoleType === IncidentRoleType.DeputyIncidentCommander && !r.RemovedOn)}
+        onSend={handleSendCommandMessage}
+      />
       <ReopenCommandSheet
         isOpen={priorCommandPrompt !== null}
         onClose={() => setPriorCommandPrompt(null)}

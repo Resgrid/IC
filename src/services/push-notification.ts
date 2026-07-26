@@ -359,13 +359,15 @@ class PushNotificationService {
         },
       });
 
-      // Register device with backend (user-scoped — the IC app has no unit context)
+      // Register device with backend (user-scoped — the IC app has no unit context).
+      // Source "IC" routes the Novu credential update to the IC-specific subscriber, keeping the inbox separate from the Responder app.
       await registerDevice({
         UserId: userId,
         Token: this.pushToken || '',
         Platform: Platform.OS === 'ios' ? 1 : 2,
         DeviceUuid: getDeviceUuid() || '',
         Prefix: departmentCode,
+        Source: 'IC',
       });
 
       return this.pushToken;

@@ -31,6 +31,8 @@ import type {
   ReopenCommandInput,
   ResourceAssignment,
   ResourceAssignmentResult,
+  SendMessageToCommandInput,
+  SendMessageToCommandResult,
   SetNeedStatusInput,
   TacticalObjective,
   TacticalObjectiveResult,
@@ -58,6 +60,12 @@ export const getCommandBoard = async (callId: string | number) => {
 
 export const transferCommand = async (input: TransferCommandInput) => {
   const response = await createApiEndpoint('/IncidentCommand/TransferCommand').post<CommandTransferResult>({ ...input });
+  return response.data;
+};
+
+/** Sends a free-form message directly to the incident's commander (and optionally deputies) via their notification channels. */
+export const sendMessageToCommand = async (input: SendMessageToCommandInput) => {
+  const response = await createApiEndpoint('/IncidentCommand/SendMessageToCommand').post<SendMessageToCommandResult>({ ...input });
   return response.data;
 };
 

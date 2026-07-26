@@ -7,7 +7,7 @@ export interface NotificationPayload {
   type?: string;
   referenceId?: string;
   referenceType?: 'call' | 'message' | 'status' | 'note' | 'other';
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface NotificationDetailProps {

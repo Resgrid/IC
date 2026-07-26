@@ -307,6 +307,7 @@ describe('PushNotificationService (expo-notifications transport)', () => {
         Platform: 1,
         DeviceUuid: 'test-device-uuid',
         Prefix: 'DEPT1',
+        Source: 'IC',
       });
     });
 
