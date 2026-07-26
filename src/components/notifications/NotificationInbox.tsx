@@ -34,6 +34,16 @@ interface NotificationRowProps {
   onNavigateToReference: (referenceType: string, referenceId: string) => void;
 }
 
+const parseNotificationDate = (createdAt: string | undefined | null): Date | null => {
+  if (!createdAt) return null;
+  const date = new Date(createdAt);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatNotificationDate = (createdAt: string | undefined | null): string => parseNotificationDate(createdAt)?.toLocaleDateString() ?? '';
+
+const formatNotificationTime = (createdAt: string | undefined | null): string => parseNotificationDate(createdAt)?.toLocaleTimeString() ?? '';
+
 const NotificationRow = React.memo<NotificationRowProps>(({ item, isSelectionMode, isSelected, onPress, onLongPress, onNavigateToReference }) => {
   const notification: NotificationPayload = React.useMemo(
     () => ({
@@ -50,12 +60,16 @@ const NotificationRow = React.memo<NotificationRowProps>(({ item, isSelectionMod
     [item]
   );
 
-  const formattedDate = React.useMemo(() => new Date(notification.createdAt).toLocaleDateString(), [notification.createdAt]);
-  const formattedTime = React.useMemo(() => new Date(notification.createdAt).toLocaleTimeString(), [notification.createdAt]);
+  const formattedDate = React.useMemo(() => formatNotificationDate(notification.createdAt), [notification.createdAt]);
+  const formattedTime = React.useMemo(() => formatNotificationTime(notification.createdAt), [notification.createdAt]);
 
   const handlePress = React.useCallback(() => onPress(notification), [onPress, notification]);
   const handleLongPress = React.useCallback(() => onLongPress(notification.id), [onLongPress, notification.id]);
-  const handleNavigate = React.useCallback(() => onNavigateToReference(notification.referenceType!, notification.referenceId!), [onNavigateToReference, notification.referenceType, notification.referenceId]);
+  const handleNavigate = React.useCallback(() => {
+    if (notification.referenceType && notification.referenceId) {
+      onNavigateToReference(notification.referenceType, notification.referenceId);
+    }
+  }, [onNavigateToReference, notification.referenceType, notification.referenceId]);
 
   return (
     <Pressable onPress={handlePress} onLongPress={handleLongPress} style={[styles.notificationItem, !item.read ? styles.unreadNotificationItem : {}, isSelected ? styles.selectedNotificationItem : {}]}>

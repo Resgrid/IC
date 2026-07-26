@@ -216,6 +216,14 @@ const CallImagesModal: React.FC<CallImagesModalProps> = ({ isOpen, onClose, call
     setFullScreenImage({ source, name });
   }, []);
 
+  const handleStartAddImage = useCallback(() => {
+    setIsAddingImage(true);
+  }, []);
+
+  const handleCloseFullScreenImage = useCallback(() => {
+    setFullScreenImage(null);
+  }, []);
+
   const getActiveImage = () => {
     if (!validImages || validImages.length === 0 || activeIndex < 0 || activeIndex >= validImages.length) return null;
     return validImages[activeIndex];
@@ -417,7 +425,7 @@ const CallImagesModal: React.FC<CallImagesModalProps> = ({ isOpen, onClose, call
               <Heading size="lg">{isAddingImage ? t('callImages.add_new') : t('callImages.title')}</Heading>
               <HStack className="items-center space-x-2">
                 {!isAddingImage && !isLoadingImages ? (
-                  <Button size="sm" variant="outline" onPress={() => setIsAddingImage(true)}>
+                  <Button size="sm" variant="outline" onPress={handleStartAddImage}>
                     <ButtonIcon as={PlusIcon} />
                     <ButtonText>{t('callImages.add')}</ButtonText>
                   </Button>
@@ -435,7 +443,7 @@ const CallImagesModal: React.FC<CallImagesModalProps> = ({ isOpen, onClose, call
       </Modal>
 
       {/* Full Screen Image Modal */}
-      <FullScreenImageModal isOpen={!!fullScreenImage} onClose={() => setFullScreenImage(null)} imageSource={fullScreenImage?.source || { uri: '' }} imageName={fullScreenImage?.name} />
+      <FullScreenImageModal isOpen={!!fullScreenImage} onClose={handleCloseFullScreenImage} imageSource={fullScreenImage?.source || { uri: '' }} imageName={fullScreenImage?.name} />
     </>
   );
 };
