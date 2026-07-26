@@ -42,16 +42,24 @@ jest.mock('lucide-react-native', () => {
 jest.mock('../../common/loading', () => ({
   Loading: () => {
     const { View, Text } = require('react-native');
-    return <View testID="loading"><Text>Loading...</Text></View>;
+    return (
+      <View testID="loading">
+        <Text>Loading...</Text>
+      </View>
+    );
   },
 }));
 
-// Mock ZeroState component  
+// Mock ZeroState component
 jest.mock('../../common/zero-state', () => ({
   __esModule: true,
   default: ({ heading }: { heading: string }) => {
     const { View, Text } = require('react-native');
-    return <View><Text>{heading}</Text></View>;
+    return (
+      <View>
+        <Text>{heading}</Text>
+      </View>
+    );
   },
 }));
 
@@ -62,6 +70,10 @@ jest.mock('../../ui/focus-aware-status-bar', () => ({
 
 // Mock react-native-keyboard-controller
 jest.mock('react-native-keyboard-controller', () => ({
+  KeyboardProvider: ({ children }: any) => {
+    const { View } = require('react-native');
+    return <View testID="keyboard-provider">{children}</View>;
+  },
   KeyboardAwareScrollView: ({ children }: any) => {
     const { View } = require('react-native');
     return <View testID="keyboard-aware-scroll-view">{children}</View>;
@@ -76,7 +88,11 @@ jest.mock('react-native-keyboard-controller', () => ({
 jest.mock('react-native-gesture-handler', () => ({
   ScrollView: ({ children, testID, ...props }: any) => {
     const { ScrollView } = require('react-native');
-    return <ScrollView testID={testID} {...props}>{children}</ScrollView>;
+    return (
+      <ScrollView testID={testID} {...props}>
+        {children}
+      </ScrollView>
+    );
   },
   PanGestureHandler: ({ children }: any) => children,
   State: {},
@@ -119,11 +135,7 @@ jest.mock('../../ui/button', () => ({
     const { TouchableOpacity } = require('react-native');
     const isButtonDisabled = disabled || isDisabled;
     return (
-      <TouchableOpacity
-        onPress={isButtonDisabled ? undefined : onPress}
-        disabled={isButtonDisabled}
-        {...props}
-      >
+      <TouchableOpacity onPress={isButtonDisabled ? undefined : onPress} disabled={isButtonDisabled} {...props}>
         {children}
       </TouchableOpacity>
     );
@@ -242,15 +254,19 @@ describe('CallNotesModal', () => {
       },
     } as any);
 
-    mockUseCallDetailStore.mockImplementation((selector: any) => typeof selector === 'function' ? selector({
-      ...mockCallDetailStore,
-      searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
-    }) : {
-      ...mockCallDetailStore,
-      searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
-    });
+    mockUseCallDetailStore.mockImplementation((selector: any) =>
+      typeof selector === 'function'
+        ? selector({
+            ...mockCallDetailStore,
+            searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
+          })
+        : {
+            ...mockCallDetailStore,
+            searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
+          }
+    );
 
-    mockUseAuthStore.mockImplementation((selector: any) => typeof selector === 'function' ? selector(mockAuthStore) : mockAuthStore);
+    mockUseAuthStore.mockImplementation((selector: any) => (typeof selector === 'function' ? selector(mockAuthStore) : mockAuthStore));
   });
 
   it('renders correctly when open', () => {
@@ -285,13 +301,17 @@ describe('CallNotesModal', () => {
 
   it('handles search input correctly', () => {
     const mockSearchNotes = jest.fn(() => [mockCallDetailStore.callNotes[0]]);
-    mockUseCallDetailStore.mockImplementation((selector: any) => typeof selector === 'function' ? selector({
-      ...mockCallDetailStore,
-      searchNotes: mockSearchNotes,
-    }) : {
-      ...mockCallDetailStore,
-      searchNotes: mockSearchNotes,
-    });
+    mockUseCallDetailStore.mockImplementation((selector: any) =>
+      typeof selector === 'function'
+        ? selector({
+            ...mockCallDetailStore,
+            searchNotes: mockSearchNotes,
+          })
+        : {
+            ...mockCallDetailStore,
+            searchNotes: mockSearchNotes,
+          }
+    );
 
     const { getByPlaceholderText, getByText, queryByText } = render(<CallNotesModal {...mockProps} />);
 
@@ -304,13 +324,17 @@ describe('CallNotesModal', () => {
   });
 
   it('shows loading state correctly', () => {
-    mockUseCallDetailStore.mockImplementation((selector: any) => typeof selector === 'function' ? selector({
-      ...mockCallDetailStore,
-      isNotesLoading: true,
-    }) : {
-      ...mockCallDetailStore,
-      isNotesLoading: true,
-    });
+    mockUseCallDetailStore.mockImplementation((selector: any) =>
+      typeof selector === 'function'
+        ? selector({
+            ...mockCallDetailStore,
+            isNotesLoading: true,
+          })
+        : {
+            ...mockCallDetailStore,
+            isNotesLoading: true,
+          }
+    );
 
     const { getByTestId } = render(<CallNotesModal {...mockProps} />);
 
@@ -318,15 +342,19 @@ describe('CallNotesModal', () => {
   });
 
   it('shows zero state when no notes found', () => {
-    mockUseCallDetailStore.mockImplementation((selector: any) => typeof selector === 'function' ? selector({
-      ...mockCallDetailStore,
-      callNotes: [],
-      searchNotes: jest.fn(() => []),
-    }) : {
-      ...mockCallDetailStore,
-      callNotes: [],
-      searchNotes: jest.fn(() => []),
-    });
+    mockUseCallDetailStore.mockImplementation((selector: any) =>
+      typeof selector === 'function'
+        ? selector({
+            ...mockCallDetailStore,
+            callNotes: [],
+            searchNotes: jest.fn(() => []),
+          })
+        : {
+            ...mockCallDetailStore,
+            callNotes: [],
+            searchNotes: jest.fn(() => []),
+          }
+    );
 
     const { getByText } = render(<CallNotesModal {...mockProps} />);
 
@@ -335,15 +363,19 @@ describe('CallNotesModal', () => {
 
   it('handles adding a new note', async () => {
     const mockAddNote = jest.fn();
-    mockUseCallDetailStore.mockImplementation((selector: any) => typeof selector === 'function' ? selector({
-      ...mockCallDetailStore,
-      addNote: mockAddNote,
-      searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
-    }) : {
-      ...mockCallDetailStore,
-      addNote: mockAddNote,
-      searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
-    });
+    mockUseCallDetailStore.mockImplementation((selector: any) =>
+      typeof selector === 'function'
+        ? selector({
+            ...mockCallDetailStore,
+            addNote: mockAddNote,
+            searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
+          })
+        : {
+            ...mockCallDetailStore,
+            addNote: mockAddNote,
+            searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
+          }
+    );
 
     const { getByPlaceholderText, getByText } = render(<CallNotesModal {...mockProps} />);
 
@@ -360,15 +392,19 @@ describe('CallNotesModal', () => {
 
   it('disables add button when note input is empty', () => {
     const mockAddNote = jest.fn();
-    mockUseCallDetailStore.mockImplementation((selector: any) => typeof selector === 'function' ? selector({
-      ...mockCallDetailStore,
-      addNote: mockAddNote,
-      searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
-    }) : {
-      ...mockCallDetailStore,
-      addNote: mockAddNote,
-      searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
-    });
+    mockUseCallDetailStore.mockImplementation((selector: any) =>
+      typeof selector === 'function'
+        ? selector({
+            ...mockCallDetailStore,
+            addNote: mockAddNote,
+            searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
+          })
+        : {
+            ...mockCallDetailStore,
+            addNote: mockAddNote,
+            searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
+          }
+    );
 
     const { getByText } = render(<CallNotesModal {...mockProps} />);
 
@@ -382,17 +418,21 @@ describe('CallNotesModal', () => {
 
   it('disables add button when loading', () => {
     const mockAddNote = jest.fn();
-    mockUseCallDetailStore.mockImplementation((selector: any) => typeof selector === 'function' ? selector({
-      ...mockCallDetailStore,
-      addNote: mockAddNote,
-      isNotesLoading: true,
-      searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
-    }) : {
-      ...mockCallDetailStore,
-      addNote: mockAddNote,
-      isNotesLoading: true,
-      searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
-    });
+    mockUseCallDetailStore.mockImplementation((selector: any) =>
+      typeof selector === 'function'
+        ? selector({
+            ...mockCallDetailStore,
+            addNote: mockAddNote,
+            isNotesLoading: true,
+            searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
+          })
+        : {
+            ...mockCallDetailStore,
+            addNote: mockAddNote,
+            isNotesLoading: true,
+            searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
+          }
+    );
 
     const { getByText, getByPlaceholderText } = render(<CallNotesModal {...mockProps} />);
 
@@ -417,15 +457,19 @@ describe('CallNotesModal', () => {
 
   it('clears note input after successful submission', async () => {
     const mockAddNote = jest.fn().mockResolvedValue(undefined);
-    mockUseCallDetailStore.mockImplementation((selector: any) => typeof selector === 'function' ? selector({
-      ...mockCallDetailStore,
-      addNote: mockAddNote,
-      searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
-    }) : {
-      ...mockCallDetailStore,
-      addNote: mockAddNote,
-      searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
-    });
+    mockUseCallDetailStore.mockImplementation((selector: any) =>
+      typeof selector === 'function'
+        ? selector({
+            ...mockCallDetailStore,
+            addNote: mockAddNote,
+            searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
+          })
+        : {
+            ...mockCallDetailStore,
+            addNote: mockAddNote,
+            searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
+          }
+    );
 
     const { getByPlaceholderText, getByText } = render(<CallNotesModal {...mockProps} />);
 
@@ -442,15 +486,19 @@ describe('CallNotesModal', () => {
 
   it('does not add empty note when only whitespace is entered', async () => {
     const mockAddNote = jest.fn();
-    mockUseCallDetailStore.mockImplementation((selector: any) => typeof selector === 'function' ? selector({
-      ...mockCallDetailStore,
-      addNote: mockAddNote,
-      searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
-    }) : {
-      ...mockCallDetailStore,
-      addNote: mockAddNote,
-      searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
-    });
+    mockUseCallDetailStore.mockImplementation((selector: any) =>
+      typeof selector === 'function'
+        ? selector({
+            ...mockCallDetailStore,
+            addNote: mockAddNote,
+            searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
+          })
+        : {
+            ...mockCallDetailStore,
+            addNote: mockAddNote,
+            searchNotes: jest.fn(() => mockCallDetailStore.callNotes),
+          }
+    );
 
     const { getByPlaceholderText, getByText } = render(<CallNotesModal {...mockProps} />);
 
@@ -464,11 +512,15 @@ describe('CallNotesModal', () => {
   });
 
   it('handles missing user profile gracefully', () => {
-    mockUseAuthStore.mockImplementation((selector: any) => typeof selector === 'function' ? selector({
-      profile: null,
-    }) : {
-      profile: null,
-    });
+    mockUseAuthStore.mockImplementation((selector: any) =>
+      typeof selector === 'function'
+        ? selector({
+            profile: null,
+          })
+        : {
+            profile: null,
+          }
+    );
 
     const { getByText } = render(<CallNotesModal {...mockProps} />);
 
