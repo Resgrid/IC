@@ -25,6 +25,8 @@ jest.mock('lucide-react-native', () => {
     MapPin: icon('map-pin'),
     Mic: icon('mic'),
     MicOff: icon('mic-off'),
+    Eye: icon('eye'),
+    Pencil: icon('pencil'),
     Phone: icon('phone'),
     PhoneOff: icon('phone-off'),
     RadioTower: icon('radio-tower'),
@@ -86,6 +88,45 @@ jest.mock('@/components/command/incident-map-card', () => ({
   default: () => null,
   IncidentMapCard: () => null,
 }));
+
+// The resource details sheet pulls in the Mapping API — stub it with a plain action surface.
+jest.mock('@/components/command/resource-details-sheet', () => {
+  const React = require('react');
+  return {
+    ResourceDetailsSheet: (props: any) =>
+      props.isOpen
+        ? React.createElement('View', { testID: 'resource-details-sheet' }, [
+            React.createElement('Text', { key: 'label', testID: 'resource-details-action-label' }, props.actionLabel),
+            React.createElement(
+              'Text',
+              {
+                key: 'action',
+                testID: props.actionTestID,
+                onPress: () => {
+                  props.onAction();
+                  props.onClose();
+                },
+              },
+              props.actionLabel
+            ),
+            props.secondaryActionLabel
+              ? React.createElement(
+                  'Text',
+                  {
+                    key: 'secondary',
+                    testID: props.secondaryActionTestID,
+                    onPress: () => {
+                      props.onSecondaryAction();
+                      props.onClose();
+                    },
+                  },
+                  props.secondaryActionLabel
+                )
+              : null,
+          ])
+        : null,
+  };
+});
 
 // Call resource viewers pull in webview / keyboard-controller natives — stub them out here.
 jest.mock('@/components/call-video-feeds/video-feed-tab-content', () => ({
@@ -282,7 +323,7 @@ describe('CommandBoard', () => {
     unmount();
   });
 
-  it('lists tracked department units and personnel as resources with their lane and releases on remove', () => {
+  it('lists tracked department units and personnel as resources with their lane and releases via the details sheet', () => {
     const board = serverBoard('101', {
       Nodes: [{ CommandStructureNodeId: 'lane-1', IncidentCommandId: 'cmd-101', DepartmentId: 1, CallId: 101, NodeType: 0, Name: 'Division A', SortOrder: 0 }],
       Assignments: [
@@ -300,16 +341,84 @@ describe('CommandBoard', () => {
       users: [{ UserId: 'u-9', FirstName: 'Sam', LastName: 'Jones', GroupName: 'Station 1', Status: 'Responding' }],
     });
 
-    const { getByTestId, getByText, unmount } = render(<CommandBoard />);
+    const { getByTestId, getAllByText, getByText, unmount } = render(<CommandBoard />);
 
     expect(getByTestId('resource-dept-as-1')).toBeTruthy();
     expect(getByTestId('resource-dept-as-2')).toBeTruthy();
     expect(getByText('Sam Jones')).toBeTruthy();
     expect(getByText('Station 1')).toBeTruthy();
     expect(getByTestId('resource-dept-as-2-status')).toBeTruthy();
-    expect(getByText('command.unassigned')).toBeTruthy();
+    // Lane badge text ("Unassigned") also appears on the filter chip — assert at least the badge exists
+    expect(getAllByText('command.unassigned').length).toBeGreaterThan(0);
 
-    fireEvent.press(getByTestId('resource-dept-remove-as-1'));
+    fireEvent.press(getByTestId('resource-dept-view-as-2'));
+    expect(getByTestId('resource-details-sheet')).toBeTruthy();
+    fireEvent.press(getByTestId('resource-details-action'));
+    expect(mockReleaseResourceAssignment).toHaveBeenCalledWith('101', 'as-2');
+
+    unmount();
+  });
+
+  it('filters the resources list by unassigned / assigned / all', () => {
+    const board = serverBoard('101', {
+      Nodes: [{ CommandStructureNodeId: 'lane-1', IncidentCommandId: 'cmd-101', DepartmentId: 1, CallId: 101, NodeType: 0, Name: 'Division A', SortOrder: 0 }],
+      Assignments: [
+        { ResourceAssignmentId: 'as-1', IncidentCommandId: 'cmd-101', DepartmentId: 1, CallId: 101, CommandStructureNodeId: 'lane-1', ResourceKind: 0, ResourceId: 'unit-5', AssignedByUserId: 'u1', AssignedOn: '2026-07-19T10:00:00Z', RequirementsWarning: false },
+        { ResourceAssignmentId: 'as-2', IncidentCommandId: 'cmd-101', DepartmentId: 1, CallId: 101, CommandStructureNodeId: '', ResourceKind: 1, ResourceId: 'u-9', AssignedByUserId: 'u1', AssignedOn: '2026-07-19T10:00:00Z', RequirementsWarning: false },
+      ],
+    }) as any;
+
+    setupStores({
+      boards: { '101': board },
+      activeCallId: '101',
+      calls: [{ CallId: '101', Number: '26-14', Name: 'Fire', Address: '', Nature: '', LoggedOnUtc: '2026-07-19T10:00:00Z' }],
+      users: [{ UserId: 'u-9', FirstName: 'Sam', LastName: 'Jones', GroupName: 'Station 1', Status: 'Responding' }],
+    });
+
+    const { getByTestId, queryByTestId, unmount } = render(<CommandBoard />);
+
+    // All: both visible
+    expect(getByTestId('resource-dept-as-1')).toBeTruthy();
+    expect(getByTestId('resource-dept-as-2')).toBeTruthy();
+
+    fireEvent.press(getByTestId('resource-filter-unassigned'));
+    expect(queryByTestId('resource-dept-as-1')).toBeNull();
+    expect(getByTestId('resource-dept-as-2')).toBeTruthy();
+
+    fireEvent.press(getByTestId('resource-filter-assigned'));
+    expect(getByTestId('resource-dept-as-1')).toBeTruthy();
+    expect(queryByTestId('resource-dept-as-2')).toBeNull();
+
+    fireEvent.press(getByTestId('resource-filter-all'));
+    expect(getByTestId('resource-dept-as-1')).toBeTruthy();
+    expect(getByTestId('resource-dept-as-2')).toBeTruthy();
+
+    unmount();
+  });
+
+  it('lane items offer both remove-from-lane and release in the details sheet', () => {
+    const board = serverBoard('101', {
+      Nodes: [{ CommandStructureNodeId: 'lane-1', IncidentCommandId: 'cmd-101', DepartmentId: 1, CallId: 101, NodeType: 0, Name: 'Division A', SortOrder: 0 }],
+      Assignments: [{ ResourceAssignmentId: 'as-1', IncidentCommandId: 'cmd-101', DepartmentId: 1, CallId: 101, CommandStructureNodeId: 'lane-1', ResourceKind: 0, ResourceId: 'unit-5', AssignedByUserId: 'u1', AssignedOn: '2026-07-19T10:00:00Z', RequirementsWarning: false }],
+    }) as any;
+
+    setupStores({
+      boards: { '101': board },
+      activeCallId: '101',
+      calls: [{ CallId: '101', Number: '26-14', Name: 'Fire', Address: '', Nature: '', LoggedOnUtc: '2026-07-19T10:00:00Z' }],
+    });
+
+    const { getByTestId, unmount } = render(<CommandBoard />);
+
+    fireEvent.press(getByTestId('lane-resource-view-as-1'));
+    expect(getByTestId('resource-details-sheet')).toBeTruthy();
+
+    fireEvent.press(getByTestId('resource-details-action'));
+    expect(mockMoveResourceAssignment).toHaveBeenCalledWith('101', 'as-1', '');
+
+    // Reopen — release is the secondary action for lane items
+    fireEvent.press(getByTestId('lane-resource-view-as-1'));
+    fireEvent.press(getByTestId('resource-details-secondary-action'));
     expect(mockReleaseResourceAssignment).toHaveBeenCalledWith('101', 'as-1');
 
     unmount();

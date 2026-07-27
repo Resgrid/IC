@@ -14,6 +14,11 @@ jest.mock('lucide-react-native', () => {
   };
 });
 
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({
+  router: { push: (...args: unknown[]) => mockPush(...args) },
+}));
+
 import type { CommandLogEntry } from '@/models/v4/incidentCommand/incidentCommandModels';
 
 import { SceneClock, TimelineSection } from '../timeline-section';
@@ -41,16 +46,30 @@ describe('TimelineSection', () => {
     unmount();
   });
 
-  it('shows the empty state and paginates long logs', () => {
+  it('shows the empty state and caps the preview at the first batch', () => {
     const many = Array.from({ length: 20 }, (_, i) => entry(`e-${i}`, `Entry ${i}`));
-    const { getByTestId, getByText, queryByText, rerender, unmount } = render(<TimelineSection entries={[]} onRefresh={jest.fn()} />);
+    const { getByText, queryByText, queryByTestId, rerender, unmount } = render(<TimelineSection entries={[]} onRefresh={jest.fn()} />);
 
     expect(getByText('command.empty_timeline')).toBeTruthy();
 
     rerender(<TimelineSection entries={many} onRefresh={jest.fn()} />);
-    expect(queryByText('Entry 16')).toBeNull();
-    fireEvent.press(getByTestId('command-timeline-more'));
-    expect(getByText('Entry 16')).toBeTruthy();
+    expect(queryByText('Entry 14')).toBeTruthy();
+    expect(queryByText('Entry 15')).toBeNull();
+    // No callId — history screens render the preview only, no fullscreen link
+    expect(queryByTestId('command-timeline-view-log')).toBeNull();
+
+    unmount();
+  });
+
+  it('links to the fullscreen log when a callId is set and entries overflow the preview', () => {
+    const many = Array.from({ length: 20 }, (_, i) => entry(`e-${i}`, `Entry ${i}`));
+    const { getByTestId, queryByTestId, rerender, unmount } = render(<TimelineSection callId="101" entries={many.slice(0, 5)} onRefresh={jest.fn()} />);
+
+    expect(queryByTestId('command-timeline-view-log')).toBeNull();
+
+    rerender(<TimelineSection callId="101" entries={many} onRefresh={jest.fn()} />);
+    fireEvent.press(getByTestId('command-timeline-view-log'));
+    expect(mockPush).toHaveBeenCalledWith('/command-log/101');
 
     unmount();
   });

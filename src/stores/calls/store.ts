@@ -141,8 +141,15 @@ export const useCallsStore = create<CallsState>()(
             uncachedIds.map(async (callId) => {
               try {
                 const result = await getCallExtraData(callId);
-                const dispatches = result?.Data?.Dispatches ?? [];
-                return { callId, dispatches: dispatches as DispatchedEventResultData[] };
+                const dispatches = (result?.Data?.Dispatches ?? []) as DispatchedEventResultData[];
+                const seen = new Set<string>();
+                const unique = dispatches.filter((d) => {
+                  const key = `${d.Id}-${d.Name}`;
+                  if (seen.has(key)) return false;
+                  seen.add(key);
+                  return true;
+                });
+                return { callId, dispatches: unique };
               } catch {
                 return { callId, dispatches: [] as DispatchedEventResultData[] };
               }

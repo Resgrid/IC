@@ -35,6 +35,10 @@ extract_release_notes() {
       { print }
     ')"
 
+  # Replace standalone occurrences of "PR" with "Release" (word boundaries only,
+  # so words like "PROXY" or "PRs" inside other tokens are untouched)
+  cleaned_body="$(printf '%s\n' "$cleaned_body" | sed -E 's/(^|[^[:alnum:]])PR([^[:alnum:]]|$)/\1Release\2/g')"
+
   # Fourth pass: Remove any remaining HTML comment lines
   cleaned_body="$(printf '%s\n' "$cleaned_body" | sed '/^<!--.*-->$/d' | sed '/^<!--/d' | sed '/^-->$/d')"
 

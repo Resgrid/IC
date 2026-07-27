@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { RefreshCw } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +15,8 @@ import type { CommandLogEntry } from '@/models/v4/incidentCommand/incidentComman
 const VISIBLE_BATCH = 15;
 
 interface TimelineSectionProps {
+  /** Enables the "View Log" fullscreen link when set (live board screens). */
+  callId?: string;
   entries: CommandLogEntry[];
   onRefresh: () => void;
 }
@@ -24,11 +27,10 @@ const formatTime = (iso: string) => {
 };
 
 /** Auto-logged, time-stamped incident log — every board action the server records. */
-export const TimelineSection: React.FC<TimelineSectionProps> = ({ entries, onRefresh }) => {
+export const TimelineSection: React.FC<TimelineSectionProps> = ({ callId, entries, onRefresh }) => {
   const { t } = useTranslation();
-  const [visibleCount, setVisibleCount] = useState(VISIBLE_BATCH);
 
-  const visible = entries.slice(0, visibleCount);
+  const visible = entries.slice(0, VISIBLE_BATCH);
 
   return (
     <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID="command-timeline-section">
@@ -52,9 +54,9 @@ export const TimelineSection: React.FC<TimelineSectionProps> = ({ entries, onRef
               <Text className="min-w-0 flex-1 text-sm text-gray-900 dark:text-white">{entry.Description}</Text>
             </HStack>
           ))}
-          {entries.length > visibleCount ? (
-            <Button size="xs" variant="outline" onPress={() => setVisibleCount((c) => c + VISIBLE_BATCH)} testID="command-timeline-more">
-              <ButtonText>{t('command.show_more')}</ButtonText>
+          {callId && entries.length > VISIBLE_BATCH ? (
+            <Button size="xs" variant="outline" onPress={() => router.push(`/command-log/${callId}` as never)} testID="command-timeline-view-log">
+              <ButtonText>{t('command.view_log')}</ButtonText>
             </Button>
           ) : null}
         </VStack>

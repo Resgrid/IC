@@ -16,16 +16,16 @@ import { type AssignableResourceOption, AssignResourceSheet } from '@/components
 import { CommandDetailsSheet } from '@/components/command/command-details-sheet';
 import { CommandSection } from '@/components/command/command-section';
 import { IncidentFilesSection } from '@/components/command/incident-files-section';
-import IncidentMapCard from '@/components/command/incident-map-card';
-import { IncidentMapsSection } from '@/components/command/incident-maps-section';
 import { IncidentWeatherSection } from '@/components/command/incident-weather-section';
 import { LandscapeStructureBoard } from '@/components/command/landscape-structure-board';
 import { LaneDetailsSheet } from '@/components/command/lane-details-sheet';
+import { MapsTabbedCard } from '@/components/command/maps-tabbed-card';
 import { MessageCommanderSheet } from '@/components/command/message-commander-sheet';
 import { NeedsSection } from '@/components/command/needs-section';
 import { NotesSection } from '@/components/command/notes-section';
 import { ObjectivesSection } from '@/components/command/objectives-section';
 import { PersonnelResourceCard, UnitResourceCard } from '@/components/command/resource-cards';
+import { ResourceDetailsSheet } from '@/components/command/resource-details-sheet';
 import { StructureSection } from '@/components/command/structure-section';
 import { SceneClock, TimelineSection } from '@/components/command/timeline-section';
 import { TimersSection } from '@/components/command/timers-section';
@@ -47,7 +47,7 @@ import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { getIncidentRoleName } from '@/lib/incident-command-utils';
 import { isWeb } from '@/lib/platform';
-import { type IncidentNeedStatus, IncidentRoleType, ResourceAssignmentKind } from '@/models/v4/incidentCommand/incidentCommandModels';
+import { type IncidentNeedStatus, IncidentRoleType, type ResourceAssignment, ResourceAssignmentKind } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useCallsStore } from '@/stores/calls/store';
 import { type AssignmentOutcome } from '@/stores/command/store';
@@ -138,6 +138,10 @@ export default function CommandBoard() {
   const [isTransferSheetOpen, setIsTransferSheetOpen] = useState(false);
   const [isMessageSheetOpen, setIsMessageSheetOpen] = useState(false);
   const [editLaneNodeId, setEditLaneNodeId] = useState<string | null>(null);
+  /** Resource being inspected in the details sheet; context decides lane-remove vs pool-release. */
+  const [viewResource, setViewResource] = useState<{ assignment: ResourceAssignment; context: 'lane' | 'pool' } | null>(null);
+  /** Resources list filter: pool-only, lane-only, or everything. */
+  const [resourceFilter, setResourceFilter] = useState<'all' | 'unassigned' | 'assigned'>('all');
   const [isCommandDetailsOpen, setIsCommandDetailsOpen] = useState(false);
   const [isEndConfirmOpen, setIsEndConfirmOpen] = useState(false);
   /** Which call-resource viewer (from the underlying call) is open on top of the board. */
@@ -335,6 +339,20 @@ export default function CommandBoard() {
 
   const isUnitKind = useCallback((kind: number) => kind === ResourceAssignmentKind.RealUnit || kind === ResourceAssignmentKind.LinkedDeptUnit, []);
 
+  const filteredDeptAssignments = useMemo(
+    () =>
+      deptAssignments.filter((a) => {
+        if (resourceFilter === 'unassigned') {
+          return !a.CommandStructureNodeId;
+        }
+        if (resourceFilter === 'assigned') {
+          return !!a.CommandStructureNodeId;
+        }
+        return true;
+      }),
+    [deptAssignments, resourceFilter]
+  );
+
   const trackedUnitIds = useMemo(() => deptAssignments.filter((a) => isUnitKind(a.ResourceKind)).map((a) => a.ResourceId), [deptAssignments, isUnitKind]);
   const trackedUserIds = useMemo(() => deptAssignments.filter((a) => !isUnitKind(a.ResourceKind)).map((a) => a.ResourceId), [deptAssignments, isUnitKind]);
 
@@ -431,6 +449,49 @@ export default function CommandBoard() {
       notifyAssignmentOutcome(outcome);
     },
     [activeBoardCallId, moveResourceAssignment, notifyAssignmentOutcome]
+  );
+
+  // Lane item action — pull the resource out of its lane back into the unassigned pool
+  const handleRemoveFromLane = useCallback(
+    async (assignmentId: string) => {
+      if (!activeBoardCallId) {
+        return;
+      }
+      const outcome = await moveResourceAssignment(activeBoardCallId, assignmentId, '');
+      notifyAssignmentOutcome(outcome);
+    },
+    [activeBoardCallId, moveResourceAssignment, notifyAssignmentOutcome]
+  );
+
+  // Pool item action — release the resource off the incident entirely
+  const handleReleaseFromIncident = useCallback(
+    async (assignmentId: string) => {
+      if (!activeBoardCallId) {
+        return;
+      }
+      await releaseResourceAssignment(activeBoardCallId, assignmentId);
+    },
+    [activeBoardCallId, releaseResourceAssignment]
+  );
+
+  // Delete a lane — its resources are either moved back to the pool or released first
+  const handleDeleteLane = useCallback(
+    async (nodeId: string, disposition: 'pool' | 'release') => {
+      if (!activeBoardCallId) {
+        return;
+      }
+      const laneAssignments = (boards[activeBoardCallId]?.board?.Assignments ?? []).filter((a) => !a.ReleasedOn && a.CommandStructureNodeId === nodeId);
+      for (const assignment of laneAssignments) {
+        if (disposition === 'pool') {
+          const outcome = await moveResourceAssignment(activeBoardCallId, assignment.ResourceAssignmentId, '');
+          notifyAssignmentOutcome(outcome);
+        } else {
+          await releaseResourceAssignment(activeBoardCallId, assignment.ResourceAssignmentId);
+        }
+      }
+      await deleteNode(activeBoardCallId, nodeId);
+    },
+    [activeBoardCallId, boards, moveResourceAssignment, releaseResourceAssignment, deleteNode, notifyAssignmentOutcome]
   );
 
   if (!boardState) {
@@ -615,19 +676,18 @@ export default function CommandBoard() {
             ) : null}
           </Box>
 
-          {/* Incident tactical map — saved framing, markup, ICP/Staging/Rehab, live incident resources */}
+          {/* Maps pane — incident map (default) and named tactical maps under tabs */}
           {boardState.board?.Command ? (
-            <IncidentMapCard callId={boardState.callId} command={boardState.board.Command} annotations={(boardState.board.Annotations ?? []).filter((a) => !a.DeletedOn && !a.IncidentMapId)} />
+            <MapsTabbedCard
+              callId={boardState.callId}
+              command={boardState.board.Command}
+              annotations={(boardState.board.Annotations ?? []).filter((a) => !a.DeletedOn && !a.IncidentMapId)}
+              maps={boardState.board.Maps ?? []}
+              onCreateMap={(name, description, expiresOn) => saveIncidentMapEntry(boardState.callId, { Name: name, Description: description, ExpiresOn: expiresOn })}
+              onDeleteMap={(incidentMapId) => deleteIncidentMapEntry(boardState.callId, incidentMapId)}
+              resolveUserName={personName}
+            />
           ) : null}
-
-          {/* Named tactical maps (areas of operation, cleanup zones, ...) */}
-          <IncidentMapsSection
-            callId={boardState.callId}
-            maps={boardState.board?.Maps ?? []}
-            onCreate={(name, description, expiresOn) => saveIncidentMapEntry(boardState.callId, { Name: name, Description: description, ExpiresOn: expiresOn })}
-            onDelete={(incidentMapId) => deleteIncidentMapEntry(boardState.callId, incidentMapId)}
-            resolveUserName={personName}
-          />
 
           {/* Command structure lanes (Division/Group/Branch/...) with assigned resources */}
           {isLandscapeBoard ? (
@@ -636,9 +696,9 @@ export default function CommandBoard() {
               nodes={boardState.board?.Nodes ?? []}
               onAddLane={() => setIsLaneSheetOpen(true)}
               onAssignResource={(nodeId) => setAssignTargetNodeId(nodeId)}
-              onDeleteLane={(nodeId) => deleteNode(boardState.callId, nodeId)}
+              onEditLane={(nodeId) => setEditLaneNodeId(nodeId)}
               onMoveResource={handleMoveResource}
-              onReleaseResource={(assignmentId) => releaseResourceAssignment(boardState.callId, assignmentId)}
+              onViewResource={(assignment) => setViewResource({ assignment, context: 'lane' })}
               resolveResourceName={resolveResourceName}
               viewportHeight={viewportHeight}
               viewportWidth={viewportWidth}
@@ -649,10 +709,9 @@ export default function CommandBoard() {
               nodes={boardState.board?.Nodes ?? []}
               onAddLane={() => setIsLaneSheetOpen(true)}
               onAssignResource={(nodeId) => setAssignTargetNodeId(nodeId)}
-              onDeleteLane={(nodeId) => deleteNode(boardState.callId, nodeId)}
               onEditLane={(nodeId) => setEditLaneNodeId(nodeId)}
               onMoveResource={handleMoveResource}
-              onReleaseResource={(assignmentId) => releaseResourceAssignment(boardState.callId, assignmentId)}
+              onViewResource={(assignment) => setViewResource({ assignment, context: 'lane' })}
               resolveLeadName={resolveLeadName}
               resolveResourceName={resolveResourceName}
             />
@@ -744,22 +803,41 @@ export default function CommandBoard() {
             count={deptAssignments.length + boardState.adHocUnits.length + boardState.adHocPersonnel.length}
             addLabel={t('command.add')}
             emptyText={t('command.empty_resources')}
-            onAdd={() => setIsResourceSheetOpen(true)}
+            onAdd={() => {
+              // Retry a failed/empty roster load when the user actually needs it
+              if (units.length === 0) {
+                fetchUnits();
+              }
+              setIsResourceSheetOpen(true);
+            }}
             testID="command-resources-section"
           >
-            {deptAssignments.map((assignment) =>
+            {deptAssignments.length > 0 ? (
+              <HStack space="sm" className="mb-1" testID="resource-filter-row">
+                <Button size="xs" variant={resourceFilter === 'unassigned' ? 'solid' : 'outline'} onPress={() => setResourceFilter('unassigned')} testID="resource-filter-unassigned">
+                  <ButtonText>{t('command.unassigned')}</ButtonText>
+                </Button>
+                <Button size="xs" variant={resourceFilter === 'assigned' ? 'solid' : 'outline'} onPress={() => setResourceFilter('assigned')} testID="resource-filter-assigned">
+                  <ButtonText>{t('command.assigned')}</ButtonText>
+                </Button>
+                <Button size="xs" variant={resourceFilter === 'all' ? 'solid' : 'outline'} onPress={() => setResourceFilter('all')} testID="resource-filter-all">
+                  <ButtonText>{t('command.all')}</ButtonText>
+                </Button>
+              </HStack>
+            ) : null}
+            {filteredDeptAssignments.map((assignment) =>
               isUnitKind(assignment.ResourceKind) ? (
                 <UnitResourceCard
                   key={assignment.ResourceAssignmentId}
                   isLocal={assignment.ResourceAssignmentId.startsWith('local-')}
                   laneLabel={laneName(assignment.CommandStructureNodeId)}
                   name={resolveResourceName(assignment.ResourceKind, assignment.ResourceId)}
-                  onRelease={() => releaseResourceAssignment(boardState.callId, assignment.ResourceAssignmentId)}
-                  removeTestID={`resource-dept-remove-${assignment.ResourceAssignmentId}`}
+                  onView={() => setViewResource({ assignment, context: 'pool' })}
                   roles={unitRoles.filter((role) => role.UnitId === assignment.ResourceId)}
                   status={unitCurrentStatuses.find((s) => s.UnitId === assignment.ResourceId)}
                   testID={`resource-dept-${assignment.ResourceAssignmentId}`}
                   unit={units.find((u) => u.UnitId === assignment.ResourceId)}
+                  viewTestID={`resource-dept-view-${assignment.ResourceAssignmentId}`}
                 />
               ) : (
                 <PersonnelResourceCard
@@ -767,10 +845,10 @@ export default function CommandBoard() {
                   isLocal={assignment.ResourceAssignmentId.startsWith('local-')}
                   laneLabel={laneName(assignment.CommandStructureNodeId)}
                   name={resolveResourceName(assignment.ResourceKind, assignment.ResourceId)}
-                  onRelease={() => releaseResourceAssignment(boardState.callId, assignment.ResourceAssignmentId)}
+                  onView={() => setViewResource({ assignment, context: 'pool' })}
                   person={users.find((u) => u.UserId === assignment.ResourceId)}
-                  removeTestID={`resource-dept-remove-${assignment.ResourceAssignmentId}`}
                   testID={`resource-dept-${assignment.ResourceAssignmentId}`}
+                  viewTestID={`resource-dept-view-${assignment.ResourceAssignmentId}`}
                 />
               )
             )}
@@ -812,7 +890,7 @@ export default function CommandBoard() {
           />
 
           {/* Auto-logged, time-stamped incident log */}
-          <TimelineSection entries={boardState.timeline ?? []} onRefresh={() => fetchTimeline(boardState.callId)} />
+          <TimelineSection callId={boardState.callId} entries={boardState.timeline ?? []} onRefresh={() => fetchTimeline(boardState.callId)} />
         </VStack>
       </ScrollView>
 
@@ -839,8 +917,38 @@ export default function CommandBoard() {
         maps={boardState.board?.Maps ?? []}
         users={users}
         onSave={(nodeId, patch) => updateNodeDetails(boardState.callId, nodeId, patch)}
+        resourceCount={(boardState.board?.Assignments ?? []).filter((a) => !a.ReleasedOn && a.CommandStructureNodeId === editLaneNodeId).length}
+        onDelete={(nodeId, disposition) => void handleDeleteLane(nodeId, disposition)}
       />
       <CommandDetailsSheet isOpen={isCommandDetailsOpen} onClose={() => setIsCommandDetailsOpen(false)} command={boardState.board?.Command ?? null} onSave={handleSaveCommandInfo} />
+      <ResourceDetailsSheet
+        actionLabel={viewResource?.context === 'lane' ? t('command.remove_from_lane') : t('command.release_from_incident')}
+        actionTestID="resource-details-action"
+        isOpen={viewResource !== null}
+        kind={viewResource && isUnitKind(viewResource.assignment.ResourceKind) ? 'unit' : 'person'}
+        laneColor={viewResource ? (boardState.board?.Nodes.find((n) => n.CommandStructureNodeId === viewResource.assignment.CommandStructureNodeId)?.Color ?? null) : null}
+        laneName={viewResource ? laneName(viewResource.assignment.CommandStructureNodeId) : null}
+        name={viewResource ? resolveResourceName(viewResource.assignment.ResourceKind, viewResource.assignment.ResourceId) : ''}
+        onAction={() => {
+          if (!viewResource) {
+            return;
+          }
+          if (viewResource.context === 'lane') {
+            void handleRemoveFromLane(viewResource.assignment.ResourceAssignmentId);
+          } else {
+            void handleReleaseFromIncident(viewResource.assignment.ResourceAssignmentId);
+          }
+        }}
+        onClose={() => setViewResource(null)}
+        onSecondaryAction={viewResource?.context === 'lane' ? () => void handleReleaseFromIncident(viewResource.assignment.ResourceAssignmentId) : undefined}
+        person={viewResource ? users.find((u) => u.UserId === viewResource.assignment.ResourceId) : undefined}
+        resourceId={viewResource?.assignment.ResourceId ?? ''}
+        secondaryActionLabel={viewResource?.context === 'lane' ? t('command.release_from_incident') : undefined}
+        secondaryActionTestID={viewResource?.context === 'lane' ? 'resource-details-secondary-action' : undefined}
+        status={viewResource ? unitCurrentStatuses.find((s) => s.UnitId === viewResource.assignment.ResourceId) : undefined}
+        unit={viewResource ? units.find((u) => u.UnitId === viewResource.assignment.ResourceId) : undefined}
+        unitRoles={viewResource ? unitRoles.filter((role) => role.UnitId === viewResource.assignment.ResourceId) : []}
+      />
       <TransferCommandSheet
         isOpen={isTransferSheetOpen}
         onClose={() => setIsTransferSheetOpen(false)}

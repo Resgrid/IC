@@ -6,6 +6,7 @@ import { logger } from '@/lib/logging';
 import { signalRService } from '@/services/signalr.service';
 
 import { useCoreStore } from '../app/core-store';
+import { useCommandStore } from '../command/store';
 import { securityStore, useSecurityStore } from '../security/store';
 import { useWeatherAlertsStore } from '../weather-alerts/store';
 
@@ -21,6 +22,22 @@ function extractAlertId(message: unknown): string | undefined {
   if (message !== null && typeof message === 'object') {
     const m = message as WeatherAlertSignalRMessage;
     return m.WeatherAlertId ?? m.alertId;
+  }
+  return undefined;
+}
+
+/** Minimal shape of the incidentCommandUpdated payload — server identifies the
+ *  affected incident by call (PascalCase or lower-camel). */
+interface IncidentCommandSignalRMessage {
+  CallId?: string;
+  callId?: string;
+}
+
+function extractCommandCallId(message: unknown): string | undefined {
+  if (message !== null && typeof message === 'object') {
+    const m = message as IncidentCommandSignalRMessage;
+    const id = m.CallId ?? m.callId;
+    return id !== undefined && id !== null ? String(id) : undefined;
   }
   return undefined;
 }
@@ -80,6 +97,7 @@ export const useSignalRStore = create<SignalRState>((set, get) => ({
         'weatherAlertReceived',
         'weatherAlertUpdated',
         'weatherAlertExpired',
+        'incidentCommandUpdated',
         'onConnected',
       ];
       updateEvents.forEach((event) => signalRService.removeAllListeners(event));
@@ -99,6 +117,7 @@ export const useSignalRStore = create<SignalRState>((set, get) => ({
           'weatherAlertReceived',
           'weatherAlertUpdated',
           'weatherAlertExpired',
+          'incidentCommandUpdated',
           'onConnected',
         ],
       });
@@ -157,6 +176,22 @@ export const useSignalRStore = create<SignalRState>((set, get) => ({
           useWeatherAlertsStore.getState().handleAlertExpired(alertId);
         } else {
           logger.warn({ message: 'weatherAlertExpired: could not extract alertId from message', context: { message } });
+        }
+      });
+
+      signalRService.on('incidentCommandUpdated', (message) => {
+        set({ lastUpdateMessage: JSON.stringify(message), lastUpdateTimestamp: Date.now() });
+        const callId = extractCommandCallId(message);
+        const commandState = useCommandStore.getState();
+        if (callId && commandState.boards[callId]) {
+          commandState.refreshBoard(callId).catch((error) => {
+            logger.warn({ message: 'incidentCommandUpdated: failed to refresh board', context: { callId, error } });
+          });
+        } else {
+          // Unknown or untracked incident — resync the full bundle.
+          commandState.syncFromServer().catch((error) => {
+            logger.warn({ message: 'incidentCommandUpdated: failed to sync from server', context: { message, error } });
+          });
         }
       });
 

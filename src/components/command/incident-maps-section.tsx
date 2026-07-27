@@ -28,6 +28,8 @@ interface IncidentMapsSectionProps {
   onDelete: (incidentMapId: string) => void;
   /** Resolve a user id to a display name for the audit line. */
   resolveUserName?: (userId: string) => string;
+  /** Render without the outer card + title header (hosted inside a tabbed pane). */
+  embedded?: boolean;
 }
 
 export const isMapExpired = (map: IncidentMap): boolean => Boolean(map.ExpiresOn && new Date(map.ExpiresOn).getTime() < Date.now());
@@ -36,7 +38,7 @@ export const isMapExpired = (map: IncidentMap): boolean => Boolean(map.ExpiresOn
  * Named tactical maps for the incident — each with its own framing, markup, description, optional
  * expiry, and audit trail. Tapping a map opens it in the fullscreen editor.
  */
-export const IncidentMapsSection: React.FC<IncidentMapsSectionProps> = ({ callId, maps, onCreate, onDelete, resolveUserName }) => {
+export const IncidentMapsSection: React.FC<IncidentMapsSectionProps> = ({ callId, maps, onCreate, onDelete, resolveUserName, embedded = false }) => {
   const { t } = useTranslation();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [name, setName] = useState('');
@@ -69,18 +71,27 @@ export const IncidentMapsSection: React.FC<IncidentMapsSectionProps> = ({ callId
   );
 
   return (
-    <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID="command-incident-maps-section">
-      <HStack className="mb-3 items-center justify-between">
-        <HStack space="sm" className="items-center">
-          <Icon as={MapIcon} size="sm" className="text-gray-500" />
-          <Heading size="sm">{t('command.incident_maps_section')}</Heading>
-          <Text className="text-sm text-gray-500 dark:text-gray-400">({maps.length})</Text>
+    <Box className={embedded ? undefined : 'rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800'} testID="command-incident-maps-section">
+      {embedded ? (
+        <HStack className="mb-3 items-center justify-end">
+          <Button size="xs" variant="outline" onPress={() => setIsAddOpen(true)} testID="incident-maps-add">
+            <ButtonIcon as={Plus} />
+            <ButtonText>{t('command.add')}</ButtonText>
+          </Button>
         </HStack>
-        <Button size="xs" variant="outline" onPress={() => setIsAddOpen(true)} testID="incident-maps-add">
-          <ButtonIcon as={Plus} />
-          <ButtonText>{t('command.add')}</ButtonText>
-        </Button>
-      </HStack>
+      ) : (
+        <HStack className="mb-3 items-center justify-between">
+          <HStack space="sm" className="items-center">
+            <Icon as={MapIcon} size="sm" className="text-gray-500" />
+            <Heading size="sm">{t('command.incident_maps_section')}</Heading>
+            <Text className="text-sm text-gray-500 dark:text-gray-400">({maps.length})</Text>
+          </HStack>
+          <Button size="xs" variant="outline" onPress={() => setIsAddOpen(true)} testID="incident-maps-add">
+            <ButtonIcon as={Plus} />
+            <ButtonText>{t('command.add')}</ButtonText>
+          </Button>
+        </HStack>
+      )}
 
       {maps.length === 0 ? (
         <Text className="py-2 text-center text-sm text-gray-500 dark:text-gray-400">{t('command.incident_maps_empty')}</Text>
