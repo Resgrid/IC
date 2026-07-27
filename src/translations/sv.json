@@ -1030,6 +1030,7 @@
     "delete_error": "Det gick inte att ta bort aviseringarna",
     "delete_one_error": "Det gick inte att ta bort aviseringen",
     "delete_one_success": "Avisering borttagen",
+    "delete_partial": "{{succeeded}} borttagna, {{failed}} misslyckades",
     "delete_success_one": "{{count}} avisering borttagen",
     "delete_success_other": "{{count}} aviseringar borttagna",
     "deselect_all": "Avmarkera alla",

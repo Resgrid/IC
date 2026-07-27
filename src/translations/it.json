@@ -1030,6 +1030,7 @@
     "delete_error": "Impossibile rimuovere le notifiche",
     "delete_one_error": "Impossibile rimuovere la notifica",
     "delete_one_success": "Notifica rimossa",
+    "delete_partial": "{{succeeded}} rimosse, {{failed}} non riuscite",
     "delete_success_one": "{{count}} notifica rimossa",
     "delete_success_other": "{{count}} notifiche rimosse",
     "deselect_all": "Deseleziona tutto",

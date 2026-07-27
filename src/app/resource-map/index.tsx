@@ -25,7 +25,7 @@ export default function ResourceMapScreen() {
   const rawColor = first(params.color);
   const color = rawColor && /^#[0-9a-fA-F]{3,8}$/.test(rawColor) ? rawColor : '#E53E3E';
 
-  const isValid = !Number.isNaN(latitude) && !Number.isNaN(longitude) && (latitude !== 0 || longitude !== 0);
+  const isValid = Number.isFinite(latitude) && Number.isFinite(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180 && (latitude !== 0 || longitude !== 0);
 
   if (!isValid) {
     return (

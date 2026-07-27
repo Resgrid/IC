@@ -1649,13 +1649,13 @@ export const useCommandStore = create<CommandState>()(
       },
 
       sendMessageToCommander: async (callId: string, title: string | null, body: string, includeDeputies: boolean) => {
-        const numericCallId = parseInt(callId, 10);
-        if (!Number.isFinite(numericCallId) || !body.trim()) {
+        const numericCallId = /^\d+$/.test(callId.trim()) ? Number(callId.trim()) : NaN;
+        if (!Number.isSafeInteger(numericCallId) || numericCallId <= 0 || numericCallId > Number.MAX_SAFE_INTEGER || !body.trim()) {
           return false;
         }
         try {
-          await sendMessageToCommand({ CallId: numericCallId, Title: title, Body: body.trim(), IncludeDeputies: includeDeputies });
-          return true;
+          const result = await sendMessageToCommand({ CallId: numericCallId, Title: title, Body: body.trim(), IncludeDeputies: includeDeputies });
+          return (result.Data ?? 0) > 0;
         } catch (error) {
           logger.warn({
             message: 'SendMessageToCommand failed',

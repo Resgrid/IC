@@ -46,8 +46,8 @@ export const useUnitsStore = create<UnitsState>((set) => ({
       }
 
       // A cached empty roster (2-day TTL) would stick forever — drop it so the
-      // next fetch hits the server again.
-      if (units.length === 0) {
+      // next fetch hits the server again. Only evict when the fetch itself succeeded.
+      if (unitsResult.status === 'fulfilled' && units.length === 0) {
         cacheManager.remove('/Units/GetAllUnits');
       }
 

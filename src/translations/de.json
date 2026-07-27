@@ -1030,6 +1030,7 @@
     "delete_error": "Benachrichtigungen konnten nicht entfernt werden",
     "delete_one_error": "Benachrichtigung konnte nicht entfernt werden",
     "delete_one_success": "Benachrichtigung entfernt",
+    "delete_partial": "{{succeeded}} entfernt, {{failed}} fehlgeschlagen",
     "delete_success_one": "{{count}} Benachrichtigung entfernt",
     "delete_success_other": "{{count}} Benachrichtigungen entfernt",
     "deselect_all": "Alle abwählen",

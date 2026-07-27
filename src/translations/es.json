@@ -1030,6 +1030,7 @@
     "delete_error": "No se pudieron eliminar las notificaciones",
     "delete_one_error": "No se pudo eliminar la notificación",
     "delete_one_success": "Notificación eliminada",
+    "delete_partial": "{{succeeded}} eliminadas, {{failed}} con error",
     "delete_success_one": "{{count}} notificación eliminada",
     "delete_success_other": "{{count}} notificaciones eliminadas",
     "deselect_all": "Deseleccionar todo",

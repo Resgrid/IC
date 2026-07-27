@@ -1030,6 +1030,7 @@
     "delete_error": "Nie udało się usunąć powiadomień",
     "delete_one_error": "Nie udało się usunąć powiadomienia",
     "delete_one_success": "Powiadomienie usunięte",
+    "delete_partial": "Usunięto: {{succeeded}}, niepowodzenie: {{failed}}",
     "delete_success_one": "Usunięto {{count}} powiadomienie",
     "delete_success_other": "Usunięto {{count}} powiadomienia",
     "deselect_all": "Odznacz wszystko",

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Mail, Map as MapIcon, MapPin, Phone, Truck, User } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet } from 'react-native';
 
@@ -114,6 +114,17 @@ export const ResourceDetailsSheet: React.FC<ResourceDetailsSheetProps> = ({
 }) => {
   const { t } = useTranslation();
   const [marker, setMarker] = useState<MapMakerInfoData | null>(null);
+  const mapNavTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cancel a pending map navigation if the sheet unmounts before the delay elapses
+  useEffect(() => {
+    return () => {
+      if (mapNavTimerRef.current !== null) {
+        clearTimeout(mapNavTimerRef.current);
+        mapNavTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // Personnel have no coordinates in their info payload — pull the shared map markers and
   // find this resource's pin (`u{unitId}` / `p{userId}` convention).
@@ -155,7 +166,8 @@ export const ResourceDetailsSheet: React.FC<ResourceDetailsSheetProps> = ({
     // The sheet is an RN Modal — it renders above pushed routes, so close it first and
     // navigate once the dismiss animation has had a beat to run.
     onClose();
-    setTimeout(() => {
+    mapNavTimerRef.current = setTimeout(() => {
+      mapNavTimerRef.current = null;
       router.push({
         pathname: '/resource-map',
         params: {

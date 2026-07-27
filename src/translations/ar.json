@@ -1030,6 +1030,7 @@
     "delete_error": "فشل حذف الإشعارات",
     "delete_one_error": "فشل حذف الإشعار",
     "delete_one_success": "تم حذف الإشعار",
+    "delete_partial": "تم حذف {{succeeded}}، فشل {{failed}}",
     "delete_success_one": "تم حذف {{count}} إشعار",
     "delete_success_other": "تم حذف {{count}} إشعارات",
     "deselect_all": "إلغاء تحديد الكل",

@@ -1030,6 +1030,7 @@
     "delete_error": "Не вдалося видалити сповіщення",
     "delete_one_error": "Не вдалося видалити сповіщення",
     "delete_one_success": "Сповіщення видалено",
+    "delete_partial": "Видалено: {{succeeded}}, помилок: {{failed}}",
     "delete_success_one": "Видалено {{count}} сповіщення",
     "delete_success_other": "Видалено {{count}} сповіщень",
     "deselect_all": "Зняти вибір",

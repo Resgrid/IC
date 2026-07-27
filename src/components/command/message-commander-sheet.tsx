@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { VStack } from '@/components/ui/vstack';
+import { logger } from '@/lib/logging';
 
 interface MessageCommanderSheetProps {
   isOpen: boolean;
@@ -48,10 +49,15 @@ export const MessageCommanderSheet: React.FC<MessageCommanderSheetProps> = ({ is
       return;
     }
     setIsSending(true);
-    const ok = await onSend(title.trim() || null, trimmedBody, includeDeputies);
-    setIsSending(false);
-    if (ok) {
-      handleClose();
+    try {
+      const ok = await onSend(title.trim() || null, trimmedBody, includeDeputies);
+      if (ok) {
+        handleClose();
+      }
+    } catch (error) {
+      logger.warn({ message: 'MessageCommanderSheet: onSend rejected', context: { error } });
+    } finally {
+      setIsSending(false);
     }
   }, [body, title, includeDeputies, isSending, onSend, handleClose]);
 

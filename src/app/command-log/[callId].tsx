@@ -11,7 +11,10 @@ import { HStack } from '@/components/ui/hstack';
 import { Input, InputField } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { parseUtcMs } from '@/lib/utils';
+import { type CommandLogEntry } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useCommandStore } from '@/stores/command/store';
+
+const EMPTY_TIMELINE: CommandLogEntry[] = [];
 
 const formatTimestamp = (iso: string) => {
   const ms = parseUtcMs(iso);
@@ -24,7 +27,7 @@ export default function CommandLogScreen() {
   const { callId: rawCallId } = useLocalSearchParams<{ callId: string }>();
   const callId = String(rawCallId ?? '');
 
-  const entries = useCommandStore((state) => state.boards[callId]?.timeline ?? []);
+  const entries = useCommandStore((state) => state.boards[callId]?.timeline ?? EMPTY_TIMELINE);
   const fetchTimeline = useCommandStore((state) => state.fetchTimeline);
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -41,7 +44,7 @@ export default function CommandLogScreen() {
     if (!query) {
       return entries;
     }
-    return entries.filter((entry) => entry.Description.toLowerCase().includes(query));
+    return entries.filter((entry) => entry.Description?.toLowerCase().includes(query) ?? false);
   }, [entries, search]);
 
   return (

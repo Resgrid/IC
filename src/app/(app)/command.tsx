@@ -207,6 +207,11 @@ export default function CommandBoard() {
     }
   }, [activeBoardCallId]);
 
+  const handleOpenCommandDetails = useCallback(() => setIsCommandDetailsOpen(true), []);
+  const handleOpenTransfer = useCallback(() => setIsTransferSheetOpen(true), []);
+  const handleOpenMessage = useCallback(() => setIsMessageSheetOpen(true), []);
+  const handleOpenEndConfirm = useCallback(() => setIsEndConfirmOpen(true), []);
+
   const handleEndCommand = useCallback(() => {
     setIsEndConfirmOpen(false);
     if (activeBoardCallId) {
@@ -481,13 +486,14 @@ export default function CommandBoard() {
         return;
       }
       const laneAssignments = (boards[activeBoardCallId]?.board?.Assignments ?? []).filter((a) => !a.ReleasedOn && a.CommandStructureNodeId === nodeId);
-      for (const assignment of laneAssignments) {
-        if (disposition === 'pool') {
-          const outcome = await moveResourceAssignment(activeBoardCallId, assignment.ResourceAssignmentId, '');
-          notifyAssignmentOutcome(outcome);
-        } else {
-          await releaseResourceAssignment(activeBoardCallId, assignment.ResourceAssignmentId);
+      if (disposition === 'pool') {
+        const outcomes = await Promise.all(laneAssignments.map((assignment) => moveResourceAssignment(activeBoardCallId, assignment.ResourceAssignmentId, '')));
+        outcomes.forEach(notifyAssignmentOutcome);
+        if (outcomes.some((outcome) => outcome?.blocked)) {
+          return;
         }
+      } else {
+        await Promise.all(laneAssignments.map((assignment) => releaseResourceAssignment(activeBoardCallId, assignment.ResourceAssignmentId)));
       }
       await deleteNode(activeBoardCallId, nodeId);
     },
@@ -598,14 +604,14 @@ export default function CommandBoard() {
                 <ButtonIcon as={ExternalLink} />
                 <ButtonText>{t('command.view_call')}</ButtonText>
               </Button>
-              <Button onPress={() => setIsCommandDetailsOpen(true)} variant="outline" size="xs" testID="command-edit-details">
+              <Button onPress={handleOpenCommandDetails} variant="outline" size="xs" testID="command-edit-details">
                 <ButtonIcon as={Pencil} />
               </Button>
-              <Button onPress={() => setIsTransferSheetOpen(true)} variant="outline" size="xs" testID="command-transfer">
+              <Button onPress={handleOpenTransfer} variant="outline" size="xs" testID="command-transfer">
                 <ButtonIcon as={UserCog} />
               </Button>
               <Button
-                onPress={() => setIsMessageSheetOpen(true)}
+                onPress={handleOpenMessage}
                 variant="outline"
                 size="xs"
                 isDisabled={!boardState.board?.Command?.CurrentCommanderUserId}
@@ -618,7 +624,7 @@ export default function CommandBoard() {
                 <ButtonIcon as={RefreshCw} />
               </Button>
               {/* Icon-only by design; a confirmation dialog guards against accidental taps. */}
-              <Button onPress={() => setIsEndConfirmOpen(true)} action="negative" variant="solid" size="xs" accessibilityLabel={t('command.end_command')} testID="command-end-command">
+              <Button onPress={handleOpenEndConfirm} action="negative" variant="solid" size="xs" accessibilityLabel={t('command.end_command')} testID="command-end-command">
                 <ButtonIcon as={XCircle} className="text-white" />
               </Button>
             </HStack>

@@ -1030,6 +1030,7 @@
     "delete_error": "Échec de la suppression des notifications",
     "delete_one_error": "Échec de la suppression de la notification",
     "delete_one_success": "Notification supprimée",
+    "delete_partial": "{{succeeded}} supprimées, {{failed}} en échec",
     "delete_success_one": "{{count}} notification supprimée",
     "delete_success_other": "{{count}} notifications supprimées",
     "deselect_all": "Tout désélectionner",

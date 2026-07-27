@@ -42,6 +42,55 @@ function extractCommandCallId(message: unknown): string | undefined {
   return undefined;
 }
 
+/** Per-callId board refresh coalescing: one refresh in flight at a time; an event arriving
+ *  mid-refresh marks the entry dirty and triggers exactly one follow-up refresh. */
+const boardRefreshState = new Map<string, { inFlight: boolean; dirty: boolean }>();
+
+function coalescedRefreshBoard(callId: string): void {
+  const state = boardRefreshState.get(callId) ?? { inFlight: false, dirty: false };
+  if (state.inFlight) {
+    state.dirty = true;
+    boardRefreshState.set(callId, state);
+    return;
+  }
+  state.inFlight = true;
+  boardRefreshState.set(callId, state);
+  useCommandStore
+    .getState()
+    .refreshBoard(callId)
+    .catch((error) => {
+      logger.warn({ message: 'incidentCommandUpdated: failed to refresh board', context: { callId, error } });
+    })
+    .finally(() => {
+      const current = boardRefreshState.get(callId);
+      if (current?.dirty) {
+        boardRefreshState.set(callId, { inFlight: false, dirty: false });
+        coalescedRefreshBoard(callId);
+      } else {
+        boardRefreshState.delete(callId);
+      }
+    });
+}
+
+/** Trailing debounce so a burst of department-wide incidentCommandUpdated events
+ *  (unknown/untracked incidents) collapses into a single full sync. */
+let incidentCommandResyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+function debouncedFullSync(): void {
+  if (incidentCommandResyncTimer) {
+    clearTimeout(incidentCommandResyncTimer);
+  }
+  incidentCommandResyncTimer = setTimeout(() => {
+    incidentCommandResyncTimer = null;
+    useCommandStore
+      .getState()
+      .syncFromServer()
+      .catch((error) => {
+        logger.warn({ message: 'incidentCommandUpdated: failed to sync from server', context: { error } });
+      });
+  }, 2000);
+}
+
 interface SignalRState {
   isUpdateHubConnected: boolean;
   lastUpdateMessage: unknown;
@@ -184,14 +233,10 @@ export const useSignalRStore = create<SignalRState>((set, get) => ({
         const callId = extractCommandCallId(message);
         const commandState = useCommandStore.getState();
         if (callId && commandState.boards[callId]) {
-          commandState.refreshBoard(callId).catch((error) => {
-            logger.warn({ message: 'incidentCommandUpdated: failed to refresh board', context: { callId, error } });
-          });
+          coalescedRefreshBoard(callId);
         } else {
-          // Unknown or untracked incident — resync the full bundle.
-          commandState.syncFromServer().catch((error) => {
-            logger.warn({ message: 'incidentCommandUpdated: failed to sync from server', context: { message, error } });
-          });
+          // Unknown or untracked incident — resync the full bundle (debounced).
+          debouncedFullSync();
         }
       });
 

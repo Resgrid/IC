@@ -248,14 +248,20 @@ export const NotificationInbox = ({ isOpen, onClose }: NotificationInboxProps) =
     setShowDeleteConfirmModal(false);
 
     try {
-      const deletePromises = Array.from(selectedNotificationIds).map((id) => deleteMessage(id));
-      await Promise.all(deletePromises);
+      const results = await Promise.allSettled(Array.from(selectedNotificationIds).map((id) => deleteMessage(id)));
+      const succeeded = results.filter((result) => result.status === 'fulfilled').length;
+      const failed = results.length - succeeded;
 
-      showToast('success', t('notifications.delete_success', { count: selectedNotificationIds.size }));
-      exitSelectionMode();
+      if (failed === 0) {
+        showToast('success', t('notifications.delete_success', { count: succeeded }));
+        exitSelectionMode();
+      } else if (succeeded > 0) {
+        showToast('warning', t('notifications.delete_partial', { succeeded, failed }));
+        exitSelectionMode();
+      } else {
+        showToast('error', t('notifications.delete_error'));
+      }
       refetch();
-    } catch {
-      showToast('error', t('notifications.delete_error'));
     } finally {
       setIsDeletingSelected(false);
     }
