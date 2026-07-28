@@ -26,17 +26,25 @@ const containerButtonRole = isWeb ? undefined : ('button' as const);
 /** Two-line clamp: numberOfLines leaks to the DOM through the styling pipeline on web, so use CSS line-clamp there. */
 const twoLine = isWeb ? {} : ({ numberOfLines: 2 } as const);
 
-/** Work-time light thresholds (Tablet Command-style crew fatigue): green under 20m, amber under 40m, red past that. */
-const WORK_TIME_AMBER_MINUTES = 20;
-const WORK_TIME_RED_MINUTES = 40;
+/** Default work-time light thresholds (Tablet Command-style crew fatigue): green under 20m, amber under 40m, red past that. Lanes can override; 0 disables that color. */
+const DEFAULT_WORK_TIME_AMBER_MINUTES = 20;
+const DEFAULT_WORK_TIME_RED_MINUTES = 40;
 
-export const workTimeColor = (minutes: number) => (minutes < WORK_TIME_AMBER_MINUTES ? '#22c55e' : minutes < WORK_TIME_RED_MINUTES ? '#f59e0b' : '#ef4444');
+export const workTimeColor = (minutes: number, amberAfterMinutes: number = DEFAULT_WORK_TIME_AMBER_MINUTES, redAfterMinutes: number = DEFAULT_WORK_TIME_RED_MINUTES) =>
+  redAfterMinutes > 0 && minutes >= redAfterMinutes ? '#ef4444' : amberAfterMinutes > 0 && minutes >= amberAfterMinutes ? '#f59e0b' : '#22c55e';
 
 /**
  * Elapsed minutes since a resource was assigned, ticking once a minute. When the lane sets a
  * MaxTimeInRole, exceeding it turns the light red and flags the resource as rotation-due.
+ * Amber/red thresholds come from the lane (0 = that color disabled; unset = 20/40 defaults).
  */
-export const WorkTimeLight: React.FC<{ assignedOn?: string | null; rotationAfterMinutes?: number; testID?: string }> = ({ assignedOn, rotationAfterMinutes, testID }) => {
+export const WorkTimeLight: React.FC<{ assignedOn?: string | null; rotationAfterMinutes?: number; amberAfterMinutes?: number; redAfterMinutes?: number; testID?: string }> = ({
+  assignedOn,
+  rotationAfterMinutes,
+  amberAfterMinutes = DEFAULT_WORK_TIME_AMBER_MINUTES,
+  redAfterMinutes = DEFAULT_WORK_TIME_RED_MINUTES,
+  testID,
+}) => {
   const { t } = useTranslation();
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -57,7 +65,7 @@ export const WorkTimeLight: React.FC<{ assignedOn?: string | null; rotationAfter
 
   return (
     <HStack className="items-center" space="xs" testID={testID}>
-      <NativeView style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isRotationDue ? '#ef4444' : workTimeColor(minutes) }} />
+      <NativeView style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isRotationDue ? '#ef4444' : workTimeColor(minutes, amberAfterMinutes, redAfterMinutes) }} />
       <Text className={`text-xs tabular-nums ${isRotationDue ? 'font-semibold text-error-600 dark:text-error-400' : 'text-gray-500 dark:text-gray-400'}`}>{`${minutes}m`}</Text>
       {isRotationDue ? (
         <Badge action="error" variant="solid" testID={testID ? `${testID}-rotation` : undefined}>
@@ -91,6 +99,10 @@ interface DraggableResourceCardProps {
   name: string;
   /** Lane MaxTimeInRole (minutes) — flags the resource rotation-due when exceeded. */
   rotationAfterMinutes?: number;
+  /** Lane work-time amber threshold (0 = amber disabled; unset = 20). */
+  amberAfterMinutes?: number;
+  /** Lane work-time red threshold (0 = red disabled; unset = 40). */
+  redAfterMinutes?: number;
   isSelected: boolean;
   onSelect: (assignmentId: string) => void;
   onDragStart: (assignmentId: string) => void;
@@ -107,7 +119,7 @@ interface LaneRect {
   height: number;
 }
 
-const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo(({ assignment, name, rotationAfterMinutes, isSelected, onSelect, onDragStart, onDragEnd, onDrop, onView }) => {
+const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo(({ assignment, name, rotationAfterMinutes, amberAfterMinutes, redAfterMinutes, isSelected, onSelect, onDragStart, onDragEnd, onDrop, onView }) => {
   const { t } = useTranslation();
   const translation = useRef(new Animated.ValueXY()).current;
   const dragReadyRef = useRef(false);
@@ -203,7 +215,7 @@ const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo((
               {name}
             </Text>
           </HStack>
-          <WorkTimeLight assignedOn={assignment.AssignedOn} rotationAfterMinutes={rotationAfterMinutes} testID={`landscape-worktime-${assignment.ResourceAssignmentId}`} />
+          <WorkTimeLight assignedOn={assignment.AssignedOn} rotationAfterMinutes={rotationAfterMinutes} amberAfterMinutes={amberAfterMinutes} redAfterMinutes={redAfterMinutes} testID={`landscape-worktime-${assignment.ResourceAssignmentId}`} />
           <Pressable accessibilityLabel={t('command.view_details')} accessibilityRole="button" className="p-1" onPress={handleView} testID={`landscape-resource-view-${assignment.ResourceAssignmentId}`}>
             <Eye className="text-gray-400" size={16} />
           </Pressable>
@@ -398,6 +410,8 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
                             key={assignment.ResourceAssignmentId}
                             assignment={assignment}
                             rotationAfterMinutes={node.MaxTimeInRole}
+                            amberAfterMinutes={node.WorkTimeAmberMinutes}
+                            redAfterMinutes={node.WorkTimeRedMinutes}
                             isSelected={selectedAssignmentId === assignment.ResourceAssignmentId}
                             name={resolveResourceName(assignment.ResourceKind, assignment.ResourceId)}
                             onDragEnd={() => setDraggingAssignmentId(null)}

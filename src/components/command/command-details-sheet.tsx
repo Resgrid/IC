@@ -251,7 +251,7 @@ export const CommandDetailsSheet: React.FC<CommandDetailsSheetProps> = ({ isOpen
       </VStack>
 
       {/* Drop-a-pin picker rendered as a stacked modal so it covers the sheet full-screen */}
-      <Modal visible={pickerTarget !== null} animationType="slide" onRequestClose={() => setPickerTarget(null)}>
+      <Modal visible={pickerTarget !== null} animationType="slide" onRequestClose={() => setPickerTarget(null)} supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}>
         <View style={{ flex: 1 }}>{pickerTarget !== null ? <FullScreenLocationPicker initialLocation={pickerInitial()} onLocationSelected={handleLocationPicked} onClose={() => setPickerTarget(null)} /> : null}</View>
       </Modal>
     </CustomBottomSheet>

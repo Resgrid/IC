@@ -508,6 +508,9 @@
     "limit_riding_help": "Załoga wymagana na jednostce, aby pasowała do tego pasa. Sprawdzane przy przydziale; blokada lub ostrzeżenie zależnie od Wymuś wymagania.",
     "limit_time_help": "Wytyczne rotacji w minutach. Wyjście przed minimum oznacza ruch; po maksimum zasób pokazuje odznakę Zmiana. Nic nie jest usuwane automatycznie.",
     "limit_units_help": "Ile jednostek powinien mieć ten pas. Poniżej minimum pas jest niepełny (nigdy nie blokuje); przy maksimum dodanie jednostek jest blokowane lub ostrzegane.",
+    "limit_worktime_amber": "Bursztyn po (min)",
+    "limit_worktime_help": "Progi kolorów wskaźnika czasu pracy dla tego pasa. Puste = kolor wyłączony.",
+    "limit_worktime_red": "Czerwień po (min)",
     "linked_map_label": "Dołączona mapa",
     "linked_need_label": "Powiązana potrzeba",
     "location_geocode_hint": "Brak pinezki — tekst zostanie geokodowany przy zapisie",
@@ -730,7 +733,8 @@
     "view_details": "Zobacz szczegóły",
     "view_log": "Zobacz dziennik",
     "view_on_map": "Zobacz na mapie",
-    "voice_section": "Kanały głosowe"
+    "voice_section": "Kanały głosowe",
+    "worktime_thresholds_label": "Progi Czasu Pracy"
   },
   "common": {
     "add": "Dodaj",

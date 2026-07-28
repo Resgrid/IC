@@ -12,6 +12,10 @@ export interface CommandStructureNode {
   /** Maps to CommandNodeType. */
   NodeType: number;
   Name: string;
+  /** Minutes before the lane work-time indicator turns amber (0 = disabled; defaults to 20). */
+  WorkTimeAmberMinutes?: number;
+  /** Minutes before the lane work-time indicator turns red (0 = disabled; defaults to 40). */
+  WorkTimeRedMinutes?: number;
   /** Optional primary tactical objective this lane is working. */
   PrimaryObjectiveId?: string | null;
   /** Optional secondary tactical objective this lane is working. */

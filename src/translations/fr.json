@@ -508,6 +508,9 @@
     "limit_riding_help": "Personnel devant être à bord d’une unité pour qu’elle convienne à cette voie. Vérifié à l’affectation ; bloqué ou averti selon Forcer les exigences.",
     "limit_time_help": "Guide de rotation en minutes. Partir avant le minimum signale le mouvement ; au-delà du maximum la ressource affiche le badge Relève. Rien n’est retiré automatiquement.",
     "limit_units_help": "Nombre d’unités souhaité pour cette voie. Sous le minimum la voie apparaît incomplète (ne bloque jamais) ; au maximum, l’ajout d’unités est bloqué ou averti.",
+    "limit_worktime_amber": "Orange après (min)",
+    "limit_worktime_help": "Seuils de couleur de l’indicateur de temps de travail pour cette voie. Vide = couleur désactivée.",
+    "limit_worktime_red": "Rouge après (min)",
     "linked_map_label": "Carte attachée",
     "linked_need_label": "Besoin lié",
     "location_geocode_hint": "Aucun repère — le texte sera géocodé à l'enregistrement",
@@ -730,7 +733,8 @@
     "view_details": "Voir les détails",
     "view_log": "Voir le journal",
     "view_on_map": "Voir sur la carte",
-    "voice_section": "Canaux vocaux"
+    "voice_section": "Canaux vocaux",
+    "worktime_thresholds_label": "Seuils de Temps de Travail"
   },
   "common": {
     "add": "Ajouter",

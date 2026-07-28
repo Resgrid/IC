@@ -160,7 +160,13 @@ export const StructureSection: React.FC<StructureSectionProps> = ({ nodes, assig
                                 </Badge>
                               ) : null}
                             </HStack>
-                            <WorkTimeLight assignedOn={assignment.AssignedOn} rotationAfterMinutes={node.MaxTimeInRole} testID={`lane-worktime-${assignment.ResourceAssignmentId}`} />
+                            <WorkTimeLight
+                              assignedOn={assignment.AssignedOn}
+                              rotationAfterMinutes={node.MaxTimeInRole}
+                              amberAfterMinutes={node.WorkTimeAmberMinutes}
+                              redAfterMinutes={node.WorkTimeRedMinutes}
+                              testID={`lane-worktime-${assignment.ResourceAssignmentId}`}
+                            />
                             <Pressable accessibilityLabel={t('command.view_details')} onPress={() => onViewResource(assignment)} className="p-1" testID={`lane-resource-view-${assignment.ResourceAssignmentId}`}>
                               <Icon as={Eye} size="sm" className="text-gray-400" />
                             </Pressable>

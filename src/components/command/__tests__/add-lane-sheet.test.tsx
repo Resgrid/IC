@@ -37,19 +37,34 @@ describe('AddLaneSheet', () => {
 
     fireEvent.press(getByTestId('lane-save'));
 
-    expect(onSave).toHaveBeenCalledWith('Fire Attack', CommandNodeType.Group, '#e74c3c', { minUnits: 1, maxUnits: 3, minUnitPersonnel: 2, maxTimeInRole: 30 });
+    expect(onSave).toHaveBeenCalledWith('Fire Attack', CommandNodeType.Group, '#e74c3c', { minUnits: 1, maxUnits: 3, minUnitPersonnel: 2, maxTimeInRole: 30, workTimeAmberMinutes: 20, workTimeRedMinutes: 40 });
 
     unmount();
   });
 
-  it('passes undefined limits when none are entered', () => {
+  it('passes the default work-time thresholds when no limits are entered', () => {
     const onSave = jest.fn();
     const { getByTestId, unmount } = render(<AddLaneSheet isOpen={true} onClose={jest.fn()} onSave={onSave} />);
 
     fireEvent.changeText(getByTestId('lane-name-input'), 'Staging');
     fireEvent.press(getByTestId('lane-save'));
 
-    expect(onSave).toHaveBeenCalledWith('Staging', CommandNodeType.Division, undefined, undefined);
+    expect(onSave).toHaveBeenCalledWith('Staging', CommandNodeType.Division, undefined, { workTimeAmberMinutes: 20, workTimeRedMinutes: 40 });
+
+    unmount();
+  });
+
+  it('saves custom work-time thresholds and omits cleared ones', () => {
+    const onSave = jest.fn();
+    const { getByTestId, unmount } = render(<AddLaneSheet isOpen={true} onClose={jest.fn()} onSave={onSave} />);
+
+    fireEvent.changeText(getByTestId('lane-name-input'), 'Rehab');
+    fireEvent.press(getByTestId('lane-limits-toggle'));
+    fireEvent.changeText(getByTestId('limit-worktime-amber'), '15');
+    fireEvent.changeText(getByTestId('limit-worktime-red'), '');
+    fireEvent.press(getByTestId('lane-save'));
+
+    expect(onSave).toHaveBeenCalledWith('Rehab', CommandNodeType.Division, undefined, { workTimeAmberMinutes: 15 });
 
     unmount();
   });

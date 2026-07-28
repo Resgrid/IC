@@ -104,7 +104,7 @@ const CallNotesModal = ({ isOpen, onClose, callId }: CallNotesModalProps) => {
   }
 
   return (
-    <Modal visible={isOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
+    <Modal visible={isOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose} supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}>
       <KeyboardProvider>
         <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
           {/* Header */}
