@@ -12,6 +12,8 @@ import { VStack } from '@/components/ui/vstack';
 import { type CommandStructureNode, type IncidentMap, type IncidentNeed, IncidentNeedStatus, type TacticalObjective, TacticalObjectiveStatus } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { type PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
 
+import { DEFAULT_WORK_TIME_AMBER_MINUTES, DEFAULT_WORK_TIME_RED_MINUTES } from './landscape-structure-board';
+
 /** One lead slot being edited: a Resgrid user OR an external contact. */
 interface LeadDraft {
   userId: string | null;
@@ -70,8 +72,8 @@ export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onCl
       setSecondaryObjectiveId(node.SecondaryObjectiveId ?? null);
       setLinkedNeedId(node.LinkedNeedId ?? null);
       setLinkedMapId(node.LinkedMapId ?? null);
-      setWorkTimeAmber(node.WorkTimeAmberMinutes ? String(node.WorkTimeAmberMinutes) : '');
-      setWorkTimeRed(node.WorkTimeRedMinutes ? String(node.WorkTimeRedMinutes) : '');
+      setWorkTimeAmber(node.WorkTimeAmberMinutes === undefined || node.WorkTimeAmberMinutes === null ? String(DEFAULT_WORK_TIME_AMBER_MINUTES) : String(node.WorkTimeAmberMinutes));
+      setWorkTimeRed(node.WorkTimeRedMinutes === undefined || node.WorkTimeRedMinutes === null ? String(DEFAULT_WORK_TIME_RED_MINUTES) : String(node.WorkTimeRedMinutes));
       setIsConfirmingDelete(false);
     }
   }, [node, isOpen]);
@@ -93,8 +95,9 @@ export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onCl
       SecondaryObjectiveId: secondaryObjectiveId,
       LinkedNeedId: linkedNeedId,
       LinkedMapId: linkedMapId,
-      WorkTimeAmberMinutes: parseInt(workTimeAmber, 10) || 0,
-      WorkTimeRedMinutes: parseInt(workTimeRed, 10) || 0,
+      // Blank = unset (client defaults 20/40); explicit 0 = that color disabled.
+      WorkTimeAmberMinutes: workTimeAmber.trim() === '' ? undefined : parseInt(workTimeAmber, 10) || 0,
+      WorkTimeRedMinutes: workTimeRed.trim() === '' ? undefined : parseInt(workTimeRed, 10) || 0,
     });
     onClose();
   }, [node, primaryLead, secondaryLead, primaryObjectiveId, secondaryObjectiveId, linkedNeedId, linkedMapId, workTimeAmber, workTimeRed, onSave, onClose]);

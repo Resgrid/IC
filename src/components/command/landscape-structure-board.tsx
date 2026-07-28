@@ -27,8 +27,8 @@ const containerButtonRole = isWeb ? undefined : ('button' as const);
 const twoLine = isWeb ? {} : ({ numberOfLines: 2 } as const);
 
 /** Default work-time light thresholds (Tablet Command-style crew fatigue): green under 20m, amber under 40m, red past that. Lanes can override; 0 disables that color. */
-const DEFAULT_WORK_TIME_AMBER_MINUTES = 20;
-const DEFAULT_WORK_TIME_RED_MINUTES = 40;
+export const DEFAULT_WORK_TIME_AMBER_MINUTES = 20;
+export const DEFAULT_WORK_TIME_RED_MINUTES = 40;
 
 export const workTimeColor = (minutes: number, amberAfterMinutes: number = DEFAULT_WORK_TIME_AMBER_MINUTES, redAfterMinutes: number = DEFAULT_WORK_TIME_RED_MINUTES) =>
   redAfterMinutes > 0 && minutes >= redAfterMinutes ? '#ef4444' : amberAfterMinutes > 0 && minutes >= amberAfterMinutes ? '#f59e0b' : '#22c55e';

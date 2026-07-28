@@ -118,6 +118,7 @@ jest.mock('expo-audio', () => ({
 jest.mock('../../../lib/logging', () => ({
   logger: {
     info: jest.fn(),
+    warn: jest.fn(),
     error: jest.fn(),
     debug: jest.fn(),
   },
@@ -275,13 +276,35 @@ describe('LiveKit Store - Permission Management', () => {
       expect(mockRequestRecordingPermissionsAsync).not.toHaveBeenCalled();
     });
 
-    it('should never call session-activating request on iOS, even when not granted', async () => {
+    it('should return false on iOS when permission is permanently denied', async () => {
+      // canAskAgain=false means WebRTC cannot prompt either — fail so the caller
+      // can direct the user to Settings instead of joining without a mic.
+      mockGetRecordingPermissionsAsync.mockResolvedValueOnce({
+        granted: false,
+        canAskAgain: false,
+        expires: 'never',
+        status: 'denied',
+      } as any);
+
+      const { requestPermissions } = useLiveKitStore.getState();
+      const result = await requestPermissions();
+
+      expect(result).toBe(false);
+      expect(mockGetRecordingPermissionsAsync).toHaveBeenCalledTimes(1);
+      expect(mockRequestRecordingPermissionsAsync).not.toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalledWith({
+        message: 'Microphone permission permanently denied - user must enable it in Settings',
+        context: { platform: 'ios' },
+      });
+    });
+
+    it('should never call session-activating request on iOS when permission can still be requested', async () => {
       // expo-audio's requestRecordingPermissionsAsync activates AVAudioSession
       // and deadlocks against expo-av — the store must only perform the
       // non-activating check and let WebRTC prompt natively on publish.
       mockGetRecordingPermissionsAsync.mockResolvedValueOnce({
         granted: false,
-        canAskAgain: false,
+        canAskAgain: true,
         expires: 'never',
         status: 'denied',
       } as any);
