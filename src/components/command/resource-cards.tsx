@@ -1,4 +1,4 @@
-import { CloudOff, MapPin, Trash2, Truck } from 'lucide-react-native';
+import { CloudOff, Eye, MapPin, Truck } from 'lucide-react-native';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet } from 'react-native';
@@ -39,14 +39,15 @@ const LaneBadge: React.FC<{ label: string }> = ({ label }) => (
 
 interface CardShellProps {
   isLocal: boolean;
-  onRelease: () => void;
+  /** Opens the resource details sheet (hosts the release action). */
+  onView: () => void;
   testID: string;
-  removeTestID: string;
+  viewTestID: string;
   children: React.ReactNode;
 }
 
-/** Shared card chrome: rounded container + offline marker + release button. */
-const CardShell: React.FC<CardShellProps> = ({ isLocal, onRelease, testID, removeTestID, children }) => {
+/** Shared card chrome: rounded container + offline marker + details button. */
+const CardShell: React.FC<CardShellProps> = ({ isLocal, onView, testID, viewTestID, children }) => {
   const { t } = useTranslation();
   return (
     <HStack className="items-start justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900" space="sm" testID={testID}>
@@ -55,8 +56,8 @@ const CardShell: React.FC<CardShellProps> = ({ isLocal, onRelease, testID, remov
       </VStack>
       <HStack className="items-center" space="xs">
         {isLocal ? <CloudOff className="text-amber-500" size={16} /> : null}
-        <Pressable accessibilityLabel={t('common.remove')} accessibilityRole="button" className="p-1" onPress={onRelease} testID={removeTestID}>
-          <Trash2 className="text-gray-400" size={16} />
+        <Pressable accessibilityLabel={t('command.view_details')} accessibilityRole="button" className="p-1" onPress={onView} testID={viewTestID}>
+          <Eye className="text-gray-400" size={16} />
         </Pressable>
       </HStack>
     </HStack>
@@ -73,18 +74,19 @@ interface UnitResourceCardProps {
   roles: ActiveUnitRoleResultData[];
   laneLabel: string;
   isLocal: boolean;
-  onRelease: () => void;
+  /** Opens the resource details sheet (hosts the release action). */
+  onView: () => void;
   testID: string;
-  removeTestID: string;
+  viewTestID: string;
 }
 
-export const UnitResourceCard: React.FC<UnitResourceCardProps> = ({ name, unit, status, roles, laneLabel, isLocal, onRelease, testID, removeTestID }) => {
+export const UnitResourceCard: React.FC<UnitResourceCardProps> = ({ name, unit, status, roles, laneLabel, isLocal, onView, testID, viewTestID }) => {
   const { t } = useTranslation();
   const subtitle = [unit?.Type, unit?.GroupName].filter(Boolean).join(' • ');
   const filledRoles = roles.filter((role) => !!role.FullName || !!role.UserId);
 
   return (
-    <CardShell isLocal={isLocal} onRelease={onRelease} testID={testID} removeTestID={removeTestID}>
+    <CardShell isLocal={isLocal} onView={onView} testID={testID} viewTestID={viewTestID}>
       <HStack className="items-center" space="sm">
         <Box className="size-8 items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-950">
           <Truck className="text-primary-600 dark:text-primary-400" size={16} />
@@ -139,18 +141,19 @@ interface PersonnelResourceCardProps {
   person?: PersonnelInfoResultData;
   laneLabel: string;
   isLocal: boolean;
-  onRelease: () => void;
+  /** Opens the resource details sheet (hosts the release action). */
+  onView: () => void;
   testID: string;
-  removeTestID: string;
+  viewTestID: string;
 }
 
-export const PersonnelResourceCard: React.FC<PersonnelResourceCardProps> = ({ name, person, laneLabel, isLocal, onRelease, testID, removeTestID }) => {
+export const PersonnelResourceCard: React.FC<PersonnelResourceCardProps> = ({ name, person, laneLabel, isLocal, onView, testID, viewTestID }) => {
   const initials = person ? `${person.FirstName?.[0] ?? ''}${person.LastName?.[0] ?? ''}`.toUpperCase() : name.slice(0, 2).toUpperCase();
   const subtitle = [person?.GroupName, person?.IdentificationNumber].filter(Boolean).join(' • ');
   const statusDot = asHexColor(person?.StatusColor);
 
   return (
-    <CardShell isLocal={isLocal} onRelease={onRelease} testID={testID} removeTestID={removeTestID}>
+    <CardShell isLocal={isLocal} onView={onView} testID={testID} viewTestID={viewTestID}>
       <HStack className="items-center" space="sm">
         <Box className="size-8 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-950">
           <Text className="text-xs font-bold text-primary-600 dark:text-primary-400">{initials}</Text>

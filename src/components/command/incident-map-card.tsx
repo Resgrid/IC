@@ -26,6 +26,8 @@ interface IncidentMapCardProps {
   callId: string;
   command: IncidentCommand;
   annotations: IncidentMapAnnotation[];
+  /** Render without the outer card + title header (hosted inside a tabbed pane). */
+  embedded?: boolean;
 }
 
 /**
@@ -33,7 +35,7 @@ interface IncidentMapCardProps {
  * ICP/Staging/Rehab markers, and live positions of ONLY the units/personnel on this incident.
  * Tapping anywhere opens the fullscreen editable tactical map.
  */
-export const IncidentMapCard: React.FC<IncidentMapCardProps> = ({ callId, command, annotations }) => {
+export const IncidentMapCard: React.FC<IncidentMapCardProps> = ({ callId, command, annotations, embedded = false }) => {
   const { t } = useTranslation();
   const [pins, setPins] = useState<MapMakerInfoData[]>([]);
   const commandOverlay = useCommandMapOverlay();
@@ -72,6 +74,17 @@ export const IncidentMapCard: React.FC<IncidentMapCardProps> = ({ callId, comman
   const openFullscreen = () => router.push(`/command-map/${callId}` as never);
 
   if (!hasSavedView) {
+    if (embedded) {
+      return (
+        <HStack className="items-center justify-between" space="sm" testID="incident-map-card-empty">
+          <Text className="flex-1 text-sm text-gray-500 dark:text-gray-400">{t('command.incident_map_empty_description')}</Text>
+          <Button size="xs" variant="outline" onPress={openFullscreen} testID="incident-map-create">
+            <ButtonText>{t('command.incident_map_create')}</ButtonText>
+          </Button>
+        </HStack>
+      );
+    }
+
     return (
       <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID="incident-map-card-empty">
         <HStack className="items-center justify-between">
@@ -88,6 +101,30 @@ export const IncidentMapCard: React.FC<IncidentMapCardProps> = ({ callId, comman
     );
   }
 
+  const mapPreview = (
+    <Pressable onPress={openFullscreen} accessibilityLabel={t('command.incident_map_open')} testID="incident-map-open">
+      <View style={[styles.mapContainer, embedded ? styles.mapContainerEmbedded : undefined]} pointerEvents="none">
+        <Mapbox.MapView style={styles.map} scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false} logoEnabled={false} attributionEnabled={false} compassEnabled={false}>
+          <Mapbox.Camera centerCoordinate={[parseFloat(command.MapCenterLongitude ?? '0'), parseFloat(command.MapCenterLatitude ?? '0')]} zoomLevel={parseFloat(command.MapZoomLevel ?? '12')} animationDuration={0} />
+          <AnnotationLayers annotations={annotations} />
+          <IncidentLocationMarkers command={command} />
+          <MapPins pins={incidentPins} commandOverlay={commandOverlay} />
+        </Mapbox.MapView>
+      </View>
+    </Pressable>
+  );
+
+  if (embedded) {
+    return (
+      <Box testID="incident-map-card">
+        <HStack className="items-center justify-end px-1 pb-2">
+          <Icon as={Expand} size="sm" className="text-gray-400" />
+        </HStack>
+        {mapPreview}
+      </Box>
+    );
+  }
+
   return (
     <Box className="overflow-hidden rounded-xl bg-white shadow-sm dark:bg-gray-800" testID="incident-map-card">
       <HStack className="items-center justify-between px-4 py-2">
@@ -98,16 +135,7 @@ export const IncidentMapCard: React.FC<IncidentMapCardProps> = ({ callId, comman
         <Icon as={Expand} size="sm" className="text-gray-400" />
       </HStack>
 
-      <Pressable onPress={openFullscreen} accessibilityLabel={t('command.incident_map_open')} testID="incident-map-open">
-        <View style={styles.mapContainer} pointerEvents="none">
-          <Mapbox.MapView style={styles.map} scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false} logoEnabled={false} attributionEnabled={false} compassEnabled={false}>
-            <Mapbox.Camera centerCoordinate={[parseFloat(command.MapCenterLongitude ?? '0'), parseFloat(command.MapCenterLatitude ?? '0')]} zoomLevel={parseFloat(command.MapZoomLevel ?? '12')} animationDuration={0} />
-            <AnnotationLayers annotations={annotations} />
-            <IncidentLocationMarkers command={command} />
-            <MapPins pins={incidentPins} commandOverlay={commandOverlay} />
-          </Mapbox.MapView>
-        </View>
-      </Pressable>
+      {mapPreview}
     </Box>
   );
 };
@@ -119,6 +147,10 @@ const styles = StyleSheet.create({
   mapContainer: {
     height: 220,
     width: '100%',
+  },
+  mapContainerEmbedded: {
+    borderRadius: 12,
+    overflow: 'hidden',
   },
 });
 

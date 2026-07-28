@@ -2,20 +2,10 @@ import { useNotifications } from '@novu/react-native';
 import { ArrowLeft, Calendar, ExternalLink, Trash2 } from 'lucide-react-native';
 import { colorScheme } from 'nativewind';
 import React, { useEffect } from 'react';
-import { Animated, Dimensions, Platform, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import { Animated, Dimensions, Platform, Pressable, SafeAreaView, StatusBar, type StyleProp, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
-// Define the interface directly in this file
-interface NotificationPayload {
-  id: string;
-  title?: string;
-  body: string;
-  createdAt: string;
-  read?: boolean;
-  type?: string;
-  referenceId?: string;
-  referenceType?: string;
-  metadata?: Record<string, any>;
-}
+import { type NotificationPayload } from '@/types/notification';
 
 interface NotificationDetailProps {
   notification: NotificationPayload;
@@ -29,6 +19,7 @@ const SIDEBAR_WIDTH = Math.min(width * 0.85, 400);
 const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0;
 
 export const NotificationDetail = ({ notification, onClose, onDelete, onNavigateToReference }: NotificationDetailProps) => {
+  const { t } = useTranslation();
   const { refetch } = useNotifications();
   const slideAnim = React.useRef(new Animated.Value(SIDEBAR_WIDTH)).current;
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -114,7 +105,7 @@ export const NotificationDetail = ({ notification, onClose, onDelete, onNavigate
             <Pressable onPress={handleClose} style={styles.backButton}>
               <ArrowLeft size={24} className="text-primary-500 dark:text-primary-400" strokeWidth={2} />
             </Pressable>
-            <Text style={styles.headerTitle}>Notification</Text>
+            <Text style={styles.headerTitle}>{t('notifications.notification')}</Text>
             <Pressable onPress={handleDelete} style={styles.deleteButton}>
               <Trash2 size={24} className="text-red-500 dark:text-red-400" strokeWidth={2} />
             </Pressable>
@@ -143,7 +134,7 @@ export const NotificationDetail = ({ notification, onClose, onDelete, onNavigate
 
             {notification.metadata && Object.keys(notification.metadata).length > 0 ? (
               <View style={styles.metadataDetailsContainer}>
-                <Text style={styles.metadataTitle}>Additional Information</Text>
+                <Text style={styles.metadataTitle}>{t('notifications.additional_info')}</Text>
                 {Object.entries(notification.metadata).map(([key, value]) => (
                   <View key={key} style={styles.metadataItem}>
                     <Text style={styles.metadataKey}>{formatKey(key)}:</Text>
@@ -156,7 +147,7 @@ export const NotificationDetail = ({ notification, onClose, onDelete, onNavigate
             {notification.referenceType && notification.referenceId ? (
               <Pressable onPress={handleNavigateToReference} style={styles.referenceButton}>
                 <ExternalLink size={18} style={styles.referenceButtonIcon} />
-                <Text style={styles.buttonText}>View {notification.referenceType}</Text>
+                <Text style={styles.buttonText}>{t('notifications.view_reference', { type: notification.referenceType })}</Text>
               </Pressable>
             ) : null}
           </View>
@@ -175,14 +166,14 @@ const formatKey = (key: string): string => {
 };
 
 // Helper function to format metadata values for display
-const formatValue = (value: any): string => {
+const formatValue = (value: unknown): string => {
   if (value === null || value === undefined) return 'N/A';
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
 };
 
 // Helper function to get tag style based on notification type
-const getTypeTagStyle = (type: string): any => {
+const getTypeTagStyle = (type: string): StyleProp<ViewStyle> => {
   const lowerType = type.toLowerCase();
 
   if (lowerType.includes('alert') || lowerType.includes('emergency')) {

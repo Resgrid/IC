@@ -1,4 +1,4 @@
-import { CloudOff, Pencil, Plus, Trash2, UserPlus } from 'lucide-react-native';
+import { CloudOff, Eye, Pencil, Plus, UserPlus } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -23,27 +23,16 @@ interface StructureSectionProps {
   /** Display name for a lane lead slot (resolves user ids to names); external leads pass through. */
   resolveLeadName?: (userId?: string | null, externalName?: string | null) => string | null;
   onAddLane: () => void;
-  onDeleteLane: (nodeId: string) => void;
-  /** Open the lane details editor (leads, linked objectives/need). */
+  /** Open the lane details editor (leads, linked objectives/need, delete). */
   onEditLane?: (nodeId: string) => void;
   onAssignResource: (nodeId: string) => void;
   onMoveResource: (assignmentId: string, targetNodeId: string) => void | Promise<void>;
-  onReleaseResource: (assignmentId: string) => void;
+  /** Opens the resource details sheet for a lane assignment (hosts remove-from-lane). */
+  onViewResource: (assignment: ResourceAssignment) => void;
 }
 
 /** ICS command structure — lanes (Division/Group/Branch/...) with their assigned resources. */
-export const StructureSection: React.FC<StructureSectionProps> = ({
-  nodes,
-  assignments,
-  resolveResourceName,
-  resolveLeadName,
-  onAddLane,
-  onDeleteLane,
-  onEditLane,
-  onAssignResource,
-  onMoveResource,
-  onReleaseResource,
-}) => {
+export const StructureSection: React.FC<StructureSectionProps> = ({ nodes, assignments, resolveResourceName, resolveLeadName, onAddLane, onEditLane, onAssignResource, onMoveResource, onViewResource }) => {
   const { t } = useTranslation();
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
 
@@ -138,9 +127,6 @@ export const StructureSection: React.FC<StructureSectionProps> = ({
                     <Pressable onPress={() => onAssignResource(node.CommandStructureNodeId)} className="p-2" testID={`lane-assign-${node.CommandStructureNodeId}`}>
                       <Icon as={UserPlus} size="sm" className="text-primary-500" />
                     </Pressable>
-                    <Pressable onPress={() => onDeleteLane(node.CommandStructureNodeId)} className="p-2" testID={`lane-delete-${node.CommandStructureNodeId}`}>
-                      <Icon as={Trash2} size="sm" className="text-gray-400" />
-                    </Pressable>
                   </HStack>
                 </HStack>
 
@@ -175,8 +161,8 @@ export const StructureSection: React.FC<StructureSectionProps> = ({
                               ) : null}
                             </HStack>
                             <WorkTimeLight assignedOn={assignment.AssignedOn} rotationAfterMinutes={node.MaxTimeInRole} testID={`lane-worktime-${assignment.ResourceAssignmentId}`} />
-                            <Pressable onPress={() => onReleaseResource(assignment.ResourceAssignmentId)} className="p-1" testID={`lane-resource-release-${assignment.ResourceAssignmentId}`}>
-                              <Icon as={Trash2} size="sm" className="text-gray-400" />
+                            <Pressable accessibilityLabel={t('command.view_details')} onPress={() => onViewResource(assignment)} className="p-1" testID={`lane-resource-view-${assignment.ResourceAssignmentId}`}>
+                              <Icon as={Eye} size="sm" className="text-gray-400" />
                             </Pressable>
                           </HStack>
                         </Pressable>

@@ -533,6 +533,8 @@ export type IncidentAttachmentsResult = V4Result<IncidentAttachment[]>;
 export type IncidentCommandSummariesResult = V4Result<IncidentCommandSummary[]>;
 export type IncidentMapResult = V4Result<IncidentMap>;
 export type IncidentMapsResult = V4Result<IncidentMap[]>;
+/** Data = number of users the message was delivered to. */
+export type SendMessageToCommandResult = V4Result<number>;
 
 // ---- Request inputs ----
 
@@ -568,6 +570,15 @@ export interface UpdateCommandDetailsInput {
 export interface ReopenCommandInput {
   IncidentCommandId: string;
   Reason?: string | null;
+}
+
+/** Input to send a free-form message directly to the incident commander (and optionally deputies). */
+export interface SendMessageToCommandInput {
+  CallId: number;
+  Title?: string | null;
+  Body: string;
+  /** Also deliver to assigned Deputy Incident Commanders, not just the current commander. */
+  IncludeDeputies?: boolean;
 }
 
 /**

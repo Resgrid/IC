@@ -11,6 +11,11 @@ jest.mock('@/components/command/reopen-command-sheet', () => ({
   ReopenCommandSheet: () => null,
 }));
 
+// Same for the message-commander sheet — it pulls in the real bottom-sheet.
+jest.mock('@/components/command/message-commander-sheet', () => ({
+  MessageCommanderSheet: () => null,
+}));
+
 // handleStartCommand probes for a prior ended command before opening the template picker.
 jest.mock('@/api/incidentCommand/incidentCommand', () => ({
   getCommandForCall: jest.fn().mockResolvedValue({ Data: null }),

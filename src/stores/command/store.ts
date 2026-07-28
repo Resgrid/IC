@@ -28,6 +28,7 @@ import {
   saveMapAnnotation,
   saveNeed,
   saveObjective,
+  sendMessageToCommand,
   setNeedStatus,
   startIncidentTimer,
   transferCommand,
@@ -204,6 +205,8 @@ interface CommandState {
   acknowledgeTimer: (callId: string, incidentTimerId: string) => Promise<void>;
   /** Transfer command of this incident to another user. Online-only. */
   transferIncidentCommand: (callId: string, toUserId: string) => Promise<boolean>;
+  /** Send a free-form message directly to the incident's commander (and optionally deputies). Online-only. */
+  sendMessageToCommander: (callId: string, title: string | null, body: string, includeDeputies: boolean) => Promise<boolean>;
   /** Pull the server-side incident log for this board. */
   fetchTimeline: (callId: string) => Promise<void>;
 
@@ -1640,6 +1643,23 @@ export const useCommandStore = create<CommandState>()(
           logger.warn({
             message: 'TransferCommand failed',
             context: { error, callId, toUserId },
+          });
+          return false;
+        }
+      },
+
+      sendMessageToCommander: async (callId: string, title: string | null, body: string, includeDeputies: boolean) => {
+        const numericCallId = /^\d+$/.test(callId.trim()) ? Number(callId.trim()) : NaN;
+        if (!Number.isSafeInteger(numericCallId) || numericCallId <= 0 || numericCallId > Number.MAX_SAFE_INTEGER || !body.trim()) {
+          return false;
+        }
+        try {
+          const result = await sendMessageToCommand({ CallId: numericCallId, Title: title, Body: body.trim(), IncludeDeputies: includeDeputies });
+          return (result.Data ?? 0) > 0;
+        } catch (error) {
+          logger.warn({
+            message: 'SendMessageToCommand failed',
+            context: { error, callId },
           });
           return false;
         }

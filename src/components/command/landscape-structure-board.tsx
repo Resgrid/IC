@@ -1,4 +1,4 @@
-import { CloudOff, GripVertical, Plus, Trash2, UserPlus } from 'lucide-react-native';
+import { CloudOff, Eye, GripVertical, Pencil, Plus, UserPlus } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Animated, PanResponder, ScrollView, View as NativeView } from 'react-native';
@@ -78,10 +78,12 @@ interface LandscapeStructureBoardProps {
   viewportWidth: number;
   resolveResourceName: (kind: number, resourceId: string) => string;
   onAddLane: () => void;
-  onDeleteLane: (nodeId: string) => void;
+  /** Open the lane details editor (leads, linked objectives/need, delete). */
+  onEditLane?: (nodeId: string) => void;
   onAssignResource: (nodeId: string) => void;
   onMoveResource: (assignmentId: string, targetNodeId: string) => void | Promise<void>;
-  onReleaseResource: (assignmentId: string) => void;
+  /** Opens the resource details sheet for a lane assignment (hosts remove-from-lane). */
+  onViewResource: (assignment: ResourceAssignment) => void;
 }
 
 interface DraggableResourceCardProps {
@@ -94,7 +96,7 @@ interface DraggableResourceCardProps {
   onDragStart: (assignmentId: string) => void;
   onDragEnd: () => void;
   onDrop: (assignmentId: string, pageX: number, pageY: number) => void;
-  onRelease: (assignmentId: string) => void;
+  onView: (assignment: ResourceAssignment) => void;
 }
 
 interface LaneRect {
@@ -105,7 +107,7 @@ interface LaneRect {
   height: number;
 }
 
-const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo(({ assignment, name, rotationAfterMinutes, isSelected, onSelect, onDragStart, onDragEnd, onDrop, onRelease }) => {
+const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo(({ assignment, name, rotationAfterMinutes, isSelected, onSelect, onDragStart, onDragEnd, onDrop, onView }) => {
   const { t } = useTranslation();
   const translation = useRef(new Animated.ValueXY()).current;
   const dragReadyRef = useRef(false);
@@ -172,7 +174,7 @@ const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo((
     }
   }, [resetDrag]);
 
-  const handleRelease = useCallback(() => onRelease(assignment.ResourceAssignmentId), [assignment.ResourceAssignmentId, onRelease]);
+  const handleView = useCallback(() => onView(assignment), [assignment, onView]);
 
   return (
     <Animated.View
@@ -202,8 +204,8 @@ const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo((
             </Text>
           </HStack>
           <WorkTimeLight assignedOn={assignment.AssignedOn} rotationAfterMinutes={rotationAfterMinutes} testID={`landscape-worktime-${assignment.ResourceAssignmentId}`} />
-          <Pressable accessibilityLabel={t('common.remove')} accessibilityRole="button" className="p-1" onPress={handleRelease} testID={`landscape-resource-release-${assignment.ResourceAssignmentId}`}>
-            <Trash2 className="text-gray-400" size={16} />
+          <Pressable accessibilityLabel={t('command.view_details')} accessibilityRole="button" className="p-1" onPress={handleView} testID={`landscape-resource-view-${assignment.ResourceAssignmentId}`}>
+            <Eye className="text-gray-400" size={16} />
           </Pressable>
         </HStack>
         {assignment.ResourceAssignmentId.startsWith('local-') || assignment.RequirementsWarning || isSelected ? (
@@ -236,10 +238,10 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
   viewportWidth,
   resolveResourceName,
   onAddLane,
-  onDeleteLane,
+  onEditLane,
   onAssignResource,
   onMoveResource,
-  onReleaseResource,
+  onViewResource,
 }) => {
   const { t } = useTranslation();
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
@@ -364,6 +366,17 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
                           </Badge>
                         ) : null}
                         {node.CommandStructureNodeId.startsWith('local-') ? <CloudOff className="text-amber-500" size={16} /> : null}
+                        {onEditLane ? (
+                          <Pressable
+                            accessibilityLabel={t('command.edit_lane')}
+                            accessibilityRole="button"
+                            className="p-2"
+                            onPress={() => onEditLane(node.CommandStructureNodeId)}
+                            testID={`landscape-lane-edit-${node.CommandStructureNodeId}`}
+                          >
+                            <Pencil className="text-gray-400" size={18} />
+                          </Pressable>
+                        ) : null}
                         <Pressable
                           accessibilityLabel={t('command.assign_resource')}
                           accessibilityRole="button"
@@ -372,15 +385,6 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
                           testID={`landscape-lane-assign-${node.CommandStructureNodeId}`}
                         >
                           <UserPlus className="text-primary-500" size={18} />
-                        </Pressable>
-                        <Pressable
-                          accessibilityLabel={t('common.delete')}
-                          accessibilityRole="button"
-                          className="p-2"
-                          onPress={() => onDeleteLane(node.CommandStructureNodeId)}
-                          testID={`landscape-lane-delete-${node.CommandStructureNodeId}`}
-                        >
-                          <Trash2 className="text-gray-400" size={18} />
                         </Pressable>
                       </HStack>
                     </HStack>
@@ -399,7 +403,7 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
                             onDragEnd={() => setDraggingAssignmentId(null)}
                             onDragStart={setDraggingAssignmentId}
                             onDrop={(assignmentId, pageX, pageY) => void handleDrop(assignmentId, pageX, pageY)}
-                            onRelease={onReleaseResource}
+                            onView={onViewResource}
                             onSelect={handleSelect}
                           />
                         ))}

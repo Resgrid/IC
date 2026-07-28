@@ -6,6 +6,7 @@ import { logger } from '@/lib/logging';
 import { signalRService } from '@/services/signalr.service';
 
 import { useCoreStore } from '../app/core-store';
+import { useCommandStore } from '../command/store';
 import { securityStore, useSecurityStore } from '../security/store';
 import { useWeatherAlertsStore } from '../weather-alerts/store';
 
@@ -23,6 +24,94 @@ function extractAlertId(message: unknown): string | undefined {
     return m.WeatherAlertId ?? m.alertId;
   }
   return undefined;
+}
+
+/** Minimal shape of the incidentCommandUpdated payload — server identifies the
+ *  affected incident by call (PascalCase or lower-camel). */
+interface IncidentCommandSignalRMessage {
+  CallId?: string;
+  callId?: string;
+}
+
+function extractCommandCallId(message: unknown): string | undefined {
+  if (message !== null && typeof message === 'object') {
+    const m = message as IncidentCommandSignalRMessage;
+    const id = m.CallId ?? m.callId;
+    return id !== undefined && id !== null ? String(id) : undefined;
+  }
+  return undefined;
+}
+
+/** Per-callId board refresh coalescing: one refresh in flight at a time; an event arriving
+ *  mid-refresh marks the entry dirty and triggers exactly one follow-up refresh. */
+const boardRefreshState = new Map<string, { inFlight: boolean; dirty: boolean }>();
+
+function coalescedRefreshBoard(callId: string): void {
+  const state = boardRefreshState.get(callId) ?? { inFlight: false, dirty: false };
+  if (state.inFlight) {
+    state.dirty = true;
+    boardRefreshState.set(callId, state);
+    return;
+  }
+  state.inFlight = true;
+  boardRefreshState.set(callId, state);
+  useCommandStore
+    .getState()
+    .refreshBoard(callId)
+    .catch((error) => {
+      logger.warn({ message: 'incidentCommandUpdated: failed to refresh board', context: { callId, error } });
+    })
+    .finally(() => {
+      const current = boardRefreshState.get(callId);
+      if (current?.dirty) {
+        boardRefreshState.set(callId, { inFlight: false, dirty: false });
+        coalescedRefreshBoard(callId);
+      } else {
+        boardRefreshState.delete(callId);
+      }
+    });
+}
+
+/** Trailing debounce so a burst of department-wide incidentCommandUpdated events
+ *  (unknown/untracked incidents) collapses into a single full sync. Syncs are
+ *  serialized: an event arriving mid-sync marks dirty and runs one follow-up. */
+let incidentCommandResyncTimer: ReturnType<typeof setTimeout> | null = null;
+let fullSyncInFlight = false;
+let fullSyncDirty = false;
+
+function runFullSync(): void {
+  fullSyncInFlight = true;
+  useCommandStore
+    .getState()
+    .syncFromServer()
+    .catch((error) => {
+      logger.warn({ message: 'incidentCommandUpdated: failed to sync from server', context: { error } });
+    })
+    .finally(() => {
+      fullSyncInFlight = false;
+      if (fullSyncDirty) {
+        fullSyncDirty = false;
+        runFullSync();
+      }
+    });
+}
+
+function debouncedFullSync(): void {
+  if (fullSyncInFlight) {
+    fullSyncDirty = true;
+    return;
+  }
+  if (incidentCommandResyncTimer) {
+    clearTimeout(incidentCommandResyncTimer);
+  }
+  incidentCommandResyncTimer = setTimeout(() => {
+    incidentCommandResyncTimer = null;
+    if (fullSyncInFlight) {
+      fullSyncDirty = true;
+      return;
+    }
+    runFullSync();
+  }, 2000);
 }
 
 interface SignalRState {
@@ -80,6 +169,7 @@ export const useSignalRStore = create<SignalRState>((set, get) => ({
         'weatherAlertReceived',
         'weatherAlertUpdated',
         'weatherAlertExpired',
+        'incidentCommandUpdated',
         'onConnected',
       ];
       updateEvents.forEach((event) => signalRService.removeAllListeners(event));
@@ -99,6 +189,7 @@ export const useSignalRStore = create<SignalRState>((set, get) => ({
           'weatherAlertReceived',
           'weatherAlertUpdated',
           'weatherAlertExpired',
+          'incidentCommandUpdated',
           'onConnected',
         ],
       });
@@ -157,6 +248,18 @@ export const useSignalRStore = create<SignalRState>((set, get) => ({
           useWeatherAlertsStore.getState().handleAlertExpired(alertId);
         } else {
           logger.warn({ message: 'weatherAlertExpired: could not extract alertId from message', context: { message } });
+        }
+      });
+
+      signalRService.on('incidentCommandUpdated', (message) => {
+        set({ lastUpdateMessage: JSON.stringify(message), lastUpdateTimestamp: Date.now() });
+        const callId = extractCommandCallId(message);
+        const commandState = useCommandStore.getState();
+        if (callId && commandState.boards[callId]) {
+          coalescedRefreshBoard(callId);
+        } else {
+          // Unknown or untracked incident — resync the full bundle (debounced).
+          debouncedFullSync();
         }
       });
 

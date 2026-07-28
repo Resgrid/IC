@@ -164,7 +164,7 @@ export const CallCard: React.FC<CallCardProps> = ({ call, priority, showTimerIco
               }
 
               return (
-                <HStack key={`${d.Id || index}-${d.Name}`} style={{ backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 6, overflow: 'hidden' }} className="items-center">
+                <HStack key={`${d.Id || 'noid'}-${d.Name}-${index}`} style={{ backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 6, overflow: 'hidden' }} className="items-center">
                   <Box style={{ backgroundColor: typeBgColor, minWidth: 24, height: 24 }} className="items-center justify-center">
                     <Text style={{ color: '#fff' }} className="text-xs font-bold">
                       {typeLetter}

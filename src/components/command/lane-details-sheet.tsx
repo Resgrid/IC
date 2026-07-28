@@ -40,10 +40,14 @@ interface LaneDetailsSheetProps {
   users: PersonnelInfoResultData[];
   /** Persist the edited lane fields (merged into the stored lane by the caller). */
   onSave: (commandStructureNodeId: string, patch: Partial<CommandStructureNode>) => void;
+  /** Active resources sitting in this lane — drives the delete confirmation options. */
+  resourceCount?: number;
+  /** Delete the lane; disposition decides what happens to its resources first. */
+  onDelete?: (commandStructureNodeId: string, disposition: 'pool' | 'release') => void;
 }
 
 /** Edit an existing lane: leads (primary/secondary — Resgrid user or external contact) and linked objectives/need. */
-export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onClose, node, objectives, needs, maps, users, onSave }) => {
+export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onClose, node, objectives, needs, maps, users, onSave, resourceCount = 0, onDelete }) => {
   const { t } = useTranslation();
   const [primaryLead, setPrimaryLead] = useState<LeadDraft>(emptyLead);
   const [secondaryLead, setSecondaryLead] = useState<LeadDraft>(emptyLead);
@@ -51,6 +55,8 @@ export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onCl
   const [secondaryObjectiveId, setSecondaryObjectiveId] = useState<string | null>(null);
   const [linkedNeedId, setLinkedNeedId] = useState<string | null>(null);
   const [linkedMapId, setLinkedMapId] = useState<string | null>(null);
+  /** Two-step delete: swaps the sheet body for the confirmation view. */
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   // Re-seed the draft each time a lane is opened
   useEffect(() => {
@@ -61,6 +67,7 @@ export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onCl
       setSecondaryObjectiveId(node.SecondaryObjectiveId ?? null);
       setLinkedNeedId(node.LinkedNeedId ?? null);
       setLinkedMapId(node.LinkedMapId ?? null);
+      setIsConfirmingDelete(false);
     }
   }, [node, isOpen]);
 
@@ -140,98 +147,161 @@ export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onCl
         <VStack space="md" className="w-full pb-6">
           <Heading size="md">{node ? t('command.edit_lane_title', { lane: node.Name }) : t('command.edit_lane')}</Heading>
 
-          {renderLeadEditor('primary', primaryLead, setPrimaryLead)}
-          {renderLeadEditor('secondary', secondaryLead, setSecondaryLead)}
+          {isConfirmingDelete ? (
+            <VStack space="md" testID="lane-delete-confirm">
+              <Text className="text-sm text-gray-700 dark:text-gray-300">{resourceCount > 0 ? t('command.delete_lane_resources_message', { count: resourceCount }) : t('command.delete_lane_message')}</Text>
 
-          <VStack space="xs">
-            <Text className="text-sm font-medium text-gray-600 dark:text-gray-300">{t('command.primary_objective_label')}</Text>
-            <HStack className="flex-wrap" space="sm">
-              <Button size="xs" variant={!primaryObjectiveId ? 'solid' : 'outline'} className="mb-1" onPress={() => setPrimaryObjectiveId(null)} testID="lane-primary-objective-none">
-                <ButtonText>{t('command.none_option')}</ButtonText>
-              </Button>
-              {openObjectives.map((objective) => (
-                <Button
-                  key={objective.TacticalObjectiveId}
-                  size="xs"
-                  variant={primaryObjectiveId === objective.TacticalObjectiveId ? 'solid' : 'outline'}
-                  className="mb-1"
-                  onPress={() => setPrimaryObjectiveId(objective.TacticalObjectiveId)}
-                  testID={`lane-primary-objective-${objective.TacticalObjectiveId}`}
-                >
-                  <ButtonText>{objective.Name}</ButtonText>
-                </Button>
-              ))}
-            </HStack>
-          </VStack>
-
-          <VStack space="xs">
-            <Text className="text-sm font-medium text-gray-600 dark:text-gray-300">{t('command.secondary_objective_label')}</Text>
-            <HStack className="flex-wrap" space="sm">
-              <Button size="xs" variant={!secondaryObjectiveId ? 'solid' : 'outline'} className="mb-1" onPress={() => setSecondaryObjectiveId(null)} testID="lane-secondary-objective-none">
-                <ButtonText>{t('command.none_option')}</ButtonText>
-              </Button>
-              {openObjectives
-                .filter((objective) => objective.TacticalObjectiveId !== primaryObjectiveId)
-                .map((objective) => (
+              {resourceCount > 0 ? (
+                <>
                   <Button
-                    key={objective.TacticalObjectiveId}
-                    size="xs"
-                    variant={secondaryObjectiveId === objective.TacticalObjectiveId ? 'solid' : 'outline'}
-                    className="mb-1"
-                    onPress={() => setSecondaryObjectiveId(objective.TacticalObjectiveId)}
-                    testID={`lane-secondary-objective-${objective.TacticalObjectiveId}`}
+                    size="lg"
+                    variant="outline"
+                    onPress={() => {
+                      if (node) {
+                        onDelete?.(node.CommandStructureNodeId, 'pool');
+                      }
+                      onClose();
+                    }}
+                    testID="lane-delete-move-resources"
                   >
-                    <ButtonText>{objective.Name}</ButtonText>
+                    <ButtonText>{t('command.delete_lane_move_resources')}</ButtonText>
                   </Button>
-                ))}
-            </HStack>
-          </VStack>
-
-          <VStack space="xs">
-            <Text className="text-sm font-medium text-gray-600 dark:text-gray-300">{t('command.linked_need_label')}</Text>
-            <HStack className="flex-wrap" space="sm">
-              <Button size="xs" variant={!linkedNeedId ? 'solid' : 'outline'} className="mb-1" onPress={() => setLinkedNeedId(null)} testID="lane-linked-need-none">
-                <ButtonText>{t('command.none_option')}</ButtonText>
-              </Button>
-              {openNeeds.map((need) => (
+                  <Button
+                    size="lg"
+                    action="negative"
+                    onPress={() => {
+                      if (node) {
+                        onDelete?.(node.CommandStructureNodeId, 'release');
+                      }
+                      onClose();
+                    }}
+                    testID="lane-delete-release-resources"
+                  >
+                    <ButtonText>{t('command.delete_lane_release_resources')}</ButtonText>
+                  </Button>
+                </>
+              ) : (
                 <Button
-                  key={need.IncidentNeedId}
-                  size="xs"
-                  variant={linkedNeedId === need.IncidentNeedId ? 'solid' : 'outline'}
-                  className="mb-1"
-                  onPress={() => setLinkedNeedId(need.IncidentNeedId)}
-                  testID={`lane-linked-need-${need.IncidentNeedId}`}
+                  size="lg"
+                  action="negative"
+                  onPress={() => {
+                    if (node) {
+                      onDelete?.(node.CommandStructureNodeId, 'release');
+                    }
+                    onClose();
+                  }}
+                  testID="lane-delete-confirm-button"
                 >
-                  <ButtonText>{need.Name}</ButtonText>
+                  <ButtonText>{t('command.delete_lane_confirm')}</ButtonText>
                 </Button>
-              ))}
-            </HStack>
-          </VStack>
+              )}
 
-          <VStack space="xs">
-            <Text className="text-sm font-medium text-gray-600 dark:text-gray-300">{t('command.linked_map_label')}</Text>
-            <HStack className="flex-wrap" space="sm">
-              <Button size="xs" variant={!linkedMapId ? 'solid' : 'outline'} className="mb-1" onPress={() => setLinkedMapId(null)} testID="lane-linked-map-none">
-                <ButtonText>{t('command.none_option')}</ButtonText>
+              <Button size="lg" variant="outline" onPress={() => setIsConfirmingDelete(false)} testID="lane-delete-cancel">
+                <ButtonText>{t('common.cancel')}</ButtonText>
               </Button>
-              {(maps ?? []).map((map) => (
-                <Button
-                  key={map.IncidentMapId}
-                  size="xs"
-                  variant={linkedMapId === map.IncidentMapId ? 'solid' : 'outline'}
-                  className="mb-1"
-                  onPress={() => setLinkedMapId(map.IncidentMapId)}
-                  testID={`lane-linked-map-${map.IncidentMapId}`}
-                >
-                  <ButtonText>{map.Name}</ButtonText>
-                </Button>
-              ))}
-            </HStack>
-          </VStack>
+            </VStack>
+          ) : (
+            <>
+              {renderLeadEditor('primary', primaryLead, setPrimaryLead)}
+              {renderLeadEditor('secondary', secondaryLead, setSecondaryLead)}
 
-          <Button size="lg" onPress={handleSave} isDisabled={!node} testID="lane-details-save">
-            <ButtonText>{t('command.save')}</ButtonText>
-          </Button>
+              <VStack space="xs">
+                <Text className="text-sm font-medium text-gray-600 dark:text-gray-300">{t('command.primary_objective_label')}</Text>
+                <HStack className="flex-wrap" space="sm">
+                  <Button size="xs" variant={!primaryObjectiveId ? 'solid' : 'outline'} className="mb-1" onPress={() => setPrimaryObjectiveId(null)} testID="lane-primary-objective-none">
+                    <ButtonText>{t('command.none_option')}</ButtonText>
+                  </Button>
+                  {openObjectives.map((objective) => (
+                    <Button
+                      key={objective.TacticalObjectiveId}
+                      size="xs"
+                      variant={primaryObjectiveId === objective.TacticalObjectiveId ? 'solid' : 'outline'}
+                      className="mb-1"
+                      onPress={() => setPrimaryObjectiveId(objective.TacticalObjectiveId)}
+                      testID={`lane-primary-objective-${objective.TacticalObjectiveId}`}
+                    >
+                      <ButtonText>{objective.Name}</ButtonText>
+                    </Button>
+                  ))}
+                </HStack>
+              </VStack>
+
+              <VStack space="xs">
+                <Text className="text-sm font-medium text-gray-600 dark:text-gray-300">{t('command.secondary_objective_label')}</Text>
+                <HStack className="flex-wrap" space="sm">
+                  <Button size="xs" variant={!secondaryObjectiveId ? 'solid' : 'outline'} className="mb-1" onPress={() => setSecondaryObjectiveId(null)} testID="lane-secondary-objective-none">
+                    <ButtonText>{t('command.none_option')}</ButtonText>
+                  </Button>
+                  {openObjectives
+                    .filter((objective) => objective.TacticalObjectiveId !== primaryObjectiveId)
+                    .map((objective) => (
+                      <Button
+                        key={objective.TacticalObjectiveId}
+                        size="xs"
+                        variant={secondaryObjectiveId === objective.TacticalObjectiveId ? 'solid' : 'outline'}
+                        className="mb-1"
+                        onPress={() => setSecondaryObjectiveId(objective.TacticalObjectiveId)}
+                        testID={`lane-secondary-objective-${objective.TacticalObjectiveId}`}
+                      >
+                        <ButtonText>{objective.Name}</ButtonText>
+                      </Button>
+                    ))}
+                </HStack>
+              </VStack>
+
+              <VStack space="xs">
+                <Text className="text-sm font-medium text-gray-600 dark:text-gray-300">{t('command.linked_need_label')}</Text>
+                <HStack className="flex-wrap" space="sm">
+                  <Button size="xs" variant={!linkedNeedId ? 'solid' : 'outline'} className="mb-1" onPress={() => setLinkedNeedId(null)} testID="lane-linked-need-none">
+                    <ButtonText>{t('command.none_option')}</ButtonText>
+                  </Button>
+                  {openNeeds.map((need) => (
+                    <Button
+                      key={need.IncidentNeedId}
+                      size="xs"
+                      variant={linkedNeedId === need.IncidentNeedId ? 'solid' : 'outline'}
+                      className="mb-1"
+                      onPress={() => setLinkedNeedId(need.IncidentNeedId)}
+                      testID={`lane-linked-need-${need.IncidentNeedId}`}
+                    >
+                      <ButtonText>{need.Name}</ButtonText>
+                    </Button>
+                  ))}
+                </HStack>
+              </VStack>
+
+              <VStack space="xs">
+                <Text className="text-sm font-medium text-gray-600 dark:text-gray-300">{t('command.linked_map_label')}</Text>
+                <HStack className="flex-wrap" space="sm">
+                  <Button size="xs" variant={!linkedMapId ? 'solid' : 'outline'} className="mb-1" onPress={() => setLinkedMapId(null)} testID="lane-linked-map-none">
+                    <ButtonText>{t('command.none_option')}</ButtonText>
+                  </Button>
+                  {(maps ?? []).map((map) => (
+                    <Button
+                      key={map.IncidentMapId}
+                      size="xs"
+                      variant={linkedMapId === map.IncidentMapId ? 'solid' : 'outline'}
+                      className="mb-1"
+                      onPress={() => setLinkedMapId(map.IncidentMapId)}
+                      testID={`lane-linked-map-${map.IncidentMapId}`}
+                    >
+                      <ButtonText>{map.Name}</ButtonText>
+                    </Button>
+                  ))}
+                </HStack>
+              </VStack>
+
+              <Button size="lg" onPress={handleSave} isDisabled={!node} testID="lane-details-save">
+                <ButtonText>{t('command.save')}</ButtonText>
+              </Button>
+
+              {onDelete ? (
+                <Button size="lg" variant="outline" action="negative" onPress={() => setIsConfirmingDelete(true)} isDisabled={!node} testID="lane-details-delete">
+                  <ButtonText>{t('command.delete_lane_confirm')}</ButtonText>
+                </Button>
+              ) : null}
+            </>
+          )}
         </VStack>
       </ScrollView>
     </CustomBottomSheet>

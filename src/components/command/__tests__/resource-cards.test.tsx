@@ -12,8 +12,8 @@ jest.mock('lucide-react-native', () => {
   const icon = (name: string) => (props: any) => React.createElement('View', { ...props, testID: `mock-${name}-icon` });
   return {
     CloudOff: icon('cloud-off'),
+    Eye: icon('eye'),
     MapPin: icon('map-pin'),
-    Trash2: icon('trash'),
     Truck: icon('truck'),
   };
 });
@@ -49,10 +49,8 @@ const person = {
 
 describe('UnitResourceCard', () => {
   it('shows roster info, live status, destination, and role seats with assignees', () => {
-    const onRelease = jest.fn();
-    const { getByText, getByTestId, unmount } = render(
-      <UnitResourceCard isLocal={false} laneLabel="Division A" name="Engine 1" onRelease={onRelease} removeTestID="remove-1" roles={roles} status={status} testID="card-1" unit={unit} />
-    );
+    const onView = jest.fn();
+    const { getByText, getByTestId, unmount } = render(<UnitResourceCard isLocal={false} laneLabel="Division A" name="Engine 1" onView={onView} roles={roles} status={status} testID="card-1" unit={unit} viewTestID="view-1" />);
 
     expect(getByText('Engine 1')).toBeTruthy();
     expect(getByText('Engine • Station 1')).toBeTruthy();
@@ -65,14 +63,14 @@ describe('UnitResourceCard', () => {
     expect(getByText('command.role_open')).toBeTruthy();
     expect(getByText('Division A')).toBeTruthy();
 
-    fireEvent.press(getByTestId('remove-1'));
-    expect(onRelease).toHaveBeenCalled();
+    fireEvent.press(getByTestId('view-1'));
+    expect(onView).toHaveBeenCalled();
 
     unmount();
   });
 
   it('renders without roster data using just the resolved name', () => {
-    const { getByText, queryByTestId, unmount } = render(<UnitResourceCard isLocal={true} laneLabel="command.unassigned" name="unit-77" onRelease={jest.fn()} removeTestID="remove-2" roles={[]} testID="card-2" />);
+    const { getByText, queryByTestId, unmount } = render(<UnitResourceCard isLocal={true} laneLabel="command.unassigned" name="unit-77" onView={jest.fn()} roles={[]} testID="card-2" viewTestID="view-2" />);
 
     expect(getByText('unit-77')).toBeTruthy();
     expect(queryByTestId('card-2-status')).toBeNull();
@@ -85,9 +83,7 @@ describe('UnitResourceCard', () => {
 
 describe('PersonnelResourceCard', () => {
   it('shows group, id number, status, staffing, and department role chips', () => {
-    const { getByText, getByTestId, unmount } = render(
-      <PersonnelResourceCard isLocal={false} laneLabel="command.unassigned" name="Alex Reed" onRelease={jest.fn()} person={person} removeTestID="remove-3" testID="card-3" />
-    );
+    const { getByText, getByTestId, unmount } = render(<PersonnelResourceCard isLocal={false} laneLabel="command.unassigned" name="Alex Reed" onView={jest.fn()} person={person} testID="card-3" viewTestID="view-3" />);
 
     expect(getByText('Alex Reed')).toBeTruthy();
     expect(getByText('AR')).toBeTruthy();
