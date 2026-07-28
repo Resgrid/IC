@@ -73,21 +73,44 @@ function coalescedRefreshBoard(callId: string): void {
 }
 
 /** Trailing debounce so a burst of department-wide incidentCommandUpdated events
- *  (unknown/untracked incidents) collapses into a single full sync. */
+ *  (unknown/untracked incidents) collapses into a single full sync. Syncs are
+ *  serialized: an event arriving mid-sync marks dirty and runs one follow-up. */
 let incidentCommandResyncTimer: ReturnType<typeof setTimeout> | null = null;
+let fullSyncInFlight = false;
+let fullSyncDirty = false;
+
+function runFullSync(): void {
+  fullSyncInFlight = true;
+  useCommandStore
+    .getState()
+    .syncFromServer()
+    .catch((error) => {
+      logger.warn({ message: 'incidentCommandUpdated: failed to sync from server', context: { error } });
+    })
+    .finally(() => {
+      fullSyncInFlight = false;
+      if (fullSyncDirty) {
+        fullSyncDirty = false;
+        runFullSync();
+      }
+    });
+}
 
 function debouncedFullSync(): void {
+  if (fullSyncInFlight) {
+    fullSyncDirty = true;
+    return;
+  }
   if (incidentCommandResyncTimer) {
     clearTimeout(incidentCommandResyncTimer);
   }
   incidentCommandResyncTimer = setTimeout(() => {
     incidentCommandResyncTimer = null;
-    useCommandStore
-      .getState()
-      .syncFromServer()
-      .catch((error) => {
-        logger.warn({ message: 'incidentCommandUpdated: failed to sync from server', context: { error } });
-      });
+    if (fullSyncInFlight) {
+      fullSyncDirty = true;
+      return;
+    }
+    runFullSync();
   }, 2000);
 }
 

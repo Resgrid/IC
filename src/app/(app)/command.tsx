@@ -604,10 +604,10 @@ export default function CommandBoard() {
                 <ButtonIcon as={ExternalLink} />
                 <ButtonText>{t('command.view_call')}</ButtonText>
               </Button>
-              <Button onPress={handleOpenCommandDetails} variant="outline" size="xs" testID="command-edit-details">
+              <Button onPress={handleOpenCommandDetails} variant="outline" size="xs" accessibilityLabel={t('command.command_details')} testID="command-edit-details">
                 <ButtonIcon as={Pencil} />
               </Button>
-              <Button onPress={handleOpenTransfer} variant="outline" size="xs" testID="command-transfer">
+              <Button onPress={handleOpenTransfer} variant="outline" size="xs" accessibilityLabel={t('command.transfer_command')} testID="command-transfer">
                 <ButtonIcon as={UserCog} />
               </Button>
               <Button
