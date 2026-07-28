@@ -637,6 +637,8 @@ export const useCommandStore = create<CommandState>()(
                       MaxUnitPersonnel: limits?.maxUnitPersonnel ?? 0,
                       MinTimeInRole: limits?.minTimeInRole ?? 0,
                       MaxTimeInRole: limits?.maxTimeInRole ?? 0,
+                      WorkTimeAmberMinutes: limits?.workTimeAmberMinutes ?? 0,
+                      WorkTimeRedMinutes: limits?.workTimeRedMinutes ?? 0,
                       SortOrder: current.board.Nodes.length,
                     },
                   ],
@@ -665,6 +667,8 @@ export const useCommandStore = create<CommandState>()(
             MaxUnitPersonnel: limits?.maxUnitPersonnel ?? 0,
             MinTimeInRole: limits?.minTimeInRole ?? 0,
             MaxTimeInRole: limits?.maxTimeInRole ?? 0,
+            WorkTimeAmberMinutes: limits?.workTimeAmberMinutes ?? 0,
+            WorkTimeRedMinutes: limits?.workTimeRedMinutes ?? 0,
             SortOrder: entry?.board?.Nodes.length ?? 0,
           });
           await get().refreshBoard(callId);

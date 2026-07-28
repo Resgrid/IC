@@ -156,7 +156,7 @@ export interface QueuedSaveCommandNodeEvent extends Omit<QueuedEvent, 'data'> {
     name: string;
     nodeType: number;
     color?: string;
-    limits?: { minUnits?: number; maxUnits?: number; minUnitPersonnel?: number; maxUnitPersonnel?: number; minTimeInRole?: number; maxTimeInRole?: number };
+    limits?: { minUnits?: number; maxUnits?: number; minUnitPersonnel?: number; maxUnitPersonnel?: number; minTimeInRole?: number; maxTimeInRole?: number; workTimeAmberMinutes?: number; workTimeRedMinutes?: number };
   };
 }
 

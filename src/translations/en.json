@@ -508,6 +508,9 @@
     "limit_riding_help": "Personnel that must be riding a unit for it to fit this lane. Checked when a unit is assigned; blocked or warned per Force Requirements.",
     "limit_time_help": "Rotation guidance in minutes. Leaving before the minimum flags the move; past the maximum the resource shows a Rotate badge. Nothing is removed automatically.",
     "limit_units_help": "How many units this lane should have. Below the minimum the lane shows as under-filled (never blocks); at the maximum, adding more units is blocked or warned.",
+    "limit_worktime_amber": "Amber after (min)",
+    "limit_worktime_help": "Work-time light color thresholds for this lane. Blank = that color disabled.",
+    "limit_worktime_red": "Red after (min)",
     "linked_map_label": "Attached Map",
     "linked_need_label": "Linked Need",
     "location_geocode_hint": "No pin set — the text will be geocoded on save",
@@ -730,7 +733,8 @@
     "view_details": "View Details",
     "view_log": "View Log",
     "view_on_map": "View on Map",
-    "voice_section": "Voice Channels"
+    "voice_section": "Voice Channels",
+    "worktime_thresholds_label": "Work-Time Thresholds"
   },
   "common": {
     "add": "Add",

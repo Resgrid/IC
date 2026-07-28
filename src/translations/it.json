@@ -508,6 +508,9 @@
     "limit_riding_help": "Personale che deve essere a bordo di un’unità perché sia adatta a questa corsia. Verificato all’assegnazione; bloccato o segnalato secondo Forza requisiti.",
     "limit_time_help": "Guida di rotazione in minuti. Uscire prima del minimo segnala lo spostamento; oltre il massimo la risorsa mostra il badge Ruotare. Nulla viene rimosso automaticamente.",
     "limit_units_help": "Quante unità dovrebbe avere questa corsia. Sotto il minimo appare incompleta (mai bloccante); al massimo, aggiungere unità viene bloccato o segnalato.",
+    "limit_worktime_amber": "Ambra dopo (min)",
+    "limit_worktime_help": "Soglie di colore dell’indicatore del tempo di lavoro per questa corsia. Vuoto = colore disattivato.",
+    "limit_worktime_red": "Rosso dopo (min)",
     "linked_map_label": "Mappa allegata",
     "linked_need_label": "Necessità collegata",
     "location_geocode_hint": "Nessun pin: il testo sarà geocodificato al salvataggio",
@@ -730,7 +733,8 @@
     "view_details": "Vedi dettagli",
     "view_log": "Visualizza registro",
     "view_on_map": "Vedi sulla mappa",
-    "voice_section": "Canali vocali"
+    "voice_section": "Canali vocali",
+    "worktime_thresholds_label": "Soglie Tempo di Lavoro"
   },
   "common": {
     "add": "Aggiungi",

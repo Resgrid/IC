@@ -508,6 +508,9 @@
     "limit_riding_help": "Personal que debe ir a bordo de una unidad para que encaje en este carril. Se comprueba al asignar; bloquea o avisa según Forzar requisitos.",
     "limit_time_help": "Guía de rotación en minutos. Salir antes del mínimo marca el movimiento; superado el máximo el recurso muestra la insignia Rotar. Nada se elimina automáticamente.",
     "limit_units_help": "Cuántas unidades debería tener este carril. Por debajo del mínimo se muestra incompleto (nunca bloquea); en el máximo, añadir más unidades se bloquea o se avisa.",
+    "limit_worktime_amber": "Ámbar después de (min)",
+    "limit_worktime_help": "Umbrales de color del indicador de tiempo de trabajo para este carril. En blanco = color desactivado.",
+    "limit_worktime_red": "Rojo después de (min)",
     "linked_map_label": "Mapa adjunto",
     "linked_need_label": "Necesidad vinculada",
     "location_geocode_hint": "Sin pin: el texto se geocodificará al guardar",
@@ -730,7 +733,8 @@
     "view_details": "Ver detalles",
     "view_log": "Ver registro",
     "view_on_map": "Ver en el mapa",
-    "voice_section": "Canales de voz"
+    "voice_section": "Canales de voz",
+    "worktime_thresholds_label": "Umbrales de Tiempo de Trabajo"
   },
   "common": {
     "add": "Añadir",

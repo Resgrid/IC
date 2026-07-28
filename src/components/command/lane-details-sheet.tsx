@@ -12,6 +12,8 @@ import { VStack } from '@/components/ui/vstack';
 import { type CommandStructureNode, type IncidentMap, type IncidentNeed, IncidentNeedStatus, type TacticalObjective, TacticalObjectiveStatus } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { type PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
 
+import { DEFAULT_WORK_TIME_AMBER_MINUTES, DEFAULT_WORK_TIME_RED_MINUTES } from './landscape-structure-board';
+
 /** One lead slot being edited: a Resgrid user OR an external contact. */
 interface LeadDraft {
   userId: string | null;
@@ -55,6 +57,9 @@ export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onCl
   const [secondaryObjectiveId, setSecondaryObjectiveId] = useState<string | null>(null);
   const [linkedNeedId, setLinkedNeedId] = useState<string | null>(null);
   const [linkedMapId, setLinkedMapId] = useState<string | null>(null);
+  /** Work-time (crew fatigue) thresholds in minutes; blank = that color disabled. */
+  const [workTimeAmber, setWorkTimeAmber] = useState('');
+  const [workTimeRed, setWorkTimeRed] = useState('');
   /** Two-step delete: swaps the sheet body for the confirmation view. */
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
@@ -67,6 +72,8 @@ export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onCl
       setSecondaryObjectiveId(node.SecondaryObjectiveId ?? null);
       setLinkedNeedId(node.LinkedNeedId ?? null);
       setLinkedMapId(node.LinkedMapId ?? null);
+      setWorkTimeAmber(node.WorkTimeAmberMinutes === undefined || node.WorkTimeAmberMinutes === null ? String(DEFAULT_WORK_TIME_AMBER_MINUTES) : String(node.WorkTimeAmberMinutes));
+      setWorkTimeRed(node.WorkTimeRedMinutes === undefined || node.WorkTimeRedMinutes === null ? String(DEFAULT_WORK_TIME_RED_MINUTES) : String(node.WorkTimeRedMinutes));
       setIsConfirmingDelete(false);
     }
   }, [node, isOpen]);
@@ -88,9 +95,12 @@ export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onCl
       SecondaryObjectiveId: secondaryObjectiveId,
       LinkedNeedId: linkedNeedId,
       LinkedMapId: linkedMapId,
+      // Blank = unset (client defaults 20/40); explicit 0 = that color disabled.
+      WorkTimeAmberMinutes: workTimeAmber.trim() === '' ? undefined : parseInt(workTimeAmber, 10) || 0,
+      WorkTimeRedMinutes: workTimeRed.trim() === '' ? undefined : parseInt(workTimeRed, 10) || 0,
     });
     onClose();
-  }, [node, primaryLead, secondaryLead, primaryObjectiveId, secondaryObjectiveId, linkedNeedId, linkedMapId, onSave, onClose]);
+  }, [node, primaryLead, secondaryLead, primaryObjectiveId, secondaryObjectiveId, linkedNeedId, linkedMapId, workTimeAmber, workTimeRed, onSave, onClose]);
 
   const openObjectives = objectives.filter((o) => o.Status !== TacticalObjectiveStatus.Complete);
   const openNeeds = needs.filter((n) => n.Status !== IncidentNeedStatus.Cancelled && n.Status !== IncidentNeedStatus.Met);
@@ -289,6 +299,25 @@ export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onCl
                     </Button>
                   ))}
                 </HStack>
+              </VStack>
+
+              <VStack space="xs">
+                <Text className="text-sm font-medium text-gray-600 dark:text-gray-300">{t('command.worktime_thresholds_label')}</Text>
+                <HStack space="sm">
+                  <VStack className="flex-1" space="xs">
+                    <Text className="text-xs font-medium text-gray-600 dark:text-gray-300">{t('command.limit_worktime_amber')}</Text>
+                    <Input size="sm" variant="outline">
+                      <InputField keyboardType="number-pad" placeholder={t('command.limit_none')} value={workTimeAmber} onChangeText={(v) => setWorkTimeAmber(v.replace(/[^0-9]/g, ''))} testID="lane-worktime-amber" />
+                    </Input>
+                  </VStack>
+                  <VStack className="flex-1" space="xs">
+                    <Text className="text-xs font-medium text-gray-600 dark:text-gray-300">{t('command.limit_worktime_red')}</Text>
+                    <Input size="sm" variant="outline">
+                      <InputField keyboardType="number-pad" placeholder={t('command.limit_none')} value={workTimeRed} onChangeText={(v) => setWorkTimeRed(v.replace(/[^0-9]/g, ''))} testID="lane-worktime-red" />
+                    </Input>
+                  </VStack>
+                </HStack>
+                <Text className="text-xs text-gray-500 dark:text-gray-400">{t('command.limit_worktime_help')}</Text>
               </VStack>
 
               <Button size="lg" onPress={handleSave} isDisabled={!node} testID="lane-details-save">

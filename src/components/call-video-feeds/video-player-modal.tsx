@@ -68,7 +68,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ isOpen, onCl
   };
 
   return (
-    <Modal visible={isOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+    <Modal visible={isOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose} supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}>
       <Box className="flex-1 bg-black">
         {/* Header */}
         <Box className="flex-row items-center justify-between px-4 pb-2 pt-12">

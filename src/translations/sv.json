@@ -508,6 +508,9 @@
     "limit_riding_help": "Personal som måste vara ombord på en enhet för att den ska passa filen. Kontrolleras vid tilldelning; blockeras eller varnas enligt Tvinga krav.",
     "limit_time_help": "Rotationsguide i minuter. Att lämna före minimum flaggar flytten; efter maximum visar resursen Avlösning-märket. Inget tas bort automatiskt.",
     "limit_units_help": "Hur många enheter filen bör ha. Under minimum visas den som underbemannad (blockerar aldrig); vid maximum blockeras eller varnas fler enheter.",
+    "limit_worktime_amber": "Gul efter (min)",
+    "limit_worktime_help": "Färgtrösklar för arbetstidsindikatorn för denna fil. Tom = färgen avaktiverad.",
+    "limit_worktime_red": "Röd efter (min)",
     "linked_map_label": "Bifogad karta",
     "linked_need_label": "Kopplat behov",
     "location_geocode_hint": "Ingen nål — texten geokodas vid sparande",
@@ -730,7 +733,8 @@
     "view_details": "Visa detaljer",
     "view_log": "Visa logg",
     "view_on_map": "Visa på karta",
-    "voice_section": "Röstkanaler"
+    "voice_section": "Röstkanaler",
+    "worktime_thresholds_label": "Arbetstidströsklar"
   },
   "common": {
     "add": "Lägg till",

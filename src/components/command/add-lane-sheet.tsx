@@ -31,7 +31,7 @@ const LANE_NAME_SUGGESTION_KEYS = [
   'lane_suggestion_operations',
 ];
 
-/** Optional per-lane limits: 0/undefined = no limit. */
+/** Optional per-lane limits: 0/undefined = no limit. Work-time thresholds: 0/blank = that color disabled. */
 export interface LaneLimits {
   minUnits?: number;
   maxUnits?: number;
@@ -39,6 +39,8 @@ export interface LaneLimits {
   maxUnitPersonnel?: number;
   minTimeInRole?: number;
   maxTimeInRole?: number;
+  workTimeAmberMinutes?: number;
+  workTimeRedMinutes?: number;
 }
 
 interface AddLaneSheetProps {
@@ -54,7 +56,16 @@ export const AddLaneSheet: React.FC<AddLaneSheetProps> = ({ isOpen, onClose, onS
   const [nodeType, setNodeType] = useState<CommandNodeType>(CommandNodeType.Division);
   const [color, setColor] = useState<string | undefined>(undefined);
   const [showLimits, setShowLimits] = useState(false);
-  const [limits, setLimits] = useState<Record<keyof LaneLimits, string>>({ minUnits: '', maxUnits: '', minUnitPersonnel: '', maxUnitPersonnel: '', minTimeInRole: '', maxTimeInRole: '' });
+  const [limits, setLimits] = useState<Record<keyof LaneLimits, string>>({
+    minUnits: '',
+    maxUnits: '',
+    minUnitPersonnel: '',
+    maxUnitPersonnel: '',
+    minTimeInRole: '',
+    maxTimeInRole: '',
+    workTimeAmberMinutes: '20',
+    workTimeRedMinutes: '40',
+  });
 
   const setLimit = useCallback((key: keyof LaneLimits, value: string) => {
     setLimits((current) => ({ ...current, [key]: value.replace(/[^0-9]/g, '') }));
@@ -76,7 +87,7 @@ export const AddLaneSheet: React.FC<AddLaneSheetProps> = ({ isOpen, onClose, onS
     setNodeType(CommandNodeType.Division);
     setColor(undefined);
     setShowLimits(false);
-    setLimits({ minUnits: '', maxUnits: '', minUnitPersonnel: '', maxUnitPersonnel: '', minTimeInRole: '', maxTimeInRole: '' });
+    setLimits({ minUnits: '', maxUnits: '', minUnitPersonnel: '', maxUnitPersonnel: '', minTimeInRole: '', maxTimeInRole: '', workTimeAmberMinutes: '20', workTimeRedMinutes: '40' });
     onClose();
   }, [name, nodeType, color, limits, onSave, onClose]);
 
@@ -180,6 +191,27 @@ export const AddLaneSheet: React.FC<AddLaneSheetProps> = ({ isOpen, onClose, onS
                 </VStack>
               </HStack>
               <Text className="text-xs text-gray-500 dark:text-gray-400">{t('command.limit_time_help')}</Text>
+              <HStack space="sm">
+                <VStack className="flex-1" space="xs">
+                  <Text className="text-xs font-medium text-gray-600 dark:text-gray-300">{t('command.limit_worktime_amber')}</Text>
+                  <Input size="sm" variant="outline">
+                    <InputField
+                      keyboardType="number-pad"
+                      placeholder={t('command.limit_none')}
+                      value={limits.workTimeAmberMinutes}
+                      onChangeText={(v) => setLimit('workTimeAmberMinutes', v)}
+                      testID="limit-worktime-amber"
+                    />
+                  </Input>
+                </VStack>
+                <VStack className="flex-1" space="xs">
+                  <Text className="text-xs font-medium text-gray-600 dark:text-gray-300">{t('command.limit_worktime_red')}</Text>
+                  <Input size="sm" variant="outline">
+                    <InputField keyboardType="number-pad" placeholder={t('command.limit_none')} value={limits.workTimeRedMinutes} onChangeText={(v) => setLimit('workTimeRedMinutes', v)} testID="limit-worktime-red" />
+                  </Input>
+                </VStack>
+              </HStack>
+              <Text className="text-xs text-gray-500 dark:text-gray-400">{t('command.limit_worktime_help')}</Text>
             </VStack>
           ) : null}
         </VStack>

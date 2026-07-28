@@ -99,7 +99,7 @@ export const CloseCallBottomSheet: React.FC<CloseCallBottomSheetProps> = ({ isOp
   const isButtonDisabled = isLoading || isSubmitting;
 
   return (
-    <Modal visible={isOpen} transparent={true} animationType="slide" onRequestClose={handleClose} testID="close-call-bottom-sheet">
+    <Modal visible={isOpen} transparent={true} animationType="slide" onRequestClose={handleClose} testID="close-call-bottom-sheet" supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}>
       <RNPressable style={styles.backdrop} onPress={handleClose}>
         <RNPressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.handle} />

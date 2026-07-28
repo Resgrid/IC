@@ -74,7 +74,16 @@ export function SideDrawer({ children, isOpen, onClose, testID }: SideDrawerProp
   if (!modalVisible) return null;
 
   return (
-    <Modal visible={modalVisible} transparent animationType="none" statusBarTranslucent onRequestClose={handleClose} testID={testID}>
+    <Modal
+      visible={modalVisible}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={handleClose}
+      testID={testID}
+      // iOS defaults Modal to portrait-only, which rotates a landscape iPad — allow all orientations
+      supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}
+    >
       {/* Backdrop — tapping anywhere outside the panel dismisses the menu */}
       <Pressable style={{ flex: 1 }} onPress={backdropEnabled ? handleClose : undefined} testID={testID ? `${testID}-backdrop` : undefined}>
         <Animated.View

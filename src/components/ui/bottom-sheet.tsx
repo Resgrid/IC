@@ -114,7 +114,16 @@ export function CustomBottomSheet({
   if (!modalVisible) return null;
 
   return (
-    <Modal visible={modalVisible} transparent animationType="none" statusBarTranslucent onRequestClose={handleClose} testID={testID}>
+    <Modal
+      visible={modalVisible}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={handleClose}
+      testID={testID}
+      // iOS defaults Modal to portrait-only, which rotates a landscape iPad — allow all orientations
+      supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}
+    >
       {/* KeyboardAvoidingView lifts the bottom-anchored sheet above the soft keyboard so
           text inputs low in the sheet stay visible while typing. */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

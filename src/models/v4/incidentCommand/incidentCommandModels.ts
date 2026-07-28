@@ -170,6 +170,10 @@ export interface CommandStructureNode {
   MinTimeInRole?: number;
   /** Maximum minutes before a resource is rotation-due in this lane (0 = none). */
   MaxTimeInRole?: number;
+  /** Minutes before the lane work-time indicator turns amber (0 = disabled; defaults to 20). */
+  WorkTimeAmberMinutes?: number;
+  /** Minutes before the lane work-time indicator turns red (0 = disabled; defaults to 40). */
+  WorkTimeRedMinutes?: number;
   /** When true, unmet lane requirements block assignment instead of warning. */
   ForceRequirements?: boolean;
   /** Optional primary tactical objective this lane is working. */

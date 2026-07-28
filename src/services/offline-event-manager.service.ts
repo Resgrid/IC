@@ -385,6 +385,8 @@ class OfflineEventManager {
       MaxUnitPersonnel: event.data.limits?.maxUnitPersonnel ?? 0,
       MinTimeInRole: event.data.limits?.minTimeInRole ?? 0,
       MaxTimeInRole: event.data.limits?.maxTimeInRole ?? 0,
+      WorkTimeAmberMinutes: event.data.limits?.workTimeAmberMinutes ?? 0,
+      WorkTimeRedMinutes: event.data.limits?.workTimeRedMinutes ?? 0,
     });
   }
 

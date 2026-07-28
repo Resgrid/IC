@@ -53,4 +53,16 @@ describe('WorkTimeLight', () => {
     expect(workTimeColor(25)).toBe('#f59e0b');
     expect(workTimeColor(45)).toBe('#ef4444');
   });
+
+  it('honors per-lane fatigue thresholds', () => {
+    expect(workTimeColor(10, 5, 15)).toBe('#f59e0b');
+    expect(workTimeColor(16, 5, 15)).toBe('#ef4444');
+    expect(workTimeColor(4, 5, 15)).toBe('#22c55e');
+  });
+
+  it('treats a 0 lane threshold as disabled', () => {
+    expect(workTimeColor(90, 0, 0)).toBe('#22c55e');
+    expect(workTimeColor(90, 10, 0)).toBe('#f59e0b');
+    expect(workTimeColor(90, 0, 30)).toBe('#ef4444');
+  });
 });

@@ -508,6 +508,9 @@
     "limit_riding_help": "Besatzung, die auf einer Einheit sein muss, damit sie in diese Spur passt. Wird bei Zuweisung geprüft; blockiert oder warnt je nach Anforderungen erzwingen.",
     "limit_time_help": "Rotationsrichtwerte in Minuten. Verlassen vor dem Minimum markiert den Wechsel; nach dem Maximum zeigt die Ressource das Ablösen-Badge. Nichts wird automatisch entfernt.",
     "limit_units_help": "Wie viele Einheiten diese Spur haben sollte. Unter dem Minimum gilt sie als unterbesetzt (blockiert nie); am Maximum werden weitere Einheiten blockiert oder gewarnt.",
+    "limit_worktime_amber": "Gelb nach (Min.)",
+    "limit_worktime_help": "Farbschwellen der Arbeitszeit-Anzeige für diese Lane. Leer = Farbe deaktiviert.",
+    "limit_worktime_red": "Rot nach (Min.)",
     "linked_map_label": "Angehängte Karte",
     "linked_need_label": "Verknüpfter Bedarf",
     "location_geocode_hint": "Kein Pin gesetzt — der Text wird beim Speichern geocodiert",
@@ -730,7 +733,8 @@
     "view_details": "Details anzeigen",
     "view_log": "Protokoll anzeigen",
     "view_on_map": "Auf Karte anzeigen",
-    "voice_section": "Sprachkanäle"
+    "voice_section": "Sprachkanäle",
+    "worktime_thresholds_label": "Arbeitszeit-Schwellen"
   },
   "common": {
     "add": "Hinzufügen",
