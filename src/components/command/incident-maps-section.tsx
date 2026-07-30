@@ -71,7 +71,7 @@ export const IncidentMapsSection: React.FC<IncidentMapsSectionProps> = ({ callId
   );
 
   return (
-    <Box className={embedded ? undefined : 'rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800'} testID="command-incident-maps-section">
+    <Box className={embedded ? undefined : 'rounded-xl bg-white p-4 shadow-xs dark:bg-gray-800'} testID="command-incident-maps-section">
       {embedded ? (
         <HStack className="mb-3 items-center justify-end">
           <Button size="xs" variant="outline" onPress={() => setIsAddOpen(true)} testID="incident-maps-add">

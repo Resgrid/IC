@@ -107,7 +107,7 @@ export const VoiceSection: React.FC<VoiceSectionProps> = ({ callId, channels, tr
   }, [channelName, onCreateChannel]);
 
   return (
-    <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID="command-voice-section">
+    <Box className="rounded-xl bg-white p-4 shadow-xs dark:bg-gray-800" testID="command-voice-section">
       <HStack className="mb-3 items-center justify-between">
         <HStack space="sm" className="items-center">
           <Heading size="sm">{t('command.voice_section')}</Heading>

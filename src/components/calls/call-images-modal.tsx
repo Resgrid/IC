@@ -417,7 +417,13 @@ const CallImagesModal: React.FC<CallImagesModalProps> = ({ isOpen, onClose, call
 
   return (
     <>
-      <Modal visible={isOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose} supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}>
+      <Modal
+        visible={isOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={handleClose}
+        supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}
+      >
         <KeyboardProvider>
           <SafeAreaView style={[styles.container, isDark && styles.containerDark]}>
             {/* Header */}

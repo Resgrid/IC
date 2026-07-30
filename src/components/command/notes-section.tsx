@@ -43,7 +43,7 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ notes, onAdd }) => {
   }, [body, visibility, onAdd]);
 
   return (
-    <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID="command-notes-section">
+    <Box className="rounded-xl bg-white p-4 shadow-xs dark:bg-gray-800" testID="command-notes-section">
       <HStack className="mb-3 items-center justify-between">
         <HStack space="sm" className="items-center">
           <Heading size="sm">{t('command.notes_section')}</Heading>

@@ -545,10 +545,34 @@ export const Camera = forwardRef<any, CameraProps>(({ centerCoordinate, zoomLeve
     if (centerCoordinate && centerCoordinate.length === 2 && isFinite(centerCoordinate[0]) && isFinite(centerCoordinate[1])) {
       if (!hasInitialized.current) {
         hasInitialized.current = true;
-        try {
-          map.jumpTo({ center: centerCoordinate as [number, number], zoom: zoomLevel, bearing: heading, pitch: pitch }, { _programmatic: true });
-        } catch {
-          // ignore projection errors during initialization
+        // Passing `bearing: undefined`/`pitch: undefined` into jumpTo still invokes
+        // mapbox-gl's bearing/rotation setters, which crash in _calcMatrices while
+        // the transform's inverse projection matrix is null during initialization.
+        // Only pass keys with real values.
+        const cameraOptions: Record<string, unknown> = { center: centerCoordinate as [number, number] };
+        if (zoomLevel !== undefined) cameraOptions.zoom = zoomLevel;
+        if (heading !== undefined) cameraOptions.bearing = heading;
+        if (pitch !== undefined) cameraOptions.pitch = pitch;
+        const applyInitialCamera = () => {
+          try {
+            map.jumpTo(cameraOptions, { _programmatic: true });
+            return true;
+          } catch {
+            return false;
+          }
+        };
+        if (!applyInitialCamera()) {
+          let rafId: number | undefined;
+          let attempts = 0;
+          const tick = () => {
+            attempts += 1;
+            if (applyInitialCamera() || attempts >= 120) return;
+            rafId = requestAnimationFrame(tick);
+          };
+          rafId = requestAnimationFrame(tick);
+          return () => {
+            if (rafId !== undefined) cancelAnimationFrame(rafId);
+          };
         }
         return;
       }

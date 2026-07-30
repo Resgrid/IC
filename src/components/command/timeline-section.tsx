@@ -33,7 +33,7 @@ export const TimelineSection: React.FC<TimelineSectionProps> = ({ callId, entrie
   const visible = entries.slice(0, VISIBLE_BATCH);
 
   return (
-    <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID="command-timeline-section">
+    <Box className="rounded-xl bg-white p-4 shadow-xs dark:bg-gray-800" testID="command-timeline-section">
       <HStack className="mb-3 items-center justify-between">
         <HStack space="sm" className="items-center">
           <Heading size="sm">{t('command.timeline_section')}</Heading>

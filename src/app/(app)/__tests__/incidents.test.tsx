@@ -4,11 +4,9 @@ import React from 'react';
 import { type IncidentCommandSummary } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useIncidentsStore } from '@/stores/command/incidents-store';
 
-jest.mock('@react-navigation/native', () => ({
-  useFocusEffect: jest.fn(),
-}));
 
 jest.mock('expo-router', () => ({
+  useFocusEffect: jest.fn(),
   router: { push: jest.fn() },
 }));
 

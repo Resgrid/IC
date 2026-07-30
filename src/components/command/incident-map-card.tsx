@@ -86,7 +86,7 @@ export const IncidentMapCard: React.FC<IncidentMapCardProps> = ({ callId, comman
     }
 
     return (
-      <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID="incident-map-card-empty">
+      <Box className="rounded-xl bg-white p-4 shadow-xs dark:bg-gray-800" testID="incident-map-card-empty">
         <HStack className="items-center justify-between">
           <HStack space="sm" className="items-center">
             <Icon as={MapIcon} size="sm" className="text-gray-500" />
@@ -126,7 +126,7 @@ export const IncidentMapCard: React.FC<IncidentMapCardProps> = ({ callId, comman
   }
 
   return (
-    <Box className="overflow-hidden rounded-xl bg-white shadow-sm dark:bg-gray-800" testID="incident-map-card">
+    <Box className="overflow-hidden rounded-xl bg-white shadow-xs dark:bg-gray-800" testID="incident-map-card">
       <HStack className="items-center justify-between px-4 py-2">
         <HStack space="sm" className="items-center">
           <Icon as={MapIcon} size="sm" className="text-gray-500" />

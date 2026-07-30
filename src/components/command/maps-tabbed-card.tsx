@@ -29,7 +29,7 @@ export const MapsTabbedCard: React.FC<MapsTabbedCardProps> = ({ callId, command,
   const [tab, setTab] = useState<MapsTab>('incident');
 
   return (
-    <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID="command-maps-pane">
+    <Box className="rounded-xl bg-white p-4 shadow-xs dark:bg-gray-800" testID="command-maps-pane">
       <HStack space="sm" className="mb-3">
         <Button size="xs" variant={tab === 'incident' ? 'solid' : 'outline'} onPress={() => setTab('incident')} testID="maps-tab-incident">
           <ButtonText>{t('command.incident_map_section')}</ButtonText>
