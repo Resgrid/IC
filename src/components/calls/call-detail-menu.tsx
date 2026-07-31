@@ -72,7 +72,14 @@ export const useCallDetailMenu = ({ onEditCall, onCloseCall, canUserCreateCalls 
     }
 
     return (
-      <Modal visible={isKebabMenuOpen} transparent={true} animationType="slide" onRequestClose={closeMenu} testID="call-detail-actionsheet" supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}>
+      <Modal
+        visible={isKebabMenuOpen}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={closeMenu}
+        testID="call-detail-actionsheet"
+        supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']}
+      >
         <RNPressable style={menuStyles.backdrop} onPress={closeMenu}>
           <RNPressable style={menuStyles.sheet}>
             <View style={menuStyles.handle} />

@@ -1,7 +1,7 @@
 import { useNotifications } from '@novu/react-native';
 import { router } from 'expo-router';
 import { CheckCircle, ChevronRight, Circle, ExternalLink, MoreVertical, Trash2, X } from 'lucide-react-native';
-import { colorScheme } from 'nativewind';
+import { useColorScheme } from 'nativewind';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Animated, Dimensions, Platform, Pressable, RefreshControl, SafeAreaView, StatusBar, StyleSheet, View } from 'react-native';
@@ -84,6 +84,8 @@ const formatNotificationDate = (createdAt: string | undefined | null): string =>
 const formatNotificationTime = (createdAt: string | undefined | null): string => parseNotificationDate(createdAt)?.toLocaleTimeString() ?? '';
 
 const NotificationRow = React.memo<NotificationRowProps>(({ item, isSelectionMode, isSelected, onPress, onLongPress, onNavigateToReference }) => {
+  const { colorScheme } = useColorScheme();
+  const themed = React.useMemo(() => createThemedStyles(colorScheme === 'dark'), [colorScheme]);
   const notification: NotificationPayload = React.useMemo(() => toNotificationPayload(item), [item]);
 
   const formattedDate = React.useMemo(() => formatNotificationDate(notification.createdAt), [notification.createdAt]);
@@ -98,8 +100,12 @@ const NotificationRow = React.memo<NotificationRowProps>(({ item, isSelectionMod
   }, [onNavigateToReference, notification.referenceType, notification.referenceId]);
 
   return (
-    <Pressable onPress={handlePress} onLongPress={handleLongPress} style={[styles.notificationItem, !notification.read ? styles.unreadNotificationItem : {}, isSelected ? styles.selectedNotificationItem : {}]}>
-      {!notification.read ? <View style={styles.unreadIndicator} /> : null}
+    <Pressable
+      onPress={handlePress}
+      onLongPress={handleLongPress}
+      style={[styles.notificationItem, themed.notificationItem, !notification.read ? themed.unreadNotificationItem : {}, isSelected ? themed.selectedNotificationItem : {}]}
+    >
+      {!notification.read ? <View style={[styles.unreadIndicator, themed.unreadIndicator]} /> : null}
 
       {isSelectionMode ? (
         <View style={styles.selectionIndicator}>
@@ -108,8 +114,8 @@ const NotificationRow = React.memo<NotificationRowProps>(({ item, isSelectionMod
       ) : null}
 
       <View style={styles.notificationContent}>
-        <Text style={[styles.notificationBody, !notification.read ? styles.unreadNotificationText : {}]}>{notification.title}</Text>
-        <Text style={styles.timestamp}>
+        <Text style={[styles.notificationBody, themed.notificationBody, !notification.read ? themed.unreadNotificationText : {}]}>{notification.title}</Text>
+        <Text style={[styles.timestamp, themed.timestamp]}>
           {formattedDate} {formattedTime}
         </Text>
       </View>
@@ -133,6 +139,8 @@ NotificationRow.displayName = 'NotificationRow';
 
 export const NotificationInbox = ({ isOpen, onClose }: NotificationInboxProps) => {
   const { t } = useTranslation();
+  const { colorScheme } = useColorScheme();
+  const themed = React.useMemo(() => createThemedStyles(colorScheme === 'dark'), [colorScheme]);
   const userId = useAuthStore((state) => state.userId);
   const config = useCoreStore((state) => state.config);
   const { notifications, isLoading, fetchMore, hasMore, refetch } = useNotifications();
@@ -340,7 +348,7 @@ export const NotificationInbox = ({ isOpen, onClose }: NotificationInboxProps) =
       </Animated.View>
 
       {/* Sidebar container */}
-      <Animated.View style={[styles.sidebarContainer, { transform: [{ translateX: slideAnim }] }]}>
+      <Animated.View style={[styles.sidebarContainer, themed.sidebarContainer, { transform: [{ translateX: slideAnim }] }]}>
         <SafeAreaView style={styles.safeArea}>
           {selectedNotification ? (
             <NotificationDetail notification={selectedNotification} onClose={() => setSelectedNotification(null)} onDelete={handleDeleteNotification} onNavigateToReference={handleNavigateToReference} />
@@ -350,7 +358,7 @@ export const NotificationInbox = ({ isOpen, onClose }: NotificationInboxProps) =
                 {isSelectionMode ? (
                   <>
                     <View style={styles.selectionHeader}>
-                      <Text style={styles.selectionCount}>{t('notifications.selected_count', { count: selectedNotificationIds.size })}</Text>
+                      <Text style={[styles.selectionCount, themed.selectionCount]}>{t('notifications.selected_count', { count: selectedNotificationIds.size })}</Text>
                       <View style={styles.selectionActions}>
                         <Button onPress={selectedNotificationIds.size === notifications?.length ? deselectAllNotifications : selectAllNotifications} variant="outline" className="mr-2">
                           <Text>{selectedNotificationIds.size === notifications?.length ? t('notifications.deselect_all') : t('notifications.select_all')}</Text>
@@ -444,8 +452,6 @@ const styles = StyleSheet.create({
     right: 0,
     width: SIDEBAR_WIDTH,
     height: '100%',
-    backgroundColor: colorScheme.get() === 'dark' ? '#171717' : '#fff',
-    shadowColor: colorScheme.get() === 'dark' ? '#262626' : '#e5e5e5',
     shadowOffset: {
       width: -2,
       height: 0,
@@ -491,7 +497,6 @@ const styles = StyleSheet.create({
   selectionCount: {
     fontSize: 16,
     fontWeight: '600',
-    color: colorScheme.get() === 'dark' ? '#ffffff' : '#000000',
   },
   selectionActions: {
     flexDirection: 'row',
@@ -502,14 +507,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colorScheme.get() === 'dark' ? '#333333' : '#eee',
     position: 'relative',
-  },
-  unreadNotificationItem: {
-    backgroundColor: colorScheme.get() === 'dark' ? '#262626' : '#f0f7ff',
-  },
-  selectedNotificationItem: {
-    backgroundColor: colorScheme.get() === 'dark' ? '#1e3a8a' : '#dbeafe',
   },
   unreadIndicator: {
     position: 'absolute',
@@ -517,7 +515,6 @@ const styles = StyleSheet.create({
     top: 0,
     width: 4,
     height: '100%',
-    backgroundColor: colorScheme.get() === 'dark' ? '#60a5fa' : '#3b82f6',
   },
   selectionIndicator: {
     marginRight: 12,
@@ -529,15 +526,12 @@ const styles = StyleSheet.create({
   notificationBody: {
     fontSize: 16,
     marginBottom: 4,
-    color: colorScheme.get() === 'dark' ? '#e5e5e5' : '#333333',
   },
   unreadNotificationText: {
     fontWeight: '600',
-    color: colorScheme.get() === 'dark' ? '#ffffff' : '#000000',
   },
   timestamp: {
     fontSize: 12,
-    color: colorScheme.get() === 'dark' ? '#a3a3a3' : '#666',
   },
   actionButtons: {
     flexDirection: 'row',
@@ -559,3 +553,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+
+// Theme-dependent colors, built at render time so manual in-app theme overrides apply
+const createThemedStyles = (isDark: boolean) =>
+  StyleSheet.create({
+    sidebarContainer: {
+      backgroundColor: isDark ? '#171717' : '#fff',
+      shadowColor: isDark ? '#262626' : '#e5e5e5',
+    },
+    selectionCount: {
+      color: isDark ? '#ffffff' : '#000000',
+    },
+    notificationItem: {
+      borderBottomColor: isDark ? '#333333' : '#eee',
+    },
+    unreadNotificationItem: {
+      backgroundColor: isDark ? '#262626' : '#f0f7ff',
+    },
+    selectedNotificationItem: {
+      backgroundColor: isDark ? '#1e3a8a' : '#dbeafe',
+    },
+    unreadIndicator: {
+      backgroundColor: isDark ? '#60a5fa' : '#3b82f6',
+    },
+    notificationBody: {
+      color: isDark ? '#e5e5e5' : '#333333',
+    },
+    unreadNotificationText: {
+      color: isDark ? '#ffffff' : '#000000',
+    },
+    timestamp: {
+      color: isDark ? '#a3a3a3' : '#666',
+    },
+  });

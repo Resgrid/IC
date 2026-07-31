@@ -227,11 +227,16 @@ jest.mock('react-native-permissions', () => ({
   }),
 }));
 
-// Mock nativewind to avoid react-native-css-interop issues
+// Mock nativewind (v5) to avoid react-native-css runtime issues
 jest.mock('nativewind', () => ({
+  styled: jest.fn((Component: any) => Component),
   cssInterop: jest.fn((Component: any) => Component),
+  vars: jest.fn((v: any) => v),
+  VariableContextProvider: ({ children }: { children?: React.ReactNode }) => children,
   useColorScheme: jest.fn(() => ({
     colorScheme: 'light',
+    setColorScheme: jest.fn(),
+    toggleColorScheme: jest.fn(),
     get: jest.fn(() => 'light'),
   })),
   __esModule: true,

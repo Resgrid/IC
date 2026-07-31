@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { ClipboardList, CloudOff, ExternalLink, Image as ImageIcon, Info, MapPin, MessageSquare, Paperclip, Pencil, RefreshCw, StickyNote, Trash2, UserCog, Video as VideoIcon, XCircle } from 'lucide-react-native';
+import { ClipboardList, CloudOff, ExternalLink, Image as ImageIcon, Info, MapPin, Paperclip, Pencil, RefreshCw, StickyNote, Trash2, UserCog, Video as VideoIcon, XCircle } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, useWindowDimensions } from 'react-native';
@@ -20,7 +20,6 @@ import { IncidentWeatherSection } from '@/components/command/incident-weather-se
 import { LandscapeStructureBoard } from '@/components/command/landscape-structure-board';
 import { LaneDetailsSheet } from '@/components/command/lane-details-sheet';
 import { MapsTabbedCard } from '@/components/command/maps-tabbed-card';
-import { MessageCommanderSheet } from '@/components/command/message-commander-sheet';
 import { NeedsSection } from '@/components/command/needs-section';
 import { NotesSection } from '@/components/command/notes-section';
 import { ObjectivesSection } from '@/components/command/objectives-section';
@@ -47,7 +46,7 @@ import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { getIncidentRoleName } from '@/lib/incident-command-utils';
 import { isWeb } from '@/lib/platform';
-import { type IncidentNeedStatus, IncidentRoleType, type ResourceAssignment, ResourceAssignmentKind } from '@/models/v4/incidentCommand/incidentCommandModels';
+import { type IncidentNeedStatus, type ResourceAssignment, ResourceAssignmentKind } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useCallsStore } from '@/stores/calls/store';
 import { type AssignmentOutcome } from '@/stores/command/store';
@@ -97,7 +96,6 @@ export default function CommandBoard() {
   const startTimer = useCommandStore((state) => state.startTimer);
   const acknowledgeTimer = useCommandStore((state) => state.acknowledgeTimer);
   const transferIncidentCommand = useCommandStore((state) => state.transferIncidentCommand);
-  const sendMessageToCommander = useCommandStore((state) => state.sendMessageToCommander);
   const fetchTimeline = useCommandStore((state) => state.fetchTimeline);
   const createVoiceChannel = useCommandStore((state) => state.createVoiceChannel);
   const fetchVoiceChannels = useCommandStore((state) => state.fetchVoiceChannels);
@@ -136,7 +134,6 @@ export default function CommandBoard() {
   /** Pending "already assigned elsewhere — move it?" confirmation. */
   const [moveConflict, setMoveConflict] = useState<{ assignmentId: string; resourceName: string; fromLane: string; toLane: string; targetNodeId: string } | null>(null);
   const [isTransferSheetOpen, setIsTransferSheetOpen] = useState(false);
-  const [isMessageSheetOpen, setIsMessageSheetOpen] = useState(false);
   const [editLaneNodeId, setEditLaneNodeId] = useState<string | null>(null);
   /** Resource being inspected in the details sheet; context decides lane-remove vs pool-release. */
   const [viewResource, setViewResource] = useState<{ assignment: ResourceAssignment; context: 'lane' | 'pool' } | null>(null);
@@ -209,7 +206,6 @@ export default function CommandBoard() {
 
   const handleOpenCommandDetails = useCallback(() => setIsCommandDetailsOpen(true), []);
   const handleOpenTransfer = useCallback(() => setIsTransferSheetOpen(true), []);
-  const handleOpenMessage = useCallback(() => setIsMessageSheetOpen(true), []);
   const handleOpenEndConfirm = useCallback(() => setIsEndConfirmOpen(true), []);
 
   const handleEndCommand = useCallback(() => {
@@ -259,18 +255,6 @@ export default function CommandBoard() {
       showToast(ok ? 'success' : 'error', ok ? t('command.transfer_success') : t('command.transfer_error'));
     },
     [activeBoardCallId, transferIncidentCommand, showToast, t]
-  );
-
-  const handleSendCommandMessage = useCallback(
-    async (title: string | null, body: string, includeDeputies: boolean) => {
-      if (!activeBoardCallId) {
-        return false;
-      }
-      const ok = await sendMessageToCommander(activeBoardCallId, title, body, includeDeputies);
-      showToast(ok ? 'success' : 'error', ok ? t('command.message_send_success') : t('command.message_send_error'));
-      return ok;
-    },
-    [activeBoardCallId, sendMessageToCommander, showToast, t]
   );
 
   const handleGoToCalls = useCallback(() => {
@@ -553,7 +537,7 @@ export default function CommandBoard() {
           ) : null}
 
           {/* Active call summary — compact one-liner so command info gets the screen */}
-          <Box className="rounded-xl bg-white px-3 py-2 shadow-sm dark:bg-gray-800" testID="command-active-call">
+          <Box className="rounded-xl bg-white px-3 py-2 shadow-xs dark:bg-gray-800" testID="command-active-call">
             <HStack space="sm" className="items-center justify-between">
               <HStack space="sm" className="min-w-0 flex-1 items-center">
                 <Heading size="sm">{boardLabel(boardState.callId)}</Heading>
@@ -609,16 +593,6 @@ export default function CommandBoard() {
               </Button>
               <Button onPress={handleOpenTransfer} variant="outline" size="xs" accessibilityLabel={t('command.transfer_command')} testID="command-transfer">
                 <ButtonIcon as={UserCog} />
-              </Button>
-              <Button
-                onPress={handleOpenMessage}
-                variant="outline"
-                size="xs"
-                isDisabled={!boardState.board?.Command?.CurrentCommanderUserId}
-                accessibilityLabel={t('command.message_commander')}
-                testID="command-message-commander"
-              >
-                <ButtonIcon as={MessageSquare} />
               </Button>
               <Button onPress={handleRefresh} variant="outline" size="xs" isDisabled={isRefreshing} testID="command-refresh">
                 <ButtonIcon as={RefreshCw} />
@@ -961,13 +935,6 @@ export default function CommandBoard() {
         personnel={users}
         currentCommanderUserId={boardState.board?.Command?.CurrentCommanderUserId}
         onTransfer={handleTransferCommand}
-      />
-      <MessageCommanderSheet
-        isOpen={isMessageSheetOpen}
-        onClose={() => setIsMessageSheetOpen(false)}
-        commanderName={boardState.board?.Command?.CurrentCommanderUserId ? personName(boardState.board.Command.CurrentCommanderUserId) : null}
-        hasDeputies={(boardState.board?.Roles ?? []).some((r) => r.RoleType === IncidentRoleType.DeputyIncidentCommander && !r.RemovedOn)}
-        onSend={handleSendCommandMessage}
       />
       <AssignResourceSheet
         isOpen={assignTargetNodeId !== null}

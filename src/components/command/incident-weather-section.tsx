@@ -52,7 +52,7 @@ export const IncidentWeatherSection: React.FC<IncidentWeatherSectionProps> = ({ 
   }, [fetchAlerts]);
 
   return (
-    <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID="command-weather-section">
+    <Box className="rounded-xl bg-white p-4 shadow-xs dark:bg-gray-800" testID="command-weather-section">
       <HStack className="mb-3 items-center justify-between">
         <HStack space="sm" className="items-center">
           <Icon as={CloudAlert} size="sm" className="text-gray-500" />

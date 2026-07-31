@@ -119,126 +119,134 @@ interface LaneRect {
   height: number;
 }
 
-const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo(({ assignment, name, rotationAfterMinutes, amberAfterMinutes, redAfterMinutes, isSelected, onSelect, onDragStart, onDragEnd, onDrop, onView }) => {
-  const { t } = useTranslation();
-  const translation = useRef(new Animated.ValueXY()).current;
-  const dragReadyRef = useRef(false);
-  const panActiveRef = useRef(false);
-  const longPressTriggeredRef = useRef(false);
-  const [isDragging, setIsDragging] = useState(false);
+const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo(
+  ({ assignment, name, rotationAfterMinutes, amberAfterMinutes, redAfterMinutes, isSelected, onSelect, onDragStart, onDragEnd, onDrop, onView }) => {
+    const { t } = useTranslation();
+    const translation = useRef(new Animated.ValueXY()).current;
+    const dragReadyRef = useRef(false);
+    const panActiveRef = useRef(false);
+    const longPressTriggeredRef = useRef(false);
+    const [isDragging, setIsDragging] = useState(false);
 
-  const resetDrag = useCallback(() => {
-    dragReadyRef.current = false;
-    panActiveRef.current = false;
-    longPressTriggeredRef.current = false;
-    setIsDragging(false);
-    translation.setValue({ x: 0, y: 0 });
-    onDragEnd();
-  }, [onDragEnd, translation]);
+    const resetDrag = useCallback(() => {
+      dragReadyRef.current = false;
+      panActiveRef.current = false;
+      longPressTriggeredRef.current = false;
+      setIsDragging(false);
+      translation.setValue({ x: 0, y: 0 });
+      onDragEnd();
+    }, [onDragEnd, translation]);
 
-  const finishDrag = useCallback(
-    (pageX: number, pageY: number, distanceX: number, distanceY: number) => {
-      const wasMoved = Math.abs(distanceX) >= DROP_MOVEMENT_THRESHOLD || Math.abs(distanceY) >= DROP_MOVEMENT_THRESHOLD;
-      if (wasMoved) {
-        onDrop(assignment.ResourceAssignmentId, pageX, pageY);
+    const finishDrag = useCallback(
+      (pageX: number, pageY: number, distanceX: number, distanceY: number) => {
+        const wasMoved = Math.abs(distanceX) >= DROP_MOVEMENT_THRESHOLD || Math.abs(distanceY) >= DROP_MOVEMENT_THRESHOLD;
+        if (wasMoved) {
+          onDrop(assignment.ResourceAssignmentId, pageX, pageY);
+        }
+        resetDrag();
+      },
+      [assignment.ResourceAssignmentId, onDrop, resetDrag]
+    );
+
+    const panResponder = useMemo(
+      () =>
+        PanResponder.create({
+          onMoveShouldSetPanResponderCapture: () => dragReadyRef.current,
+          onPanResponderGrant: () => {
+            panActiveRef.current = true;
+          },
+          onPanResponderMove: (_event, gestureState) => {
+            translation.setValue({ x: gestureState.dx, y: gestureState.dy });
+          },
+          onPanResponderRelease: (_event, gestureState) => {
+            finishDrag(gestureState.moveX, gestureState.moveY, gestureState.dx, gestureState.dy);
+          },
+          onPanResponderTerminate: () => resetDrag(),
+          onPanResponderTerminationRequest: () => false,
+        }),
+      [finishDrag, resetDrag, translation]
+    );
+
+    const handleLongPress = useCallback(() => {
+      longPressTriggeredRef.current = true;
+      dragReadyRef.current = true;
+      setIsDragging(true);
+      onDragStart(assignment.ResourceAssignmentId);
+    }, [assignment.ResourceAssignmentId, onDragStart]);
+
+    const handlePress = useCallback(() => {
+      if (longPressTriggeredRef.current) {
+        return;
       }
-      resetDrag();
-    },
-    [assignment.ResourceAssignmentId, onDrop, resetDrag]
-  );
+      onSelect(assignment.ResourceAssignmentId);
+    }, [assignment.ResourceAssignmentId, onSelect]);
 
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponderCapture: () => dragReadyRef.current,
-        onPanResponderGrant: () => {
-          panActiveRef.current = true;
-        },
-        onPanResponderMove: (_event, gestureState) => {
-          translation.setValue({ x: gestureState.dx, y: gestureState.dy });
-        },
-        onPanResponderRelease: (_event, gestureState) => {
-          finishDrag(gestureState.moveX, gestureState.moveY, gestureState.dx, gestureState.dy);
-        },
-        onPanResponderTerminate: () => resetDrag(),
-        onPanResponderTerminationRequest: () => false,
-      }),
-    [finishDrag, resetDrag, translation]
-  );
+    const handlePressOut = useCallback(() => {
+      if (dragReadyRef.current && !panActiveRef.current) {
+        setTimeout(resetDrag, 0);
+      }
+    }, [resetDrag]);
 
-  const handleLongPress = useCallback(() => {
-    longPressTriggeredRef.current = true;
-    dragReadyRef.current = true;
-    setIsDragging(true);
-    onDragStart(assignment.ResourceAssignmentId);
-  }, [assignment.ResourceAssignmentId, onDragStart]);
+    const handleView = useCallback(() => onView(assignment), [assignment, onView]);
 
-  const handlePress = useCallback(() => {
-    if (longPressTriggeredRef.current) {
-      return;
-    }
-    onSelect(assignment.ResourceAssignmentId);
-  }, [assignment.ResourceAssignmentId, onSelect]);
-
-  const handlePressOut = useCallback(() => {
-    if (dragReadyRef.current && !panActiveRef.current) {
-      setTimeout(resetDrag, 0);
-    }
-  }, [resetDrag]);
-
-  const handleView = useCallback(() => onView(assignment), [assignment, onView]);
-
-  return (
-    <Animated.View
-      {...panResponder.panHandlers}
-      style={{
-        zIndex: isDragging ? 100 : 1,
-        elevation: isDragging ? 12 : 0,
-        transform: translation.getTranslateTransform(),
-      }}
-    >
-      <Pressable
-        accessibilityHint={t('command.drag_move_hint')}
-        accessibilityLabel={name}
-        accessibilityRole={containerButtonRole}
-        className={`rounded-lg border px-3 py-2 ${isSelected || isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-950' : assignment.RequirementsWarning ? 'border-2 border-amber-500 bg-white dark:bg-gray-900' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'}`}
-        delayLongPress={LONG_PRESS_DELAY_MS}
-        onLongPress={handleLongPress}
-        onPress={handlePress}
-        onPressOut={handlePressOut}
-        testID={`landscape-resource-${assignment.ResourceAssignmentId}`}
+    return (
+      <Animated.View
+        {...panResponder.panHandlers}
+        style={{
+          zIndex: isDragging ? 100 : 1,
+          elevation: isDragging ? 12 : 0,
+          transform: translation.getTranslateTransform(),
+        }}
       >
-        <HStack className="items-center justify-between" space="xs">
-          <HStack className="flex-1 items-center" space="xs">
-            <GripVertical aria-hidden={true} className="text-gray-400" size={16} />
-            <Text className="flex-1 text-sm font-medium text-gray-900 web:line-clamp-2 dark:text-white" {...twoLine}>
-              {name}
-            </Text>
+        <Pressable
+          accessibilityHint={t('command.drag_move_hint')}
+          accessibilityLabel={name}
+          accessibilityRole={containerButtonRole}
+          className={`rounded-lg border px-3 py-2 ${isSelected || isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-950' : assignment.RequirementsWarning ? 'border-2 border-amber-500 bg-white dark:bg-gray-900' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'}`}
+          delayLongPress={LONG_PRESS_DELAY_MS}
+          onLongPress={handleLongPress}
+          onPress={handlePress}
+          onPressOut={handlePressOut}
+          testID={`landscape-resource-${assignment.ResourceAssignmentId}`}
+        >
+          <HStack className="items-center justify-between" space="xs">
+            <HStack className="flex-1 items-center" space="xs">
+              <GripVertical aria-hidden={true} className="text-gray-400" size={16} />
+              <Text className="flex-1 text-sm font-medium text-gray-900 web:line-clamp-2 dark:text-white" {...twoLine}>
+                {name}
+              </Text>
+            </HStack>
+            <WorkTimeLight
+              assignedOn={assignment.AssignedOn}
+              rotationAfterMinutes={rotationAfterMinutes}
+              amberAfterMinutes={amberAfterMinutes}
+              redAfterMinutes={redAfterMinutes}
+              testID={`landscape-worktime-${assignment.ResourceAssignmentId}`}
+            />
+            <Pressable accessibilityLabel={t('command.view_details')} accessibilityRole="button" className="p-1" onPress={handleView} testID={`landscape-resource-view-${assignment.ResourceAssignmentId}`}>
+              <Eye className="text-gray-400" size={16} />
+            </Pressable>
           </HStack>
-          <WorkTimeLight assignedOn={assignment.AssignedOn} rotationAfterMinutes={rotationAfterMinutes} amberAfterMinutes={amberAfterMinutes} redAfterMinutes={redAfterMinutes} testID={`landscape-worktime-${assignment.ResourceAssignmentId}`} />
-          <Pressable accessibilityLabel={t('command.view_details')} accessibilityRole="button" className="p-1" onPress={handleView} testID={`landscape-resource-view-${assignment.ResourceAssignmentId}`}>
-            <Eye className="text-gray-400" size={16} />
-          </Pressable>
-        </HStack>
-        {assignment.ResourceAssignmentId.startsWith('local-') || assignment.RequirementsWarning || isSelected ? (
-          <HStack className="mt-1 items-center" space="xs">
-            {assignment.ResourceAssignmentId.startsWith('local-') ? <CloudOff className="text-amber-500" size={14} /> : null}
-            {assignment.RequirementsWarning ? (
-              <Badge action="warning" size="sm" variant="solid">
-                <BadgeText className="text-white">{t('command.requirements_warning')}</BadgeText>
-              </Badge>
-            ) : null}
-            {isSelected ? (
-              <Badge action="info" size="sm" variant="solid">
-                <BadgeText className="text-white">{t('command.selected')}</BadgeText>
-              </Badge>
-            ) : null}
-          </HStack>
-        ) : null}
-      </Pressable>
-    </Animated.View>
-  );
-});
+          {assignment.ResourceAssignmentId.startsWith('local-') || assignment.RequirementsWarning || isSelected ? (
+            <HStack className="mt-1 items-center" space="xs">
+              {assignment.ResourceAssignmentId.startsWith('local-') ? <CloudOff className="text-amber-500" size={14} /> : null}
+              {assignment.RequirementsWarning ? (
+                <Badge action="warning" size="sm" variant="solid">
+                  <BadgeText className="text-white">{t('command.requirements_warning')}</BadgeText>
+                </Badge>
+              ) : null}
+              {isSelected ? (
+                <Badge action="info" size="sm" variant="solid">
+                  <BadgeText className="text-white">{t('command.selected')}</BadgeText>
+                </Badge>
+              ) : null}
+            </HStack>
+          ) : null}
+        </Pressable>
+      </Animated.View>
+    );
+  }
+);
 
 DraggableResourceCard.displayName = 'DraggableResourceCard';
 
@@ -317,7 +325,7 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
   );
 
   return (
-    <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID="command-landscape-structure-board">
+    <Box className="rounded-xl bg-white p-4 shadow-xs dark:bg-gray-800" testID="command-landscape-structure-board">
       <HStack className="mb-2 items-center justify-between">
         <HStack className="items-center" space="sm">
           <Heading size="sm">{t('command.structure_section')}</Heading>

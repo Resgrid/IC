@@ -63,7 +63,7 @@ export const TimersSection: React.FC<TimersSectionProps> = ({ timers, onStartTim
   }, [name, minutes, onStartTimer, t]);
 
   return (
-    <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID="command-timers-section">
+    <Box className="rounded-xl bg-white p-4 shadow-xs dark:bg-gray-800" testID="command-timers-section">
       <HStack className="mb-3 items-center justify-between">
         <HStack space="sm" className="items-center">
           <Heading size="sm">{t('command.timers_section')}</Heading>

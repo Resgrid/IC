@@ -1,14 +1,15 @@
-import type { VariantProps } from '@gluestack-ui/nativewind-utils';
+import type { VariantProps } from '@gluestack-ui/utils/nativewind-utils';
 import React, { forwardRef, memo } from 'react';
 
 import { headingStyle } from './styles';
 type IHeadingProps = VariantProps<typeof headingStyle> &
   React.ComponentPropsWithoutRef<'h1'> & {
     as?: React.ElementType;
+    testID?: string;
   };
 
 const MappedHeading = memo(
-  forwardRef<HTMLHeadingElement, IHeadingProps>(function MappedHeading({ size, className, isTruncated, bold, underline, strikeThrough, sub, italic, highlight, ...props }, ref) {
+  forwardRef<HTMLHeadingElement, IHeadingProps>(function MappedHeading({ size, className, isTruncated, bold, underline, strikeThrough, sub, italic, highlight, testID, ...props }, ref) {
     switch (size) {
       case '5xl':
       case '4xl':
@@ -26,6 +27,7 @@ const MappedHeading = memo(
               highlight,
               class: className,
             })}
+            data-testid={testID}
             {...props}
             ref={ref}
           />
@@ -44,6 +46,7 @@ const MappedHeading = memo(
               highlight,
               class: className,
             })}
+            data-testid={testID}
             {...props}
             ref={ref}
           />
@@ -62,6 +65,7 @@ const MappedHeading = memo(
               highlight,
               class: className,
             })}
+            data-testid={testID}
             {...props}
             ref={ref}
           />
@@ -80,6 +84,7 @@ const MappedHeading = memo(
               highlight,
               class: className,
             })}
+            data-testid={testID}
             {...props}
             ref={ref}
           />
@@ -98,6 +103,7 @@ const MappedHeading = memo(
               highlight,
               class: className,
             })}
+            data-testid={testID}
             {...props}
             ref={ref}
           />
@@ -117,6 +123,7 @@ const MappedHeading = memo(
               highlight,
               class: className,
             })}
+            data-testid={testID}
             {...props}
             ref={ref}
           />
@@ -135,6 +142,7 @@ const MappedHeading = memo(
               highlight,
               class: className,
             })}
+            data-testid={testID}
             {...props}
             ref={ref}
           />
@@ -144,7 +152,7 @@ const MappedHeading = memo(
 );
 
 const Heading = memo(
-  forwardRef<HTMLHeadingElement, IHeadingProps>(function Heading({ className, size = 'lg', as: AsComp, ...props }, ref) {
+  forwardRef<HTMLHeadingElement, IHeadingProps>(function Heading({ className, size = 'lg', as: AsComp, testID, ...props }, ref) {
     const { isTruncated, bold, underline, strikeThrough, sub, italic, highlight } = props;
 
     if (AsComp) {
@@ -161,13 +169,14 @@ const Heading = memo(
             highlight,
             class: className,
           })}
+          data-testid={testID}
           {...props}
           ref={ref}
         />
       );
     }
 
-    return <MappedHeading className={className} size={size} ref={ref} {...props} />;
+    return <MappedHeading className={className} size={size} ref={ref} testID={testID} {...props} />;
   })
 );
 

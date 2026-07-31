@@ -618,12 +618,16 @@ const styles = StyleSheet.create({
   } as any,
   markerOuterRingPulseWeb:
     Platform.OS === 'web'
-      ? {
-          // @ts-ignore — web-only CSS animation properties
-          animationName: 'pulse-ring',
+      ? ({
+          // react-native-web compiles animationKeyframes into CSS @keyframes
+          animationKeyframes: {
+            '0%': { transform: [{ scale: 1 }], opacity: 0.3 },
+            '50%': { transform: [{ scale: 1.2 }], opacity: 0.15 },
+            '100%': { transform: [{ scale: 1 }], opacity: 0.3 },
+          },
           animationDuration: '2s',
           animationIterationCount: 'infinite',
           animationTimingFunction: 'ease-in-out',
-        }
+        } as any)
       : ({} as any),
 });

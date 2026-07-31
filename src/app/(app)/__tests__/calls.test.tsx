@@ -36,6 +36,11 @@ jest.mock('react-native', () => ({
 
 // Mock expo-router
 jest.mock('expo-router', () => ({
+  useFocusEffect: jest.fn((callback: () => void) => {
+    const React = require('react');
+    React.useEffect(callback, []);
+  }),
+  useIsFocused: jest.fn(() => true),
   router: {
     push: jest.fn(),
   },
@@ -201,6 +206,7 @@ jest.mock('expo-navigation-bar', () => ({
 }));
 
 jest.mock('nativewind', () => ({
+  styled: jest.fn((Component: any) => Component),
   useColorScheme: jest.fn(() => ({ colorScheme: 'light' })),
 }));
 
@@ -214,13 +220,6 @@ jest.mock('@/components/ui/focus-aware-status-bar', () => ({
 }));
 
 // Mock useFocusEffect and useIsFocused
-jest.mock('@react-navigation/native', () => ({
-  useFocusEffect: jest.fn((callback: () => void) => {
-    const React = require('react');
-    React.useEffect(callback, []);
-  }),
-  useIsFocused: jest.fn(() => true),
-}));
 
 import CallsScreen from '../calls';
 

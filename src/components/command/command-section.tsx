@@ -21,7 +21,7 @@ interface CommandSectionProps {
 /** Card wrapper for an ICS board section (roles, resources, accountability). */
 export const CommandSection: React.FC<CommandSectionProps> = ({ title, count, addLabel, emptyText, onAdd, testID, children }) => {
   return (
-    <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID={testID}>
+    <Box className="rounded-xl bg-white p-4 shadow-xs dark:bg-gray-800" testID={testID}>
       <HStack className="mb-3 items-center justify-between">
         <HStack space="sm" className="items-center">
           <Heading size="sm">{title}</Heading>

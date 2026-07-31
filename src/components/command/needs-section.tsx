@@ -78,7 +78,7 @@ export const NeedsSection: React.FC<NeedsSectionProps> = ({ needs, onAdd, onSetS
   }, [name, category, quantity, description, selectedEntities, onAdd, onRequestEntities]);
 
   return (
-    <Box className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800" testID="command-needs-section">
+    <Box className="rounded-xl bg-white p-4 shadow-xs dark:bg-gray-800" testID="command-needs-section">
       <HStack className="mb-3 items-center justify-between">
         <HStack space="sm" className="items-center">
           <Heading size="sm">{t('command.needs_section')}</Heading>
