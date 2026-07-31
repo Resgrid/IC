@@ -25,6 +25,24 @@ const SEGMENTS: { labelKey: string; value: SearchFilter }[] = [
   { labelKey: 'maps.custom', value: 'custom' },
 ];
 
+interface FilterSegmentProps {
+  label: string;
+  value: SearchFilter;
+  isActive: boolean;
+  onPress: (value: SearchFilter) => void;
+}
+
+const FilterSegment: React.FC<FilterSegmentProps> = React.memo(({ label, value, isActive, onPress }) => {
+  const handlePress = useCallback(() => onPress(value), [onPress, value]);
+
+  return (
+    <Pressable onPress={handlePress} className={`flex-1 items-center rounded-md px-3 py-2 ${isActive ? 'bg-white shadow-xs dark:bg-gray-600' : ''}`}>
+      <Text className={`text-sm font-medium ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>{label}</Text>
+    </Pressable>
+  );
+});
+FilterSegment.displayName = 'FilterSegment';
+
 export default function MapSearch(): React.JSX.Element {
   const { t } = useTranslation();
   const searchResults = useMapsStore((state) => state.searchResults);
@@ -170,14 +188,9 @@ export default function MapSearch(): React.JSX.Element {
 
         {/* Segmented control */}
         <HStack className="mb-4 rounded-lg bg-gray-200 p-1 dark:bg-gray-700" space="xs">
-          {SEGMENTS.map((segment) => {
-            const isActive = segment.value === activeFilter;
-            return (
-              <Pressable key={segment.value} onPress={() => handleFilterChange(segment.value)} className={`flex-1 items-center rounded-md px-3 py-2 ${isActive ? 'bg-white shadow-xs dark:bg-gray-600' : ''}`}>
-                <Text className={`text-sm font-medium ${isActive ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>{t(segment.labelKey)}</Text>
-              </Pressable>
-            );
-          })}
+          {SEGMENTS.map((segment) => (
+            <FilterSegment key={segment.value} label={t(segment.labelKey)} value={segment.value} isActive={segment.value === activeFilter} onPress={handleFilterChange} />
+          ))}
         </HStack>
 
         {/* Results */}
