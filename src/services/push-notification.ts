@@ -1,6 +1,7 @@
 import notifee, { AndroidImportance, AndroidVisibility, AuthorizationStatus, EventType } from '@notifee/react-native';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import { router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 
@@ -29,6 +30,25 @@ export interface PushNotificationData {
   title?: string;
   body?: string;
   data?: Record<string, unknown>;
+}
+
+/**
+ * Handles chat push deep-links. Chat notifications carry an eventCode of
+ * "t:{channelId}" (direct message) or "g:{channelId}" (group/channel); both
+ * navigate to the chat conversation route. Returns true when the tap was
+ * consumed as a chat deep-link (so the caller skips the generic modal).
+ */
+export function handleChatDeepLink(eventCode: string): boolean {
+  const match = /^([tg]):(.+)$/.exec(eventCode);
+  if (!match) return false;
+  const channelId = match[2];
+  try {
+    router.push(`/chat/${channelId}`);
+    return true;
+  } catch (error) {
+    logger.error({ message: 'Failed to deep-link to chat channel', context: { error, eventCode } });
+    return false;
+  }
 }
 
 // Configure how notifications are presented while the app is in the foreground.
@@ -206,6 +226,12 @@ class PushNotificationService {
 
     // Delay so the React tree is mounted and the modal store is ready.
     setTimeout(() => {
+      // Chat notifications ("t:{channelId}" / "g:{channelId}") deep-link straight
+      // to the conversation instead of surfacing the generic notification modal.
+      const eventCode = data?.eventCode;
+      if (typeof eventCode === 'string' && handleChatDeepLink(eventCode)) {
+        return;
+      }
       this.showModalForData(data, content.title, content.body);
     }, delayMs);
   }
@@ -229,8 +255,12 @@ class PushNotificationService {
         await this.handleCheckInAction();
       }
 
-      // Handle notification press → modal
+      // Handle notification press → chat deep-link or modal
       if (type === EventType.PRESS && detail.notification) {
+        const eventCode = detail.notification.data?.eventCode;
+        if (typeof eventCode === 'string' && handleChatDeepLink(eventCode)) {
+          return;
+        }
         this.showModalForData(detail.notification.data, detail.notification.title, detail.notification.body);
       }
     });

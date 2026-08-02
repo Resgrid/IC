@@ -172,6 +172,14 @@ export default function TabLayout() {
       await useSignalRStore.getState().connectUpdateHub();
       await useSignalRStore.getState().connectGeolocationHub();
 
+      // Connect the realtime chat hub (best-effort; chat may be disabled per department)
+      try {
+        await useSignalRStore.getState().connectChatHub();
+        logger.info({ message: 'SignalR chat hub connected successfully' });
+      } catch (chatError) {
+        logger.warn({ message: 'Failed to connect SignalR chat hub during initialization', context: { error: chatError } });
+      }
+
       // Hydrate incident-command boards from the server Sync Bundle (best-effort; offline-safe)
       useCommandStore
         .getState()
@@ -459,6 +467,26 @@ export default function TabLayout() {
     [t, headerLeftBack, headerRightNotification]
   );
 
+  // chat + chatbot are routable (sidebar menu links) but hidden from the tab bar (href: null);
+  // each screen renders its own in-screen header/toolbar, so the tab header is disabled.
+  const chatOptions = useMemo(
+    () => ({
+      href: null,
+      title: t('chat.title'),
+      headerShown: false as const,
+    }),
+    [t]
+  );
+
+  const chatbotOptions = useMemo(
+    () => ({
+      href: null,
+      title: t('chatbot.title'),
+      headerShown: false as const,
+    }),
+    [t]
+  );
+
   // settings stays routable (sidebar menu link) but is hidden from the tab bar.
   const settingsOptions = useMemo(
     () => ({
@@ -524,6 +552,11 @@ export default function TabLayout() {
             <Tabs.Screen name="maps" options={mapsOptions} />
 
             <Tabs.Screen name="settings" options={settingsOptions} />
+
+            {/* chat + chatbot are hidden tab routes (href: null) reachable via the sidebar menu. */}
+            <Tabs.Screen name="chat" options={chatOptions} />
+
+            <Tabs.Screen name="chatbot" options={chatbotOptions} />
 
             <Tabs.Screen name="poi/[id]" options={poiDetailOptions} />
           </Tabs>
