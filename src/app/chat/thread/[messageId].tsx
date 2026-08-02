@@ -12,9 +12,9 @@ import { KeyboardAvoidingView } from '@/components/ui/keyboard-avoiding-view';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { logger } from '@/lib/logging';
-import { ChatChannelType, ChatMessagePriority, ChatMessageType, type ChatMessageResultData } from '@/models/v4/chat';
-import { useChatStore } from '@/stores/chat/store';
+import { ChatChannelType, ChatMessagePriority, type ChatMessageResultData, ChatMessageType } from '@/models/v4/chat';
 import useAuthStore from '@/stores/auth/store';
+import { useChatStore } from '@/stores/chat/store';
 
 export default function ThreadScreen() {
   const { t } = useTranslation();
@@ -28,8 +28,7 @@ export default function ThreadScreen() {
   const [fetchedReplies, setFetchedReplies] = useState<ChatMessageResultData[]>([]);
 
   // IC delta: thread replies in command-type channels also post as the Incident Commander.
-  const isCommandChannel =
-    channel?.ChannelType === ChatChannelType.Incident || channel?.ChannelType === ChatChannelType.IncidentLane || channel?.ChannelType === ChatChannelType.IncidentCommand;
+  const isCommandChannel = channel?.ChannelType === ChatChannelType.Incident || channel?.ChannelType === ChatChannelType.IncidentLane || channel?.ChannelType === ChatChannelType.IncidentCommand;
 
   const root = useMemo(() => (channelMessages ?? []).find((m) => m.ChatMessageId === messageId), [channelMessages, messageId]);
 
@@ -115,22 +114,9 @@ export default function ThreadScreen() {
 
         <Divider />
 
-        <FlatList
-          data={inverted}
-          inverted
-          keyExtractor={(item: ChatMessageResultData) => item.ChatMessageId}
-          renderItem={renderItem}
-          contentContainerStyle={{ paddingVertical: 8 }}
-        />
+        <FlatList data={inverted} inverted keyExtractor={(item: ChatMessageResultData) => item.ChatMessageId} renderItem={renderItem} contentContainerStyle={{ paddingVertical: 8 }} />
 
-        <MessageComposer
-          onSendText={handleSendText}
-          onSendImage={() => undefined}
-          onSendLocation={handleSendLocation}
-          onOpenGif={handleSendGif}
-          onTyping={() => undefined}
-          placeholder={t('chat.reply_placeholder')}
-        />
+        <MessageComposer onSendText={handleSendText} onSendImage={() => undefined} onSendLocation={handleSendLocation} onOpenGif={handleSendGif} onTyping={() => undefined} placeholder={t('chat.reply_placeholder')} />
       </KeyboardAvoidingView>
     </Box>
   );
