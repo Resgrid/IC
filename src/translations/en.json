@@ -381,7 +381,15 @@
     "type_a_message": "Type a message",
     "unpin": "Unpin",
     "urgent": "Urgent",
-    "urgent_will_send": "This message will be sent as urgent"
+    "urgent_will_send": "This message will be sent as urgent",
+    "channel": "Channel",
+    "direct_message": "Direct Message",
+    "load_people_failed": "Could not load people",
+    "reaction_failed": "Could not update reaction",
+    "edit_failed": "Could not edit message",
+    "delete_failed": "Could not delete message",
+    "pin_failed": "Could not update pin",
+    "flag_failed": "Could not report message"
   },
   "chatbot": {
     "ask_placeholder": "Ask the assistant...",
