@@ -24,5 +24,10 @@ export const setup = (ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>
   };
 };
 
+// Intentionally re-export everything from the library and then override its
+// `render` with our wrapper-aware version. The explicit named export wins at
+// runtime; `import/export` flags the shadowed name, so it is disabled here.
+/* eslint-disable-next-line import/export */
 export * from '@testing-library/react-native';
+/* eslint-disable-next-line import/export */
 export { customRender as render };

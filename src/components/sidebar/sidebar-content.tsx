@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import type { LucideIcon } from 'lucide-react-native';
-import { ChevronRight, ClipboardList, CloudAlert, Layers, Map, Megaphone, Settings } from 'lucide-react-native';
+import { ChevronRight, ClipboardList, CloudAlert, Layers, Map, Megaphone, MessagesSquare, Settings, Sparkles } from 'lucide-react-native';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView } from 'react-native';
@@ -25,6 +25,8 @@ const MENU_ITEMS: MenuItem[] = [
   { key: 'map', labelKey: 'tabs.map', icon: Map, href: '/' },
   { key: 'calls', labelKey: 'tabs.calls', icon: Megaphone, href: '/calls' },
   { key: 'command', labelKey: 'tabs.command_board', icon: ClipboardList, href: '/command' },
+  { key: 'chat', labelKey: 'chat.title', icon: MessagesSquare, href: '/chat' },
+  { key: 'chatbot', labelKey: 'chat.assistant', icon: Sparkles, href: '/chatbot' },
   { key: 'maps', labelKey: 'maps.title', icon: Layers, href: '/maps' },
   { key: 'weather-alerts', labelKey: 'tabs.weather_alerts', icon: CloudAlert, href: '/weather-alerts' },
   { key: 'settings', labelKey: 'tabs.settings', icon: Settings, href: '/settings' },

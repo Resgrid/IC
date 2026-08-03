@@ -2,6 +2,13 @@ import { Linking } from 'react-native';
 import { Platform } from 'react-native';
 import type { StoreApi, UseBoundStore } from 'zustand';
 
+import { getBaseApiUrl } from './storage/app';
+
+/** Absolute URL to a user's avatar image served by the Resgrid API. */
+export function getAvatarUrl(userId: string) {
+  return getBaseApiUrl() + '/Avatars/Get?id=' + userId;
+}
+
 export function openLinkInBrowser(url: string) {
   Linking.canOpenURL(url).then((canOpen) => canOpen && Linking.openURL(url));
 }

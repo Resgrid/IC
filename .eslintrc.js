@@ -79,5 +79,18 @@ module.exports = {
       files: ['**/__tests__/**/*.[jt]s?(x)', '**/?(*.)+(spec|test).[jt]s?(x)'],
       extends: ['plugin:testing-library/react'],
     },
+    {
+      // Re-enable the TypeScript import resolver for source files. Expo's TS
+      // override narrows `import/resolver` to node-only, which cannot follow
+      // package `exports` maps (e.g. `@gluestack-ui/utils/nativewind-utils`)
+      // or `.ts` deep imports (e.g. `@gluestack-ui/core/*/creator`).
+      files: ['src/**/*.{ts,tsx}'],
+      settings: {
+        'import/resolver': {
+          typescript: { alwaysTryTypes: true },
+          node: { extensions: ['.js', '.jsx', '.ts', '.tsx', '.d.ts', '.json'] },
+        },
+      },
+    },
   ],
 };
