@@ -35,6 +35,7 @@ import { usePushNotifications } from '@/services/push-notification';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useCallsStore } from '@/stores/calls/store';
 import { useCommandStore } from '@/stores/command/store';
+import { FeatureFlagKeys, featureFlagsStore } from '@/stores/feature-flags/store';
 import { useRolesStore } from '@/stores/roles/store';
 import { securityStore } from '@/stores/security/store';
 import { useSignalRStore } from '@/stores/signalr/signalr-store';
@@ -168,16 +169,21 @@ export default function TabLayout() {
       await useCallsStore.getState().init();
       await useWeatherAlertsStore.getState().init();
       await securityStore.getState().getRights();
+      await featureFlagsStore.getState().fetchFlags();
 
       await useSignalRStore.getState().connectUpdateHub();
       await useSignalRStore.getState().connectGeolocationHub();
 
       // Connect the realtime chat hub (best-effort; chat may be disabled per department)
-      try {
-        await useSignalRStore.getState().connectChatHub();
-        logger.info({ message: 'SignalR chat hub connected successfully' });
-      } catch (chatError) {
-        logger.warn({ message: 'Failed to connect SignalR chat hub during initialization', context: { error: chatError } });
+      if (featureFlagsStore.getState().isEnabled(FeatureFlagKeys.ChatSystem)) {
+        try {
+          await useSignalRStore.getState().connectChatHub();
+          logger.info({ message: 'SignalR chat hub connected successfully' });
+        } catch (chatError) {
+          logger.warn({ message: 'Failed to connect SignalR chat hub during initialization', context: { error: chatError } });
+        }
+      } else {
+        logger.info({ message: 'Chat disabled by feature flag; skipping chat hub connection' });
       }
 
       // Hydrate incident-command boards from the server Sync Bundle (best-effort; offline-safe)

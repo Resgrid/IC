@@ -1,4 +1,4 @@
-import { Stack, useFocusEffect } from 'expo-router';
+import { Redirect, Stack, useFocusEffect } from 'expo-router';
 import { RefreshCw, Send, Sparkles } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -13,11 +13,13 @@ import { HStack } from '@/components/ui/hstack';
 import { Input, InputField } from '@/components/ui/input';
 import { KeyboardAvoidingView } from '@/components/ui/keyboard-avoiding-view';
 import { Pressable } from '@/components/ui/pressable';
+import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { type ChatMessageResultData } from '@/models/v4/chat';
 import useAuthStore from '@/stores/auth/store';
 import { useChatStore } from '@/stores/chat/store';
+import { useChatSystemStatus } from '@/stores/feature-flags/store';
 
 export default function ChatbotScreen() {
   const { t } = useTranslation();
@@ -26,22 +28,26 @@ export default function ChatbotScreen() {
   const chatbotTyping = useChatStore((s) => s.chatbotTyping);
   const messages = useChatStore((s) => (chatbotChannelId ? s.messagesByChannel[chatbotChannelId] : undefined));
   const [text, setText] = useState('');
+  const chatStatus = useChatSystemStatus();
+  const isChatEnabled = chatStatus === 'enabled';
 
   useFocusEffect(
     useCallback(() => {
+      if (!isChatEnabled) return;
       const store = useChatStore.getState();
       void store.initChatbot();
       return () => {
         useChatStore.getState().setActiveChannel(null);
       };
-    }, [])
+    }, [isChatEnabled])
   );
 
   // Keep the assistant channel active while viewing so incoming messages don't inflate unread.
   useFocusEffect(
     useCallback(() => {
+      if (!isChatEnabled) return;
       if (chatbotChannelId) useChatStore.getState().setActiveChannel(chatbotChannelId);
-    }, [chatbotChannelId])
+    }, [chatbotChannelId, isChatEnabled])
   );
 
   const inverted = useMemo(() => (messages ? messages.slice().reverse() : []), [messages]);
@@ -59,6 +65,22 @@ export default function ChatbotScreen() {
     ),
     [currentUserId]
   );
+
+  // Chat.System flag not yet resolved: wait instead of redirecting away from a valid route.
+  if (chatStatus === 'unknown') {
+    return (
+      <Box className="size-full flex-1 items-center justify-center bg-background-0">
+        <Stack.Screen options={{ headerShown: false }} />
+        <FocusAwareStatusBar />
+        <Spinner />
+      </Box>
+    );
+  }
+
+  // Chat.System feature flag off: the assistant rides on the chat system, hide it too.
+  if (chatStatus === 'disabled') {
+    return <Redirect href="/" />;
+  }
 
   return (
     <Box className="size-full flex-1 bg-background-0">
