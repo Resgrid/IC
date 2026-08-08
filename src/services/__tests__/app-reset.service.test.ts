@@ -136,6 +136,13 @@ jest.mock('@/stores/security/store', () => ({
   },
 }));
 
+jest.mock('@/stores/feature-flags/store', () => ({
+  featureFlagsStore: {
+    setState: jest.fn(),
+    getState: jest.fn(() => ({})),
+  },
+}));
+
 jest.mock('@/stores/units/store', () => ({
   useUnitsStore: {
     setState: jest.fn(),
@@ -153,6 +160,7 @@ import {
   INITIAL_CONTACTS_STATE,
   INITIAL_CORE_STATE,
   INITIAL_DISPATCH_STATE,
+  INITIAL_FEATURE_FLAGS_STATE,
   INITIAL_LIVEKIT_STATE,
   INITIAL_LOCATION_STATE,
   INITIAL_NOTES_STATE,
@@ -309,6 +317,15 @@ describe('app-reset.service', () => {
       });
     });
 
+    it('should export INITIAL_FEATURE_FLAGS_STATE with correct shape', () => {
+      expect(INITIAL_FEATURE_FLAGS_STATE).toEqual({
+        flags: {},
+        isLoaded: false,
+        error: null,
+        identityKey: null,
+      });
+    });
+
     it('should export INITIAL_LOCATION_STATE with correct shape', () => {
       expect(INITIAL_LOCATION_STATE).toEqual({
         latitude: null,
@@ -388,12 +405,15 @@ describe('app-reset.service', () => {
       const { useCoreStore } = jest.requireMock('@/stores/app/core-store');
       const { useCallsStore } = jest.requireMock('@/stores/calls/store');
       const { useUnitsStore } = jest.requireMock('@/stores/units/store');
+      const { featureFlagsStore } = jest.requireMock('@/stores/feature-flags/store');
 
       await resetAllStores();
 
       expect(useCoreStore.setState).toHaveBeenCalledWith(INITIAL_CORE_STATE);
       expect(useCallsStore.setState).toHaveBeenCalledWith(INITIAL_CALLS_STATE);
       expect(useUnitsStore.setState).toHaveBeenCalledWith(INITIAL_UNITS_STATE);
+      // Logout must clear in-memory flags and identity so the next session fails closed.
+      expect(featureFlagsStore.setState).toHaveBeenCalledWith(INITIAL_FEATURE_FLAGS_STATE);
       expect(mockOfflineQueueClear).toHaveBeenCalled();
       expect(mockLoadingReset).toHaveBeenCalled();
       expect(mockAudioCleanup).toHaveBeenCalled();
