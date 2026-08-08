@@ -61,9 +61,15 @@ export default function ChannelConversationScreen() {
   const [editText, setEditText] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [presenceIds, setPresenceIds] = useState<Set<string>>(new Set());
+  const [resolveAttempted, setResolveAttempted] = useState(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
   const isDm = channel?.ChannelType === ChatChannelType.DirectMessage;
+  const isChatbot = channel?.ChannelType === ChatChannelType.Chatbot;
+  // Deep links (push notifications, cold starts) can arrive before the channel
+  // list loads; the channel type is unknown until then. Treat a completed fetch
+  // with no match as resolved so unknown channels keep the generic screen.
+  const isResolved = !!channel || resolveAttempted;
   const showSender = !isDm;
   // IC delta: in command-type channels the user posts as the Incident Commander.
   // The server validates the user actually holds command (CanSendAsIcAsync) and rejects otherwise.
@@ -72,11 +78,21 @@ export default function ChannelConversationScreen() {
   // Newest-first for the inverted list.
   const inverted = useMemo(() => (messages ? messages.slice().reverse() : []), [messages]);
 
-  // Mount: activate channel, join hub, load history and members.
+  // Resolve the channel identity for deep links before mounting the generic view.
+  useEffect(() => {
+    if (channel || resolveAttempted || !isChatEnabled) return;
+    void useChatStore
+      .getState()
+      .fetchChannels()
+      .finally(() => setResolveAttempted(true));
+  }, [channel, resolveAttempted, isChatEnabled]);
+
+  // Mount: activate channel, join hub, load history and members. Assistant
+  // conversations are handled by the dedicated chatbot screen — never join or
+  // load them here, and wait for unresolved deep links to identify first.
   useFocusEffect(
     useCallback(() => {
-      if (!isChatEnabled) return;
-      if (!channelId) return;
+      if (!channelId || !isChatEnabled || !isResolved || isChatbot) return;
       const store = useChatStore.getState();
       store.setActiveChannel(channelId);
       void store.joinChannel(channelId);
@@ -85,7 +101,7 @@ export default function ChannelConversationScreen() {
       return () => {
         useChatStore.getState().setActiveChannel(null);
       };
-    }, [channelId, isChatEnabled])
+    }, [channelId, isChatEnabled, isResolved, isChatbot])
   );
 
   // Fetch presence for the channel members (for the header online dot).
@@ -107,10 +123,10 @@ export default function ChannelConversationScreen() {
   // Mark read whenever the newest message changes while viewing.
   useEffect(() => {
     if (!isChatEnabled) return;
-    if (channelId && inverted.length > 0) {
+    if (channelId && isResolved && !isChatbot && inverted.length > 0) {
       void useChatStore.getState().markChannelRead(channelId);
     }
-  }, [channelId, inverted.length, isChatEnabled]);
+  }, [channelId, inverted.length, isChatEnabled, isResolved, isChatbot]);
 
   const otherOnline = useMemo(() => {
     if (!isDm) return false;
@@ -267,9 +283,20 @@ export default function ChannelConversationScreen() {
     return <Redirect href="/" />;
   }
 
+  // Deep link to a channel that isn't loaded yet: wait for the channel list so
+  // assistant conversations never mount the full-featured view.
+  if (!isResolved) {
+    return (
+      <Box className="size-full flex-1 items-center justify-center bg-background-0">
+        <Stack.Screen options={{ title, headerShown: true, headerBackTitle: '' }} />
+        <Spinner />
+      </Box>
+    );
+  }
+
   // Assistant conversations always use the dedicated restricted screen (text only,
   // no reactions/threads/deletes) — catch deep links and stale routes here.
-  if (channel?.ChannelType === ChatChannelType.Chatbot) {
+  if (isChatbot) {
     return <Redirect href={'/chatbot' as Href} />;
   }
 
