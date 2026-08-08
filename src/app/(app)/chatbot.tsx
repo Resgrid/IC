@@ -1,4 +1,4 @@
-import { Stack, useFocusEffect } from 'expo-router';
+import { Redirect, Stack, useFocusEffect } from 'expo-router';
 import { RefreshCw, Send, Sparkles } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +18,7 @@ import { VStack } from '@/components/ui/vstack';
 import { type ChatMessageResultData } from '@/models/v4/chat';
 import useAuthStore from '@/stores/auth/store';
 import { useChatStore } from '@/stores/chat/store';
+import { useIsChatEnabled } from '@/stores/feature-flags/store';
 
 export default function ChatbotScreen() {
   const { t } = useTranslation();
@@ -26,22 +27,25 @@ export default function ChatbotScreen() {
   const chatbotTyping = useChatStore((s) => s.chatbotTyping);
   const messages = useChatStore((s) => (chatbotChannelId ? s.messagesByChannel[chatbotChannelId] : undefined));
   const [text, setText] = useState('');
+  const isChatEnabled = useIsChatEnabled();
 
   useFocusEffect(
     useCallback(() => {
+      if (!isChatEnabled) return;
       const store = useChatStore.getState();
       void store.initChatbot();
       return () => {
         useChatStore.getState().setActiveChannel(null);
       };
-    }, [])
+    }, [isChatEnabled])
   );
 
   // Keep the assistant channel active while viewing so incoming messages don't inflate unread.
   useFocusEffect(
     useCallback(() => {
+      if (!isChatEnabled) return;
       if (chatbotChannelId) useChatStore.getState().setActiveChannel(chatbotChannelId);
-    }, [chatbotChannelId])
+    }, [chatbotChannelId, isChatEnabled])
   );
 
   const inverted = useMemo(() => (messages ? messages.slice().reverse() : []), [messages]);
@@ -59,6 +63,11 @@ export default function ChatbotScreen() {
     ),
     [currentUserId]
   );
+
+  // Chat.System feature flag off: no chat for this department.
+  if (!isChatEnabled) {
+    return <Redirect href="/" />;
+  }
 
   return (
     <Box className="size-full flex-1 bg-background-0">

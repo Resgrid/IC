@@ -1,4 +1,4 @@
-import { type Href, Stack, useFocusEffect, useRouter } from 'expo-router';
+import { type Href, Redirect, Stack, useFocusEffect, useRouter } from 'expo-router';
 import { Bot, MessageCircle, MessagesSquare, Network, Plus, Sparkles, Users } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,7 @@ import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { type ChatChannelResultData, ChatChannelType } from '@/models/v4/chat';
 import { useChatStore } from '@/stores/chat/store';
+import { useIsChatEnabled } from '@/stores/feature-flags/store';
 
 function ChannelRow({ channel, onPress }: { channel: ChatChannelResultData; onPress: () => void }) {
   const { t } = useTranslation();
@@ -86,12 +87,14 @@ export default function ChatScreen() {
   const pendingAcks = useChatStore((s) => s.pendingAcks);
   const [fabOpen, setFabOpen] = useState(false);
   const [newMode, setNewMode] = useState<'dm' | 'group' | null>(null);
+  const isChatEnabled = useIsChatEnabled();
 
   useFocusEffect(
     useCallback(() => {
+      if (!isChatEnabled) return;
       useChatStore.getState().fetchChannels();
       useChatStore.getState().fetchPendingAcks();
-    }, [])
+    }, [isChatEnabled])
   );
 
   const grouped = groupChannels(channels);
@@ -102,6 +105,11 @@ export default function ChatScreen() {
     },
     [router]
   );
+
+  // Chat.System feature flag off: no chat for this department.
+  if (!isChatEnabled) {
+    return <Redirect href="/" />;
+  }
 
   return (
     <Box className="size-full flex-1 bg-background-0">

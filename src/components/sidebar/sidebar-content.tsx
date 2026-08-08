@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/icon';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { useIsChatEnabled } from '@/stores/feature-flags/store';
 
 interface SidebarProps {
   onClose?: () => void;
@@ -35,6 +36,10 @@ const MENU_ITEMS: MenuItem[] = [
 const Sidebar = ({ onClose }: SidebarProps) => {
   const { t } = useTranslation();
   const router = useRouter();
+  const isChatEnabled = useIsChatEnabled();
+
+  // Chat.System feature flag off: hide the chat and assistant entries entirely.
+  const menuItems = MENU_ITEMS.filter((item) => (item.key === 'chat' || item.key === 'chatbot' ? isChatEnabled : true));
 
   const handleNavigate = (href: string) => {
     onClose?.();
@@ -46,7 +51,7 @@ const Sidebar = ({ onClose }: SidebarProps) => {
       <VStack space="xs" className="w-full flex-1 p-2">
         <Text className="px-3 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t('sidebar.menu')}</Text>
 
-        {MENU_ITEMS.map((item) => (
+        {menuItems.map((item) => (
           <Pressable key={item.key} testID={`sidebar-link-${item.key}`} className="flex-row items-center gap-3 rounded-lg px-3 py-3 active:bg-gray-100 dark:active:bg-gray-800" onPress={() => handleNavigate(item.href)}>
             <Icon as={item.icon} size="lg" className="text-primary-500 dark:text-primary-400" />
             <Text className="flex-1 text-base font-medium text-gray-900 dark:text-white">{t(item.labelKey)}</Text>

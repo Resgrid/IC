@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { type Href, Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { type Href, Redirect, Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Circle, ShieldCheck } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +26,7 @@ import { VStack } from '@/components/ui/vstack';
 import { ChatChannelType, ChatMessagePriority, type ChatMessageResultData, ChatMessageType, type GifResultData } from '@/models/v4/chat';
 import useAuthStore from '@/stores/auth/store';
 import { useChatStore } from '@/stores/chat/store';
+import { useIsChatEnabled } from '@/stores/feature-flags/store';
 import { securityStore } from '@/stores/security/store';
 import { useToastStore } from '@/stores/toast/store';
 
@@ -43,6 +44,7 @@ export default function ChannelConversationScreen() {
 
   const currentUserId = useAuthStore((s) => s.userId);
   const isModerator = !!securityStore((s) => s.rights)?.IsAdmin;
+  const isChatEnabled = useIsChatEnabled();
 
   const channel = useChatStore((s) => s.channels.find((c) => c.ChatChannelId === channelId));
   const messages = useChatStore((s) => (channelId ? s.messagesByChannel[channelId] : undefined));
@@ -72,6 +74,7 @@ export default function ChannelConversationScreen() {
   // Mount: activate channel, join hub, load history and members.
   useFocusEffect(
     useCallback(() => {
+      if (!isChatEnabled) return;
       if (!channelId) return;
       const store = useChatStore.getState();
       store.setActiveChannel(channelId);
@@ -81,11 +84,12 @@ export default function ChannelConversationScreen() {
       return () => {
         useChatStore.getState().setActiveChannel(null);
       };
-    }, [channelId])
+    }, [channelId, isChatEnabled])
   );
 
   // Fetch presence for the channel members (for the header online dot).
   useEffect(() => {
+    if (!isChatEnabled) return;
     const ids = (members ?? []).map((m) => m.UserId).filter((id): id is string => !!id && id !== currentUserId);
     if (ids.length === 0) return;
     const controller = new AbortController();
@@ -97,14 +101,15 @@ export default function ChannelConversationScreen() {
       })
       .catch(() => undefined);
     return () => controller.abort();
-  }, [members, currentUserId]);
+  }, [members, currentUserId, isChatEnabled]);
 
   // Mark read whenever the newest message changes while viewing.
   useEffect(() => {
+    if (!isChatEnabled) return;
     if (channelId && inverted.length > 0) {
       void useChatStore.getState().markChannelRead(channelId);
     }
-  }, [channelId, inverted.length]);
+  }, [channelId, inverted.length, isChatEnabled]);
 
   const otherOnline = useMemo(() => {
     if (!isDm) return false;
@@ -245,6 +250,11 @@ export default function ChannelConversationScreen() {
   }, [channelId]);
 
   const title = channel ? getChannelDisplayName(channel, t) : t('chat.title');
+
+  // Chat.System feature flag off: no chat for this department.
+  if (!isChatEnabled) {
+    return <Redirect href="/" />;
+  }
 
   return (
     <Box className="size-full flex-1 bg-background-0">
