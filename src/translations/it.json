@@ -485,6 +485,8 @@
     "delete_lane_move_resources": "Sposta in Risorse",
     "delete_lane_release_resources": "Rilascia dall'incidente",
     "delete_lane_resources_message": "Questa corsia ha {{count}} risorse assegnate. Spostale nell'elenco delle risorse o rilasciale dall'incidente.",
+    "dispatch_chat": "Dispatch",
+    "dispatch_chat_unavailable": "No dispatch channel has been created for this incident yet.",
     "drag_move_hint": "Tieni premuta una risorsa per trascinarla, oppure toccala e poi tocca una corsia.",
     "edit_lane": "Modifica corsia",
     "edit_lane_title": "Modifica {{lane}}",
@@ -1166,6 +1168,7 @@
     "processingRequest": "Elaborazione richiesta in corso..."
   },
   "login": {
+    "command_not_authorized": "You are not authorized to use the IC app. Contact your department administrator.",
     "errorModal": {
       "confirmButton": "OK",
       "message": "Verificare nome utente e password e riprovare.",

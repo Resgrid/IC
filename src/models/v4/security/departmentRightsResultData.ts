@@ -9,6 +9,11 @@ export class DepartmentRightsResultData {
   public CanCreateCalls: boolean = false; // Can Create Calls
   public CanAddNote: boolean = false; // Can Add a Note
   public CanCreateMessage: boolean = false; // Can Add a Message
+  /**
+   * Whether this user may act as a commander: use the IC app, establish command, and view command
+   * boards. Defaults to true for everyone when the department has never configured the permission.
+   */
+  public CanLoginToCommandApp: boolean = true;
   public Groups: GroupRightResultData[] = []; // Group Rights
 }
 

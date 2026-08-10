@@ -39,6 +39,7 @@ import { FeatureFlagKeys, featureFlagsStore } from '@/stores/feature-flags/store
 import { useRolesStore } from '@/stores/roles/store';
 import { securityStore } from '@/stores/security/store';
 import { useSignalRStore } from '@/stores/signalr/signalr-store';
+import { useToastStore } from '@/stores/toast/store';
 import { useWeatherAlertsStore } from '@/stores/weather-alerts/store';
 
 export default function TabLayout() {
@@ -175,6 +176,18 @@ export default function TabLayout() {
       await useCallsStore.getState().init();
       await useWeatherAlertsStore.getState().init();
       await securityStore.getState().getRights();
+
+      // The IC app is for commanders. A member the department has not authorized must not get past
+      // initialization — the server refuses them the board endpoints anyway, so signing them straight
+      // back out is far clearer than an app that loads and then fails every request.
+      if (!isCurrentRun()) return;
+      if (securityStore.getState().rights?.CanLoginToCommandApp === false) {
+        logger.warn({ message: 'User is not authorized to use the IC app; signing out', context: { userId } });
+        useToastStore.getState().showToast('error', t('login.command_not_authorized'));
+        await useAuthStore.getState().logout();
+        return;
+      }
+
       await featureFlagsStore.getState().fetchFlags();
 
       if (!isCurrentRun()) return;
@@ -235,7 +248,7 @@ export default function TabLayout() {
         setIsInitComplete(true);
       }
     }
-  }, [status]);
+  }, [status, t, userId]);
 
   const refreshDataFromBackground = useCallback(async () => {
     if (status !== 'signedIn' || !hasInitialized.current) return;

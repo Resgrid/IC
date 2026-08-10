@@ -485,6 +485,8 @@
     "delete_lane_move_resources": "نقل إلى الموارد",
     "delete_lane_release_resources": "إخلاء من الحادث",
     "delete_lane_resources_message": "يحتوي هذا المسار على {{count}} موارد معيّنة. انقلها إلى قائمة الموارد أو أخلها من الحادث.",
+    "dispatch_chat": "Dispatch",
+    "dispatch_chat_unavailable": "No dispatch channel has been created for this incident yet.",
     "drag_move_hint": "اضغط مطولاً على المورد لسحبه، أو اضغط عليه ثم اضغط على مسار.",
     "edit_lane": "تعديل المسار",
     "edit_lane_title": "تعديل {{lane}}",
@@ -1166,6 +1168,7 @@
     "processingRequest": "جاري معالجة طلبك..."
   },
   "login": {
+    "command_not_authorized": "You are not authorized to use the IC app. Contact your department administrator.",
     "errorModal": {
       "confirmButton": "موافق",
       "message": "يرجى التحقق من اسم المستخدم وكلمة المرور والمحاولة مرة أخرى.",

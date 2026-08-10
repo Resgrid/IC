@@ -10,6 +10,7 @@ import {
   MessagesSquare,
   Paperclip,
   Pencil,
+  Radio,
   RefreshCw,
   Sparkles,
   StickyNote,
@@ -226,6 +227,10 @@ export default function CommandBoard() {
   const leadsChatChannelId = useMemo(() => incidentChannels?.find((channel) => channel.ChannelType === ChatChannelType.IncidentLeads)?.ChatChannelId ?? null, [incidentChannels]);
 
   const handleOpenLeadsChat = useCallback(() => openChatChannel(leadsChatChannelId, t('command.leads_chat_unavailable')), [openChatChannel, leadsChatChannelId, t]);
+
+  const dispatchChatChannelId = useMemo(() => incidentChannels?.find((channel) => channel.ChannelType === ChatChannelType.IncidentDispatch)?.ChatChannelId ?? null, [incidentChannels]);
+
+  const handleOpenDispatchChat = useCallback(() => openChatChannel(dispatchChatChannelId, t('command.dispatch_chat_unavailable')), [openChatChannel, dispatchChatChannelId, t]);
 
   const { openDirectMessage } = useDirectMessage();
 
@@ -685,6 +690,11 @@ export default function CommandBoard() {
               <Button onPress={handleOpenLeadsChat} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('command.leads_chat')} testID="command-open-leads-chat">
                 <ButtonIcon as={Users} className="text-gray-700 dark:text-gray-200" />
                 {showLabels ? <ButtonText>{t('command.leads_chat')}</ButtonText> : null}
+              </Button>
+              {/* Whichever dispatcher is on shift sees this — it is the desk, not a person. */}
+              <Button onPress={handleOpenDispatchChat} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('command.dispatch_chat')} testID="command-open-dispatch-chat">
+                <ButtonIcon as={Radio} className="text-gray-700 dark:text-gray-200" />
+                {showLabels ? <ButtonText>{t('command.dispatch_chat')}</ButtonText> : null}
               </Button>
               {/* A confirmation dialog guards against accidental taps. */}
               <Button onPress={handleOpenEndConfirm} action="negative" variant="solid" size={controlSize} className={iconButtonClass} accessibilityLabel={t('command.end_command')} testID="command-end-command">

@@ -485,6 +485,8 @@
     "delete_lane_move_resources": "Move to Resources",
     "delete_lane_release_resources": "Release from Incident",
     "delete_lane_resources_message": "This lane has {{count}} assigned resources. Move them back to the resources list or release them from the incident.",
+    "dispatch_chat": "Dispatch",
+    "dispatch_chat_unavailable": "No dispatch channel has been created for this incident yet.",
     "drag_move_hint": "Press and hold a resource to drag it, or tap it and then tap a lane.",
     "edit_lane": "Edit Lane",
     "edit_lane_title": "Edit {{lane}}",
@@ -1166,6 +1168,7 @@
     "processingRequest": "Processing your request..."
   },
   "login": {
+    "command_not_authorized": "You are not authorized to use the IC app. Contact your department administrator.",
     "errorModal": {
       "confirmButton": "OK",
       "message": "Please check your username and password and try again.",

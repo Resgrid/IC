@@ -485,6 +485,8 @@
     "delete_lane_move_resources": "Przenieś do zasobów",
     "delete_lane_release_resources": "Zwolnij z incydentu",
     "delete_lane_resources_message": "Ta sekcja ma {{count}} przydzielonych zasobów. Przenieś je z powrotem do listy zasobów lub zwolnij z incydentu.",
+    "dispatch_chat": "Dispatch",
+    "dispatch_chat_unavailable": "No dispatch channel has been created for this incident yet.",
     "drag_move_hint": "Naciśnij i przytrzymaj zasób, aby go przeciągnąć, albo dotknij go, a następnie dotknij pasa.",
     "edit_lane": "Edytuj odcinek",
     "edit_lane_title": "Edytuj {{lane}}",
@@ -1166,6 +1168,7 @@
     "processingRequest": "Przetwarzanie żądania..."
   },
   "login": {
+    "command_not_authorized": "You are not authorized to use the IC app. Contact your department administrator.",
     "errorModal": {
       "confirmButton": "OK",
       "message": "Sprawdź nazwę użytkownika i hasło i spróbuj ponownie.",

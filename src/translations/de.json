@@ -485,6 +485,8 @@
     "delete_lane_move_resources": "Zu Ressourcen verschieben",
     "delete_lane_release_resources": "Vom Einsatz lösen",
     "delete_lane_resources_message": "Dieser Spur sind {{count}} Ressourcen zugewiesen. Zurück in die Ressourcenliste verschieben oder vom Einsatz lösen.",
+    "dispatch_chat": "Dispatch",
+    "dispatch_chat_unavailable": "No dispatch channel has been created for this incident yet.",
     "drag_move_hint": "Halten Sie eine Ressource gedrückt, um sie zu ziehen, oder tippen Sie sie und anschließend eine Spur an.",
     "edit_lane": "Abschnitt bearbeiten",
     "edit_lane_title": "{{lane}} bearbeiten",
@@ -1166,6 +1168,7 @@
     "processingRequest": "Ihre Anfrage wird verarbeitet..."
   },
   "login": {
+    "command_not_authorized": "You are not authorized to use the IC app. Contact your department administrator.",
     "errorModal": {
       "confirmButton": "OK",
       "message": "Bitte Benutzername und Passwort überprüfen und erneut versuchen.",

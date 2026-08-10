@@ -485,6 +485,8 @@
     "delete_lane_move_resources": "Flytta till resurser",
     "delete_lane_release_resources": "Frigör från insatsen",
     "delete_lane_resources_message": "Detta körfält har {{count}} tilldelade resurser. Flytta dem tillbaka till resurslistan eller frigör dem från insatsen.",
+    "dispatch_chat": "Dispatch",
+    "dispatch_chat_unavailable": "No dispatch channel has been created for this incident yet.",
     "drag_move_hint": "Tryck och håll på en resurs för att dra den, eller tryck på den och sedan på en bana.",
     "edit_lane": "Redigera sektor",
     "edit_lane_title": "Redigera {{lane}}",
@@ -1166,6 +1168,7 @@
     "processingRequest": "Behandlar din begäran..."
   },
   "login": {
+    "command_not_authorized": "You are not authorized to use the IC app. Contact your department administrator.",
     "errorModal": {
       "confirmButton": "OK",
       "message": "Kontrollera ditt användarnamn och lösenord och försök igen.",

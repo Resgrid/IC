@@ -485,6 +485,8 @@
     "delete_lane_move_resources": "Перемістити до ресурсів",
     "delete_lane_release_resources": "Звільнити з інциденту",
     "delete_lane_resources_message": "Ця смуга має {{count}} призначених ресурсів. Поверніть їх до списку ресурсів або звільніть з інциденту.",
+    "dispatch_chat": "Dispatch",
+    "dispatch_chat_unavailable": "No dispatch channel has been created for this incident yet.",
     "drag_move_hint": "Натисніть і утримуйте ресурс, щоб перетягнути його, або торкніться ресурсу, а потім смуги.",
     "edit_lane": "Редагувати ділянку",
     "edit_lane_title": "Редагувати {{lane}}",
@@ -1166,6 +1168,7 @@
     "processingRequest": "Обробка запиту..."
   },
   "login": {
+    "command_not_authorized": "You are not authorized to use the IC app. Contact your department administrator.",
     "errorModal": {
       "confirmButton": "OK",
       "message": "Перевірте ім'я користувача та пароль і спробуйте ще раз.",
