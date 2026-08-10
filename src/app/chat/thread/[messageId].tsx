@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { FlatList, Platform } from 'react-native';
 
 import { getThread } from '@/api/chat/chat';
+import { buildLocationMetadata } from '@/components/chat/chat-utils';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { MessageComposer } from '@/components/chat/message-composer';
 import { Box } from '@/components/ui/box';
@@ -67,10 +68,6 @@ export default function ThreadScreen() {
     [channelId, messageId, isCommandChannel]
   );
 
-  const handleSendGif = useCallback(() => {
-    // GIFs in threads are sent as text-less messages via the composer's gif flow; kept minimal here.
-  }, []);
-
   const handleSendLocation = useCallback(
     (latitude: number, longitude: number, urgent: boolean) => {
       if (!channelId || !messageId) return;
@@ -78,7 +75,7 @@ export default function ThreadScreen() {
         channelId,
         body: t('chat.shared_location'),
         messageType: ChatMessageType.Location,
-        metadataJson: JSON.stringify({ Latitude: latitude, Longitude: longitude }),
+        metadataJson: buildLocationMetadata(latitude, longitude),
         threadRootMessageId: messageId,
         priority: urgent ? ChatMessagePriority.Urgent : ChatMessagePriority.Normal,
         asIncidentCommander: isCommandChannel,
@@ -136,7 +133,9 @@ export default function ThreadScreen() {
 
         <FlatList data={inverted} inverted keyExtractor={(item: ChatMessageResultData) => item.ChatMessageId} renderItem={renderItem} contentContainerStyle={{ paddingVertical: 8 }} />
 
-        <MessageComposer onSendText={handleSendText} onSendImage={() => undefined} onSendLocation={handleSendLocation} onOpenGif={handleSendGif} onTyping={() => undefined} placeholder={t('chat.reply_placeholder')} allowUrgent={false} />
+        {/* Threads carry text and location only; omitting the image/GIF callbacks keeps
+            those actions out of the composer instead of showing dead buttons. */}
+        <MessageComposer onSendText={handleSendText} onSendLocation={handleSendLocation} onTyping={() => undefined} placeholder={t('chat.reply_placeholder')} allowUrgent={false} />
       </KeyboardAvoidingView>
     </Box>
   );

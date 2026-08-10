@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { ClipboardList, CloudOff, ExternalLink, Image as ImageIcon, Info, MapPin, Paperclip, Pencil, RefreshCw, StickyNote, Trash2, UserCog, Video as VideoIcon, XCircle } from 'lucide-react-native';
+import { ClipboardList, CloudOff, ExternalLink, Image as ImageIcon, Info, MapPin, Paperclip, Pencil, RefreshCw, Sparkles, StickyNote, Trash2, UserCog, Video as VideoIcon, XCircle } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, useWindowDimensions } from 'react-native';
@@ -13,6 +13,7 @@ import { AddAssignmentSheet } from '@/components/command/add-assignment-sheet';
 import { AddLaneSheet } from '@/components/command/add-lane-sheet';
 import { AddResourceSheet } from '@/components/command/add-resource-sheet';
 import { type AssignableResourceOption, AssignResourceSheet } from '@/components/command/assign-resource-sheet';
+import { IncidentAssistantSheet } from '@/components/command/assistant-sheet';
 import { CommandDetailsSheet } from '@/components/command/command-details-sheet';
 import { CommandSection } from '@/components/command/command-section';
 import { IncidentFilesSection } from '@/components/command/incident-files-section';
@@ -141,6 +142,7 @@ export default function CommandBoard() {
   const [resourceFilter, setResourceFilter] = useState<'all' | 'unassigned' | 'assigned'>('all');
   const [isCommandDetailsOpen, setIsCommandDetailsOpen] = useState(false);
   const [isEndConfirmOpen, setIsEndConfirmOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   /** Which call-resource viewer (from the underlying call) is open on top of the board. */
   const [callResourceModal, setCallResourceModal] = useState<'notes' | 'images' | 'files' | 'video' | null>(null);
 
@@ -204,6 +206,8 @@ export default function CommandBoard() {
     }
   }, [activeBoardCallId]);
 
+  const handleOpenAssistant = useCallback(() => setIsAssistantOpen(true), []);
+  const handleCloseAssistant = useCallback(() => setIsAssistantOpen(false), []);
   const handleOpenCommandDetails = useCallback(() => setIsCommandDetailsOpen(true), []);
   const handleOpenTransfer = useCallback(() => setIsTransferSheetOpen(true), []);
   const handleOpenEndConfirm = useCallback(() => setIsEndConfirmOpen(true), []);
@@ -597,6 +601,10 @@ export default function CommandBoard() {
               <Button onPress={handleRefresh} variant="outline" size="xs" isDisabled={isRefreshing} testID="command-refresh">
                 <ButtonIcon as={RefreshCw} />
               </Button>
+              {/* Assistant: answers board questions on-device first, so it stays useful with no signal */}
+              <Button onPress={handleOpenAssistant} variant="outline" size="xs" accessibilityLabel={t('incident_assistant.title')} testID="command-assistant">
+                <ButtonIcon as={Sparkles} />
+              </Button>
               {/* Icon-only by design; a confirmation dialog guards against accidental taps. */}
               <Button onPress={handleOpenEndConfirm} action="negative" variant="solid" size="xs" accessibilityLabel={t('command.end_command')} testID="command-end-command">
                 <ButtonIcon as={XCircle} className="text-white" />
@@ -944,6 +952,8 @@ export default function CommandBoard() {
         targetNodeId={assignTargetNodeId}
         onSave={handleAssignResourceSave}
       />
+
+      <IncidentAssistantSheet isOpen={isAssistantOpen} onClose={handleCloseAssistant} callId={boardState.callId} />
 
       {/* Call resource viewers — the same modals the call detail screen uses, opened in place */}
       <CallNotesModal isOpen={callResourceModal === 'notes'} onClose={() => setCallResourceModal(null)} callId={boardState.callId} />
