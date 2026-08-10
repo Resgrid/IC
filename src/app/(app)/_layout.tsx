@@ -87,6 +87,10 @@ export default function TabLayout() {
   // Refs to track initialization state
   const hasInitialized = useRef(false);
   const isInitializing = useRef(false);
+  // Bumped on every initialization start and whenever the session ends. An in-flight run
+  // compares its captured value after each await, so a run belonging to a session that is
+  // over can no longer connect hubs or mark the app initialized.
+  const initGeneration = useRef(0);
   const hasHiddenSplash = useRef(false);
   const parentRef = useRef(null);
 
@@ -155,6 +159,8 @@ export default function TabLayout() {
     }
 
     isInitializing.current = true;
+    const generation = (initGeneration.current += 1);
+    const isCurrentRun = () => initGeneration.current === generation;
     logger.info({
       message: 'Starting app initialization',
       context: {
@@ -171,8 +177,12 @@ export default function TabLayout() {
       await securityStore.getState().getRights();
       await featureFlagsStore.getState().fetchFlags();
 
+      if (!isCurrentRun()) return;
+
       await useSignalRStore.getState().connectUpdateHub();
       await useSignalRStore.getState().connectGeolocationHub();
+
+      if (!isCurrentRun()) return;
 
       // Connect the realtime chat hub (best-effort; chat may be disabled per department)
       if (featureFlagsStore.getState().isEnabled(FeatureFlagKeys.ChatSystem)) {
@@ -192,6 +202,8 @@ export default function TabLayout() {
         .syncFromServer()
         .catch(() => {});
 
+      if (!isCurrentRun()) return;
+
       hasInitialized.current = true;
 
       // Initialize Bluetooth and Audio services (native-only)
@@ -208,12 +220,20 @@ export default function TabLayout() {
         message: 'Failed to initialize app',
         context: { error },
       });
+      // A run whose session already ended must not burn the retry budget or clobber
+      // state a newer run has since established.
+      if (!isCurrentRun()) return;
+
       // Reset initialization state on error so it can be retried
       hasInitialized.current = false;
       setInitRetryCount((c) => c + 1);
     } finally {
-      isInitializing.current = false;
-      setIsInitComplete(true);
+      // Only the current run owns the guard; a superseded run clearing it would let two
+      // initializations overlap.
+      if (isCurrentRun()) {
+        isInitializing.current = false;
+        setIsInitComplete(true);
+      }
     }
   }, [status]);
 
@@ -261,7 +281,15 @@ export default function TabLayout() {
   // Handle app initialization - simplified logic
   const MAX_INIT_RETRIES = 3;
   useEffect(() => {
-    if (status !== 'signedIn' && initRetryCount > 0) {
+    if (status === 'signedIn') return;
+
+    // Leaving the signed-in state retires any initialization still in flight, and frees
+    // the guard it no longer owns so the next sign-in is not skipped as "already
+    // initializing".
+    initGeneration.current += 1;
+    isInitializing.current = false;
+
+    if (initRetryCount > 0) {
       setInitRetryCount(0);
     }
   }, [status, initRetryCount]);
