@@ -335,8 +335,6 @@ export default function ChannelConversationScreen() {
             onEndReached={handleEndReached}
             onEndReachedThreshold={0.3}
             removeClippedSubviews
-            maxToRenderPerBatch={10}
-            windowSize={5}
             contentContainerStyle={{ paddingVertical: 8 }}
           />
         )}
