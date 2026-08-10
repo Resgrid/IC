@@ -18,6 +18,12 @@ interface MessageActionsSheetProps {
   isModerator: boolean;
   /** Assistant conversations: no reactions, threads, deletes or edits — copy, pin and flag stay. */
   assistant?: boolean;
+  /**
+   * Point-in-time record (a closed incident's command/lane chat, a closed call): the history can no
+   * longer be changed, so reactions, threads, edits and self-deletes go away. Copy stays, and so does
+   * every moderation path — flagging and moderator delete must keep working after an incident closes.
+   */
+  frozen?: boolean;
   onReact: (message: ChatMessageResultData, emoji: string) => void;
   onReply: (message: ChatMessageResultData) => void;
   onCopy: (message: ChatMessageResultData) => void;
@@ -28,7 +34,23 @@ interface MessageActionsSheetProps {
   onModeratorDelete: (message: ChatMessageResultData) => void;
 }
 
-export function MessageActionsSheet({ message, isOpen, onClose, isOwn, isModerator, assistant = false, onReact, onReply, onCopy, onEdit, onDelete, onFlag, onTogglePin, onModeratorDelete }: MessageActionsSheetProps) {
+export function MessageActionsSheet({
+  message,
+  isOpen,
+  onClose,
+  isOwn,
+  isModerator,
+  assistant = false,
+  frozen = false,
+  onReact,
+  onReply,
+  onCopy,
+  onEdit,
+  onDelete,
+  onFlag,
+  onTogglePin,
+  onModeratorDelete,
+}: MessageActionsSheetProps) {
   const { t } = useTranslation();
   const [mode, setMode] = useState<'actions' | 'flag'>('actions');
 
@@ -77,7 +99,7 @@ export function MessageActionsSheet({ message, isOpen, onClose, isOwn, isModerat
           </>
         ) : (
           <>
-            {!isDeleted && !assistant ? (
+            {!isDeleted && !assistant && !frozen ? (
               <HStack className="w-full justify-around px-2 py-3" space="sm">
                 {QUICK_REACTIONS.map((emoji) => (
                   <Pressable
@@ -94,7 +116,7 @@ export function MessageActionsSheet({ message, isOpen, onClose, isOwn, isModerat
               </HStack>
             ) : null}
 
-            {!assistant ? (
+            {!assistant && !frozen ? (
               <ActionsheetItem
                 onPress={() => {
                   onReply(message);
@@ -118,7 +140,7 @@ export function MessageActionsSheet({ message, isOpen, onClose, isOwn, isModerat
               </ActionsheetItem>
             ) : null}
 
-            {isOwn && isText && !isDeleted && !assistant ? (
+            {isOwn && isText && !isDeleted && !assistant && !frozen ? (
               <ActionsheetItem
                 onPress={() => {
                   onEdit(message);
@@ -130,7 +152,7 @@ export function MessageActionsSheet({ message, isOpen, onClose, isOwn, isModerat
               </ActionsheetItem>
             ) : null}
 
-            {isOwn && !isDeleted && !assistant ? (
+            {isOwn && !isDeleted && !assistant && !frozen ? (
               <ActionsheetItem
                 onPress={() => {
                   onDelete(message);

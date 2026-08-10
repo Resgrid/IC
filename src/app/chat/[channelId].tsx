@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { type Href, Redirect, Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { Circle, ShieldCheck } from 'lucide-react-native';
+import { Archive, ArrowLeft, Circle, ShieldCheck } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FlatList, Platform } from 'react-native';
@@ -18,7 +18,9 @@ import { Box } from '@/components/ui/box';
 import { Button, ButtonText } from '@/components/ui/button';
 import { Center } from '@/components/ui/center';
 import { HStack } from '@/components/ui/hstack';
+import { Icon } from '@/components/ui/icon';
 import { KeyboardAvoidingView } from '@/components/ui/keyboard-avoiding-view';
+import { Pressable } from '@/components/ui/pressable';
 import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
@@ -74,6 +76,35 @@ export default function ChannelConversationScreen() {
   // IC delta: in command-type channels the user posts as the Incident Commander.
   // The server validates the user actually holds command (CanSendAsIcAsync) and rejects otherwise.
   const isCommandChannel = isCommandChannelType(channel?.ChannelType);
+
+  /**
+   * Archived channel = point-in-time record. A closed incident freezes its command and lane chat, and
+   * a closed call freezes its incident chat: no posting, no editing, no reactions. The server enforces
+   * all of it; this just stops the UI offering actions that would bounce. Flagging stays available.
+   */
+  const isFrozen = !!channel?.IsArchived;
+
+  /**
+   * Back always lands on the chat list. router.back() alone is not enough — this screen is routinely
+   * entered from a push notification or a deep link with no history to pop, which leaves the default
+   * header back button absent entirely.
+   */
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/chat' as Href);
+  }, [router]);
+
+  const headerLeftBack = useCallback(
+    () => (
+      <Pressable className="p-3" hitSlop={8} onPress={handleBack} accessibilityLabel={t('common.back')} testID="chat-detail-back">
+        <Icon as={ArrowLeft} size={24} className="text-gray-700 dark:text-gray-200" />
+      </Pressable>
+    ),
+    [handleBack, t]
+  );
 
   // Newest-first for the inverted list.
   const inverted = useMemo(() => (messages ? messages.slice().reverse() : []), [messages]);
@@ -229,11 +260,11 @@ export default function ChannelConversationScreen() {
 
   const handleToggleReaction = useCallback(
     (message: ChatMessageResultData, emoji: string, mine: boolean) => {
-      if (!channelId) return;
+      if (!channelId || isFrozen) return;
       if (mine) void useChatStore.getState().removeReaction(message.ChatMessageId, channelId, emoji);
       else void useChatStore.getState().addReaction(message.ChatMessageId, channelId, emoji);
     },
-    [channelId]
+    [channelId, isFrozen]
   );
 
   const openThread = useCallback(
@@ -272,7 +303,7 @@ export default function ChannelConversationScreen() {
   if (chatStatus === 'unknown') {
     return (
       <Box className="size-full flex-1 items-center justify-center bg-background-0">
-        <Stack.Screen options={{ title, headerShown: true, headerBackTitle: '' }} />
+        <Stack.Screen options={{ title, headerShown: true, headerBackTitle: '', headerLeft: headerLeftBack }} />
         <Spinner />
       </Box>
     );
@@ -288,7 +319,7 @@ export default function ChannelConversationScreen() {
   if (!isResolved) {
     return (
       <Box className="size-full flex-1 items-center justify-center bg-background-0">
-        <Stack.Screen options={{ title, headerShown: true, headerBackTitle: '' }} />
+        <Stack.Screen options={{ title, headerShown: true, headerBackTitle: '', headerLeft: headerLeftBack }} />
         <Spinner />
       </Box>
     );
@@ -307,9 +338,17 @@ export default function ChannelConversationScreen() {
           title,
           headerShown: true,
           headerBackTitle: '',
+          headerLeft: headerLeftBack,
           headerRight: () => (isDm ? <Circle size={12} color={otherOnline ? '#22c55e' : '#9ca3af'} fill={otherOnline ? '#22c55e' : '#9ca3af'} /> : undefined),
         }}
       />
+
+      {isFrozen ? (
+        <HStack className="items-center border-b border-outline-100 bg-gray-100 px-4 py-2 dark:bg-gray-800" space="xs" testID="chat-frozen-banner">
+          <Icon as={Archive} size={14} className="text-gray-600 dark:text-gray-300" />
+          <Text className="flex-1 text-xs text-gray-700 dark:text-gray-200">{t('chat.frozen_notice')}</Text>
+        </HStack>
+      ) : null}
 
       {/* IC delta: identity chip — messages in command channels post as the Incident Commander. */}
       {isCommandChannel ? (
@@ -347,7 +386,7 @@ export default function ChannelConversationScreen() {
           onSendLocation={handleSendLocation}
           onOpenGif={() => setGifOpen(true)}
           onTyping={(isTyping) => channelId && useChatStore.getState().sendTyping(channelId, isTyping)}
-          disabled={channel?.IsLocked && !isModerator}
+          disabled={isFrozen || (channel?.IsLocked && !isModerator)}
         />
       </KeyboardAvoidingView>
 
@@ -359,6 +398,7 @@ export default function ChannelConversationScreen() {
         onClose={() => setActionsMessage(null)}
         isOwn={!!actionsMessage?.SenderUserId && actionsMessage.SenderUserId === currentUserId}
         isModerator={isModerator}
+        frozen={isFrozen}
         onReact={(m, emoji) =>
           handleToggleReaction(
             m,

@@ -1,5 +1,5 @@
-import { type Href, Redirect, Stack, useFocusEffect, useRouter } from 'expo-router';
-import { Bot, MessageCircle, MessagesSquare, Network, Plus, Sparkles, Users } from 'lucide-react-native';
+import { type Href, Redirect, useFocusEffect, useRouter } from 'expo-router';
+import { Bot, MessageCircle, Network, Plus, Sparkles, Users } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RefreshControl, ScrollView } from 'react-native';
@@ -119,7 +119,6 @@ export default function ChatScreen() {
   if (chatStatus === 'unknown') {
     return (
       <Box className="size-full flex-1 items-center justify-center bg-background-0">
-        <Stack.Screen options={{ headerShown: false }} />
         <FocusAwareStatusBar />
         <Spinner />
       </Box>
@@ -133,17 +132,14 @@ export default function ChatScreen() {
 
   return (
     <Box className="size-full flex-1 bg-background-0">
-      <Stack.Screen options={{ headerShown: false }} />
       <FocusAwareStatusBar />
 
-      {/* In-screen toolbar (the app drawer provides the top nav bar). */}
-      <HStack className="items-center justify-between border-b border-outline-100 px-4 py-2">
-        <HStack className="items-center" space="sm">
-          <MessagesSquare size={22} color="#2563eb" />
-          <Text className="text-lg font-bold text-typography-900">{t('chat.title')}</Text>
-        </HStack>
-        <Pressable onPress={() => router.push('/chatbot' as Href)} accessibilityLabel={t('chat.assistant')}>
-          <Sparkles size={22} color="#7c3aed" />
+      {/* Shortcut across to the assistant. The app header above carries the title and the way back,
+          so this row is actions only. */}
+      <HStack className="items-center justify-end border-b border-outline-100 px-4 py-2">
+        <Pressable className="flex-row items-center rounded-full bg-purple-600 px-3 py-2" onPress={() => router.push('/chatbot' as Href)} accessibilityLabel={t('chat.assistant')} testID="chat-open-assistant">
+          <Sparkles size={16} color="#ffffff" />
+          <Text className="ml-1 text-xs font-medium text-white">{t('chat.assistant')}</Text>
         </Pressable>
       </HStack>
 

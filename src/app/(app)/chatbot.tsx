@@ -1,4 +1,4 @@
-import { Redirect, Stack, useFocusEffect } from 'expo-router';
+import { Redirect, useFocusEffect } from 'expo-router';
 import { RefreshCw, Send, Sparkles } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,7 +17,6 @@ import { KeyboardAvoidingView } from '@/components/ui/keyboard-avoiding-view';
 import { Pressable } from '@/components/ui/pressable';
 import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
-import { VStack } from '@/components/ui/vstack';
 import { type ChatMessageResultData } from '@/models/v4/chat';
 import useAuthStore from '@/stores/auth/store';
 import { useChatStore } from '@/stores/chat/store';
@@ -67,7 +66,14 @@ export default function ChatbotScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: ChatMessageResultData }) => (
-      <MessageBubble message={item} isOwn={!!item.SenderUserId && item.SenderUserId === currentUserId} showSender={false} currentUserId={currentUserId} onLongPress={setActionsMessage} onToggleReaction={() => undefined} />
+      <MessageBubble
+        message={item}
+        isOwn={!!item.SenderUserId && item.SenderUserId === currentUserId}
+        showSender={false}
+        currentUserId={currentUserId}
+        onLongPress={setActionsMessage}
+        onToggleReaction={() => undefined}
+      />
     ),
     [currentUserId]
   );
@@ -76,7 +82,6 @@ export default function ChatbotScreen() {
   if (chatStatus === 'unknown') {
     return (
       <Box className="size-full flex-1 items-center justify-center bg-background-0">
-        <Stack.Screen options={{ headerShown: false }} />
         <FocusAwareStatusBar />
         <Spinner />
       </Box>
@@ -90,19 +95,16 @@ export default function ChatbotScreen() {
 
   return (
     <Box className="size-full flex-1 bg-background-0">
-      <Stack.Screen options={{ headerShown: false }} />
       <FocusAwareStatusBar />
 
-      {/* Distinct assistant header */}
+      {/* Assistant identity strip. The title lives in the app header above, so this keeps only the
+          mark, the one-line description, and the reset action. */}
       <HStack className="items-center justify-between border-b border-outline-100 bg-purple-50 px-4 py-2 dark:bg-purple-950">
-        <HStack className="items-center" space="sm">
+        <HStack className="min-w-0 flex-1 items-center" space="sm">
           <Box className="size-8 items-center justify-center rounded-full bg-purple-600">
             <Sparkles size={18} color="#ffffff" />
           </Box>
-          <VStack>
-            <Text className="text-base font-bold text-typography-900">{t('chatbot.title')}</Text>
-            <Text className="text-xs text-typography-400">{t('chatbot.subtitle')}</Text>
-          </VStack>
+          <Text className="min-w-0 flex-1 text-xs text-typography-500">{t('chatbot.subtitle')}</Text>
         </HStack>
         <Pressable className="flex-row items-center rounded-full bg-purple-100 px-3 py-1 dark:bg-purple-900" onPress={() => useChatStore.getState().newChatbotSession()} accessibilityLabel={t('chatbot.new_session')}>
           <RefreshCw size={14} color="#7c3aed" />

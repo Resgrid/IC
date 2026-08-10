@@ -501,24 +501,29 @@ export default function TabLayout() {
     [t, headerLeftBack, headerRightNotification]
   );
 
-  // chat + chatbot are routable (sidebar menu links) but hidden from the tab bar (href: null);
-  // each screen renders its own in-screen header/toolbar, so the tab header is disabled.
+  // chat + chatbot are routable (sidebar menu links) but hidden from the tab bar (href: null).
+  // They keep the app header: it is the only way back out, since neither is on the tab bar and
+  // their in-screen toolbars carry actions rather than navigation.
   const chatOptions = useMemo(
     () => ({
       href: null,
       title: t('chat.title'),
-      headerShown: false as const,
+      headerShown: true as const,
+      headerLeft: headerLeftMap,
+      headerRight: headerRightNotification,
     }),
-    [t]
+    [t, headerLeftMap, headerRightNotification]
   );
 
   const chatbotOptions = useMemo(
     () => ({
       href: null,
       title: t('chatbot.title'),
-      headerShown: false as const,
+      headerShown: true as const,
+      headerLeft: headerLeftMap,
+      headerRight: headerRightNotification,
     }),
-    [t]
+    [t, headerLeftMap, headerRightNotification]
   );
 
   // settings stays routable (sidebar menu link) but is hidden from the tab bar.
@@ -628,14 +633,17 @@ interface CreateDrawerMenuButtonProps {
 const CreateDrawerMenuButton = ({ setIsOpen }: CreateDrawerMenuButtonProps) => {
   return (
     <Pressable
-      className="p-2"
-      hitSlop={4}
+      className="p-3"
+      hitSlop={8}
       testID="drawer-menu-button"
       onPress={() => {
         setIsOpen(true);
       }}
     >
-      <Menu size={24} color="currentColor" className="text-gray-700 dark:text-gray-300" />
+      {/* Routed through the Icon wrapper, not a bare lucide element: className alone never reaches a
+          raw lucide icon (no cssInterop is registered for them), so it falls back to currentColor and
+          renders solid black — invisible against a dark header. */}
+      <Icon as={Menu} size={24} className="text-gray-700 dark:text-gray-200" />
     </Pressable>
   );
 };
@@ -643,8 +651,8 @@ const CreateDrawerMenuButton = ({ setIsOpen }: CreateDrawerMenuButtonProps) => {
 const CreateHeaderBackButton = () => {
   return (
     <Pressable
-      className="p-2"
-      hitSlop={4}
+      className="p-3"
+      hitSlop={8}
       testID="header-back-button"
       onPress={() => {
         if (router.canGoBack()) {
@@ -654,7 +662,7 @@ const CreateHeaderBackButton = () => {
         }
       }}
     >
-      <ArrowLeft size={24} color="currentColor" className="text-gray-700 dark:text-gray-300" />
+      <Icon as={ArrowLeft} size={24} className="text-gray-700 dark:text-gray-200" />
     </Pressable>
   );
 };

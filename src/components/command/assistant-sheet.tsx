@@ -69,7 +69,7 @@ export const IncidentAssistantSheet: React.FC<IncidentAssistantSheetProps> = ({ 
       <VStack space="md" className="w-full">
         <HStack className="items-center justify-between">
           <HStack space="sm" className="min-w-0 flex-1 items-center">
-            <Box className="size-8 items-center justify-center rounded-full bg-primary-500">
+            <Box className="size-8 items-center justify-center rounded-full bg-purple-600">
               <Sparkles size={18} color="#ffffff" />
             </Box>
             <VStack className="min-w-0 flex-1">
@@ -99,7 +99,7 @@ export const IncidentAssistantSheet: React.FC<IncidentAssistantSheetProps> = ({ 
               {suggestions.map((suggestion) => (
                 <Pressable
                   key={suggestion.question}
-                  className="rounded-full bg-gray-200 px-3 py-2 dark:bg-gray-700"
+                  className="rounded-full bg-gray-200 px-4 py-3 dark:bg-gray-700"
                   onPress={() => submit(suggestion.question)}
                   testID={`incident-assistant-suggestion-${suggestion.question}`}
                 >
@@ -119,7 +119,7 @@ export const IncidentAssistantSheet: React.FC<IncidentAssistantSheetProps> = ({ 
           <VStack space="sm" testID="incident-assistant-messages">
             {messages.map((entry) =>
               entry.role === 'user' ? (
-                <Box key={entry.id} className="self-end rounded-2xl rounded-br-sm bg-primary-500 px-3 py-2" testID={`incident-assistant-message-${entry.id}`}>
+                <Box key={entry.id} className="self-end rounded-2xl rounded-br-sm bg-purple-600 px-3 py-2" testID={`incident-assistant-message-${entry.id}`}>
                   <Text className="text-sm text-white">{entry.text}</Text>
                 </Box>
               ) : (
@@ -156,7 +156,7 @@ export const IncidentAssistantSheet: React.FC<IncidentAssistantSheetProps> = ({ 
             </Input>
           </Box>
           <Pressable
-            className={`rounded-full p-3 ${question.trim() && !isAsking ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-700'}`}
+            className={`rounded-full p-3 ${question.trim() && !isAsking ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-700'}`}
             onPress={handleSend}
             disabled={!question.trim() || isAsking}
             accessibilityLabel={t('incident_assistant.send')}

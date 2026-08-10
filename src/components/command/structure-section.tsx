@@ -1,4 +1,4 @@
-import { CloudOff, Eye, Pencil, Plus, UserPlus } from 'lucide-react-native';
+import { CloudOff, Eye, MessagesSquare, Pencil, Plus, UserPlus } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -25,6 +25,8 @@ interface StructureSectionProps {
   onAddLane: () => void;
   /** Open the lane details editor (leads, linked objectives/need, delete). */
   onEditLane?: (nodeId: string) => void;
+  /** Open the lane's own chat channel. Omitted when the board has no chat. */
+  onOpenLaneChat?: (nodeId: string) => void;
   onAssignResource: (nodeId: string) => void;
   onMoveResource: (assignmentId: string, targetNodeId: string) => void | Promise<void>;
   /** Opens the resource details sheet for a lane assignment (hosts remove-from-lane). */
@@ -32,7 +34,18 @@ interface StructureSectionProps {
 }
 
 /** ICS command structure — lanes (Division/Group/Branch/...) with their assigned resources. */
-export const StructureSection: React.FC<StructureSectionProps> = ({ nodes, assignments, resolveResourceName, resolveLeadName, onAddLane, onEditLane, onAssignResource, onMoveResource, onViewResource }) => {
+export const StructureSection: React.FC<StructureSectionProps> = ({
+  nodes,
+  assignments,
+  resolveResourceName,
+  resolveLeadName,
+  onAddLane,
+  onEditLane,
+  onOpenLaneChat,
+  onAssignResource,
+  onMoveResource,
+  onViewResource,
+}) => {
   const { t } = useTranslation();
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
 
@@ -119,13 +132,24 @@ export const StructureSection: React.FC<StructureSectionProps> = ({ nodes, assig
                     ) : null}
                   </VStack>
                   <HStack space="sm" className="items-center">
-                    {onEditLane ? (
-                      <Pressable onPress={() => onEditLane(node.CommandStructureNodeId)} className="p-2" testID={`lane-edit-${node.CommandStructureNodeId}`}>
-                        <Icon as={Pencil} size="sm" className="text-gray-400" />
+                    {onOpenLaneChat ? (
+                      <Pressable accessibilityLabel={t('command.lane_chat')} onPress={() => onOpenLaneChat(node.CommandStructureNodeId)} className="p-3" hitSlop={8} testID={`lane-chat-${node.CommandStructureNodeId}`}>
+                        <Icon as={MessagesSquare} size="md" className="text-gray-600 dark:text-gray-300" />
                       </Pressable>
                     ) : null}
-                    <Pressable onPress={() => onAssignResource(node.CommandStructureNodeId)} className="p-2" testID={`lane-assign-${node.CommandStructureNodeId}`}>
-                      <Icon as={UserPlus} size="sm" className="text-primary-500" />
+                    {onEditLane ? (
+                      <Pressable accessibilityLabel={t('command.edit_lane')} onPress={() => onEditLane(node.CommandStructureNodeId)} className="p-3" hitSlop={8} testID={`lane-edit-${node.CommandStructureNodeId}`}>
+                        <Icon as={Pencil} size="md" className="text-gray-600 dark:text-gray-300" />
+                      </Pressable>
+                    ) : null}
+                    <Pressable
+                      accessibilityLabel={t('command.assign_resource')}
+                      onPress={() => onAssignResource(node.CommandStructureNodeId)}
+                      className="p-3"
+                      hitSlop={8}
+                      testID={`lane-assign-${node.CommandStructureNodeId}`}
+                    >
+                      <Icon as={UserPlus} size="md" className="text-blue-600 dark:text-blue-400" />
                     </Pressable>
                   </HStack>
                 </HStack>
@@ -167,8 +191,14 @@ export const StructureSection: React.FC<StructureSectionProps> = ({ nodes, assig
                               redAfterMinutes={node.WorkTimeRedMinutes}
                               testID={`lane-worktime-${assignment.ResourceAssignmentId}`}
                             />
-                            <Pressable accessibilityLabel={t('command.view_details')} onPress={() => onViewResource(assignment)} className="p-1" testID={`lane-resource-view-${assignment.ResourceAssignmentId}`}>
-                              <Icon as={Eye} size="sm" className="text-gray-400" />
+                            <Pressable
+                              accessibilityLabel={t('command.view_details')}
+                              onPress={() => onViewResource(assignment)}
+                              className="p-2"
+                              hitSlop={8}
+                              testID={`lane-resource-view-${assignment.ResourceAssignmentId}`}
+                            >
+                              <Icon as={Eye} size="md" className="text-gray-600 dark:text-gray-300" />
                             </Pressable>
                           </HStack>
                         </Pressable>

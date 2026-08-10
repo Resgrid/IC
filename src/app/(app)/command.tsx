@@ -1,8 +1,27 @@
 import { router } from 'expo-router';
-import { ClipboardList, CloudOff, ExternalLink, Image as ImageIcon, Info, MapPin, Paperclip, Pencil, RefreshCw, Sparkles, StickyNote, Trash2, UserCog, Video as VideoIcon, XCircle } from 'lucide-react-native';
+import {
+  ClipboardList,
+  CloudOff,
+  ExternalLink,
+  Image as ImageIcon,
+  Info,
+  MapPin,
+  MessageCircle,
+  MessagesSquare,
+  Paperclip,
+  Pencil,
+  RefreshCw,
+  Sparkles,
+  StickyNote,
+  Trash2,
+  UserCog,
+  Users,
+  Video as VideoIcon,
+  XCircle,
+} from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ScrollView, useWindowDimensions } from 'react-native';
+import { ScrollView } from 'react-native';
 
 import { VideoFeedTabContent } from '@/components/call-video-feeds/video-feed-tab-content';
 import CallFilesModal from '@/components/calls/call-files-modal';
@@ -45,11 +64,15 @@ import { Icon } from '@/components/ui/icon';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { useCommandBoardLayout } from '@/hooks/use-command-board-layout';
+import { useDirectMessage } from '@/hooks/use-direct-message';
 import { getIncidentRoleName } from '@/lib/incident-command-utils';
 import { isWeb } from '@/lib/platform';
+import { ChatChannelType } from '@/models/v4/chat';
 import { type IncidentNeedStatus, type ResourceAssignment, ResourceAssignmentKind } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useCallsStore } from '@/stores/calls/store';
+import { useChatStore } from '@/stores/chat/store';
 import { type AssignmentOutcome } from '@/stores/command/store';
 import { useCommandStore } from '@/stores/command/store';
 import { useRolesStore } from '@/stores/roles/store';
@@ -61,7 +84,13 @@ const oneLine = isWeb ? ({ isTruncated: true } as const) : ({ numberOfLines: 1 }
 
 export default function CommandBoard() {
   const { t } = useTranslation();
-  const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
+  const { height: viewportHeight, width: viewportWidth, isRoomy, isLandscapeBoard } = useCommandBoardLayout();
+
+  // Phones in portrait keep the compact controls so the header doesn't crowd out the board; tablets,
+  // landscape and desktop-sized windows get full-height buttons that are actually easy to hit.
+  const controlSize = isRoomy ? 'md' : 'xs';
+  const iconButtonClass = isRoomy ? 'px-4' : 'px-3';
+  const showLabels = isRoomy;
   const boards = useCommandStore((state) => state.boards);
   const activeBoardCallId = useCommandStore((state) => state.activeCallId);
   const switchCommand = useCommandStore((state) => state.switchCommand);
@@ -148,7 +177,6 @@ export default function CommandBoard() {
 
   const boardList = useMemo(() => Object.values(boards), [boards]);
   const boardState = activeBoardCallId ? boards[activeBoardCallId] : undefined;
-  const isLandscapeBoard = viewportWidth > viewportHeight && Math.min(viewportWidth, viewportHeight) >= 600;
 
   // Unit and personnel rosters back the resource pool — load once when a board is open
   useEffect(() => {
@@ -170,8 +198,38 @@ export default function CommandBoard() {
       fetchTimeline(boardCallId);
       fetchVoiceChannels(boardCallId);
       fetchTransmissionLog(boardCallId);
+      // Chat channels for the incident (command + one per lane). Archived ones are included so a
+      // closed incident's conversation is still readable.
+      void useChatStore.getState().loadIncidentChannels(boardCallId);
     }
   }, [boardCallId, fetchTimeline, fetchVoiceChannels, fetchTransmissionLog]);
+
+  const incidentChannels = useChatStore((state) => (boardCallId ? state.incidentChannelsByCallId[boardCallId] : undefined));
+
+  const commandChatChannelId = useMemo(() => incidentChannels?.find((channel) => channel.ChannelType === ChatChannelType.IncidentCommand)?.ChatChannelId ?? null, [incidentChannels]);
+
+  const laneChatChannelId = useCallback((nodeId: string) => incidentChannels?.find((channel) => channel.CommandStructureNodeId === nodeId)?.ChatChannelId ?? null, [incidentChannels]);
+
+  const openChatChannel = useCallback(
+    (channelId: string | null, unavailableMessage: string) => {
+      if (!channelId) {
+        showToast('info', unavailableMessage);
+        return;
+      }
+      router.push(`/chat/${channelId}`);
+    },
+    [showToast]
+  );
+
+  const handleOpenCommandChat = useCallback(() => openChatChannel(commandChatChannelId, t('command.command_chat_unavailable')), [openChatChannel, commandChatChannelId, t]);
+
+  const leadsChatChannelId = useMemo(() => incidentChannels?.find((channel) => channel.ChannelType === ChatChannelType.IncidentLeads)?.ChatChannelId ?? null, [incidentChannels]);
+
+  const handleOpenLeadsChat = useCallback(() => openChatChannel(leadsChatChannelId, t('command.leads_chat_unavailable')), [openChatChannel, leadsChatChannelId, t]);
+
+  const { openDirectMessage } = useDirectMessage();
+
+  const handleOpenLaneChat = useCallback((nodeId: string) => openChatChannel(laneChatChannelId(nodeId), t('command.lane_chat_unavailable')), [openChatChannel, laneChatChannelId, t]);
 
   const personName = useCallback(
     (userId: string) => {
@@ -520,11 +578,11 @@ export default function CommandBoard() {
   return (
     <View className="flex-1 bg-gray-50 dark:bg-gray-900" testID="command-board-screen">
       <FocusAwareStatusBar />
-      <ScrollView className="flex-1">
+      <ScrollView className="flex-1" keyboardShouldPersistTaps="handled" testID="command-board-scroll">
         <VStack space="md" className="px-3 pb-3 pt-2">
           {/* Board switcher — the IC may be running several incidents at once */}
           {boardList.length > 1 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} testID="command-board-switcher">
+            <ScrollView horizontal directionalLockEnabled showsHorizontalScrollIndicator={false} testID="command-board-switcher">
               <HStack space="sm">
                 {boardList.map((b) => (
                   <Pressable
@@ -587,47 +645,71 @@ export default function CommandBoard() {
               </HStack>
             ) : null}
 
-            <HStack space="sm" className="mt-2">
-              <Button onPress={handleViewCall} variant="outline" size="xs" testID="command-view-call">
-                <ButtonIcon as={ExternalLink} />
-                <ButtonText>{t('command.view_call')}</ButtonText>
+            {/* Labels on roomy surfaces where there is width for them; icon-only on a phone in
+                portrait, where six labelled buttons would wrap into three rows and push the board
+                off screen. Every button keeps its accessibilityLabel either way. */}
+            <HStack space="sm" className="mt-2 flex-wrap">
+              <Button onPress={handleViewCall} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('command.view_call')} testID="command-view-call">
+                <ButtonIcon as={ExternalLink} className="text-gray-700 dark:text-gray-200" />
+                {showLabels ? <ButtonText>{t('command.view_call')}</ButtonText> : null}
               </Button>
-              <Button onPress={handleOpenCommandDetails} variant="outline" size="xs" accessibilityLabel={t('command.command_details')} testID="command-edit-details">
-                <ButtonIcon as={Pencil} />
+              <Button onPress={handleOpenCommandDetails} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('command.command_details')} testID="command-edit-details">
+                <ButtonIcon as={Pencil} className="text-gray-700 dark:text-gray-200" />
+                {showLabels ? <ButtonText>{t('command.command_details')}</ButtonText> : null}
               </Button>
-              <Button onPress={handleOpenTransfer} variant="outline" size="xs" accessibilityLabel={t('command.transfer_command')} testID="command-transfer">
-                <ButtonIcon as={UserCog} />
+              <Button onPress={handleOpenTransfer} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('command.transfer_command')} testID="command-transfer">
+                <ButtonIcon as={UserCog} className="text-gray-700 dark:text-gray-200" />
+                {showLabels ? <ButtonText>{t('command.transfer_command')}</ButtonText> : null}
               </Button>
-              <Button onPress={handleRefresh} variant="outline" size="xs" isDisabled={isRefreshing} testID="command-refresh">
-                <ButtonIcon as={RefreshCw} />
+              <Button onPress={handleRefresh} variant="outline" size={controlSize} className={iconButtonClass} isDisabled={isRefreshing} accessibilityLabel={t('common.refresh')} testID="command-refresh">
+                <ButtonIcon as={RefreshCw} className="text-gray-700 dark:text-gray-200" />
+                {showLabels ? <ButtonText>{t('common.refresh')}</ButtonText> : null}
               </Button>
-              {/* Assistant: answers board questions on-device first, so it stays useful with no signal */}
-              <Button onPress={handleOpenAssistant} variant="outline" size="xs" accessibilityLabel={t('incident_assistant.title')} testID="command-assistant">
-                <ButtonIcon as={Sparkles} />
+              {/* Assistant: answers board questions on-device first, so it stays useful with no signal.
+                  Filled purple rather than an outline so it reads as its own thing among the actions. */}
+              <Button
+                onPress={handleOpenAssistant}
+                variant="solid"
+                size={controlSize}
+                className={`bg-purple-600 data-[hover=true]:bg-purple-700 data-[active=true]:bg-purple-800 ${iconButtonClass}`}
+                accessibilityLabel={t('incident_assistant.title')}
+                testID="command-assistant"
+              >
+                <ButtonIcon as={Sparkles} className="text-white" />
+                {showLabels ? <ButtonText className="text-white">{t('incident_assistant.title')}</ButtonText> : null}
               </Button>
-              {/* Icon-only by design; a confirmation dialog guards against accidental taps. */}
-              <Button onPress={handleOpenEndConfirm} action="negative" variant="solid" size="xs" accessibilityLabel={t('command.end_command')} testID="command-end-command">
+              <Button onPress={handleOpenCommandChat} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('command.command_chat')} testID="command-open-chat">
+                <ButtonIcon as={MessagesSquare} className="text-gray-700 dark:text-gray-200" />
+                {showLabels ? <ButtonText>{t('command.command_chat')}</ButtonText> : null}
+              </Button>
+              <Button onPress={handleOpenLeadsChat} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('command.leads_chat')} testID="command-open-leads-chat">
+                <ButtonIcon as={Users} className="text-gray-700 dark:text-gray-200" />
+                {showLabels ? <ButtonText>{t('command.leads_chat')}</ButtonText> : null}
+              </Button>
+              {/* A confirmation dialog guards against accidental taps. */}
+              <Button onPress={handleOpenEndConfirm} action="negative" variant="solid" size={controlSize} className={iconButtonClass} accessibilityLabel={t('command.end_command')} testID="command-end-command">
                 <ButtonIcon as={XCircle} className="text-white" />
+                {showLabels ? <ButtonText className="text-white">{t('command.end_command')}</ButtonText> : null}
               </Button>
             </HStack>
 
             {/* Quick access to the underlying call's notes/images/files/video without leaving the board */}
-            <HStack space="sm" className="mt-2">
-              <Button onPress={() => setCallResourceModal('notes')} variant="outline" size="xs" testID="command-call-notes">
-                <ButtonIcon as={StickyNote} />
-                <ButtonText>{t('call_detail.notes')}</ButtonText>
+            <HStack space="sm" className="mt-2 flex-wrap">
+              <Button onPress={() => setCallResourceModal('notes')} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('call_detail.notes')} testID="command-call-notes">
+                <ButtonIcon as={StickyNote} className="text-gray-700 dark:text-gray-200" />
+                {showLabels ? <ButtonText>{t('call_detail.notes')}</ButtonText> : null}
               </Button>
-              <Button onPress={() => setCallResourceModal('images')} variant="outline" size="xs" testID="command-call-images">
-                <ButtonIcon as={ImageIcon} />
-                <ButtonText>{t('call_detail.images')}</ButtonText>
+              <Button onPress={() => setCallResourceModal('images')} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('call_detail.images')} testID="command-call-images">
+                <ButtonIcon as={ImageIcon} className="text-gray-700 dark:text-gray-200" />
+                {showLabels ? <ButtonText>{t('call_detail.images')}</ButtonText> : null}
               </Button>
-              <Button onPress={() => setCallResourceModal('files')} variant="outline" size="xs" testID="command-call-files">
-                <ButtonIcon as={Paperclip} />
-                <ButtonText>{t('call_detail.files.button')}</ButtonText>
+              <Button onPress={() => setCallResourceModal('files')} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('call_detail.files.button')} testID="command-call-files">
+                <ButtonIcon as={Paperclip} className="text-gray-700 dark:text-gray-200" />
+                {showLabels ? <ButtonText>{t('call_detail.files.button')}</ButtonText> : null}
               </Button>
-              <Button onPress={() => setCallResourceModal('video')} variant="outline" size="xs" testID="command-call-video">
-                <ButtonIcon as={VideoIcon} />
-                <ButtonText>{t('video_feeds.tab_title')}</ButtonText>
+              <Button onPress={() => setCallResourceModal('video')} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('video_feeds.tab_title')} testID="command-call-video">
+                <ButtonIcon as={VideoIcon} className="text-gray-700 dark:text-gray-200" />
+                {showLabels ? <ButtonText>{t('video_feeds.tab_title')}</ButtonText> : null}
               </Button>
             </HStack>
 
@@ -685,6 +767,7 @@ export default function CommandBoard() {
               onAddLane={() => setIsLaneSheetOpen(true)}
               onAssignResource={(nodeId) => setAssignTargetNodeId(nodeId)}
               onEditLane={(nodeId) => setEditLaneNodeId(nodeId)}
+              onOpenLaneChat={handleOpenLaneChat}
               onMoveResource={handleMoveResource}
               onViewResource={(assignment) => setViewResource({ assignment, context: 'lane' })}
               resolveResourceName={resolveResourceName}
@@ -698,6 +781,7 @@ export default function CommandBoard() {
               onAddLane={() => setIsLaneSheetOpen(true)}
               onAssignResource={(nodeId) => setAssignTargetNodeId(nodeId)}
               onEditLane={(nodeId) => setEditLaneNodeId(nodeId)}
+              onOpenLaneChat={handleOpenLaneChat}
               onMoveResource={handleMoveResource}
               onViewResource={(assignment) => setViewResource({ assignment, context: 'lane' })}
               resolveLeadName={resolveLeadName}
@@ -777,8 +861,18 @@ export default function CommandBoard() {
                 </VStack>
                 <HStack space="sm" className="items-center">
                   {assignment.IncidentRoleAssignmentId.startsWith('local-') ? <Icon as={CloudOff} size="sm" className="text-amber-500" /> : null}
-                  <Pressable onPress={() => removeRole(boardState.callId, assignment.IncidentRoleAssignmentId)} className="p-2" testID={`assignment-remove-${assignment.IncidentRoleAssignmentId}`}>
-                    <Icon as={Trash2} size="sm" className="text-gray-400" />
+                  {/* 1:1 with whoever holds this ICS position. */}
+                  <Pressable
+                    accessibilityLabel={t('command.message_role_holder')}
+                    onPress={() => void openDirectMessage(assignment.UserId)}
+                    className="p-3"
+                    hitSlop={8}
+                    testID={`assignment-message-${assignment.IncidentRoleAssignmentId}`}
+                  >
+                    <Icon as={MessageCircle} size="md" className="text-blue-600 dark:text-blue-400" />
+                  </Pressable>
+                  <Pressable onPress={() => removeRole(boardState.callId, assignment.IncidentRoleAssignmentId)} className="p-3" hitSlop={8} testID={`assignment-remove-${assignment.IncidentRoleAssignmentId}`}>
+                    <Icon as={Trash2} size="md" className="text-gray-600 dark:text-gray-300" />
                   </Pressable>
                 </HStack>
               </HStack>
@@ -905,6 +999,7 @@ export default function CommandBoard() {
         maps={boardState.board?.Maps ?? []}
         users={users}
         onSave={(nodeId, patch) => updateNodeDetails(boardState.callId, nodeId, patch)}
+        onMessageLead={(userId: string) => void openDirectMessage(userId)}
         resourceCount={(boardState.board?.Assignments ?? []).filter((a) => !a.ReleasedOn && a.CommandStructureNodeId === editLaneNodeId).length}
         onDelete={(nodeId, disposition) => void handleDeleteLane(nodeId, disposition)}
       />
