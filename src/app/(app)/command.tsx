@@ -207,6 +207,14 @@ export default function CommandBoard() {
 
   const incidentChannels = useChatStore((state) => (boardCallId ? state.incidentChannelsByCallId[boardCallId] : undefined));
 
+  const incidentChannelsLoadFlag = useChatStore((state) => (boardCallId ? state.incidentChannelsLoadingByCallId[boardCallId] : undefined));
+
+  // The channel map holds undefined both before the fetch lands and for an incident that genuinely
+  // has no such channel, so a tap mid-load would otherwise claim chat is unavailable. The flag is
+  // still undefined between the board opening and the load effect firing — treat that as loading
+  // too, and only fall through to "unavailable" once a request has actually finished.
+  const isLoadingIncidentChannels = boardCallId ? (incidentChannelsLoadFlag ?? incidentChannels === undefined) : false;
+
   const commandChatChannelId = useMemo(() => incidentChannels?.find((channel) => channel.ChannelType === ChatChannelType.IncidentCommand)?.ChatChannelId ?? null, [incidentChannels]);
 
   const laneChatChannelId = useCallback((nodeId: string) => incidentChannels?.find((channel) => channel.CommandStructureNodeId === nodeId)?.ChatChannelId ?? null, [incidentChannels]);
@@ -214,12 +222,16 @@ export default function CommandBoard() {
   const openChatChannel = useCallback(
     (channelId: string | null, unavailableMessage: string) => {
       if (!channelId) {
+        // Still fetching: stay silent rather than report a channel missing that may yet arrive.
+        if (isLoadingIncidentChannels) {
+          return;
+        }
         showToast('info', unavailableMessage);
         return;
       }
       router.push(`/chat/${channelId}`);
     },
-    [showToast]
+    [showToast, isLoadingIncidentChannels]
   );
 
   const handleOpenCommandChat = useCallback(() => openChatChannel(commandChatChannelId, t('command.command_chat_unavailable')), [openChatChannel, commandChatChannelId, t]);

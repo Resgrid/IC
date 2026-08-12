@@ -79,6 +79,12 @@ interface ChatState {
    * channels: once a command closes its chat stays readable as a point-in-time record.
    */
   incidentChannelsByCallId: Record<string, ChatChannelResultData[]>;
+  /**
+   * In-flight marker per incident. Callers need it to tell "channels not loaded yet" from "the
+   * request finished and this incident genuinely has no such channel" — the map holds undefined
+   * in both cases.
+   */
+  incidentChannelsLoadingByCallId: Record<string, boolean>;
   loadIncidentChannels: (callId: string) => Promise<void>;
   setActiveChannel: (channelId: string | null) => void;
 
@@ -271,6 +277,7 @@ export const useChatStore = create<ChatState>()(
       // Channels
       // ------------------------------------------------------------------
       incidentChannelsByCallId: {},
+      incidentChannelsLoadingByCallId: {},
 
       loadIncidentChannels: async (callId: string) => {
         const numericCallId = parseInt(callId, 10);
@@ -278,12 +285,15 @@ export const useChatStore = create<ChatState>()(
           return;
         }
 
+        set((state) => ({ incidentChannelsLoadingByCallId: { ...state.incidentChannelsLoadingByCallId, [callId]: true } }));
         try {
           const response = await chatApi.getChannels(undefined, true);
           const forCall = (response.Data ?? []).filter((channel) => channel.CallId === numericCallId);
           set((state) => ({ incidentChannelsByCallId: { ...state.incidentChannelsByCallId, [callId]: forCall } }));
         } catch (error) {
           logger.error({ message: 'chat: failed to load incident channels', context: { error, callId } });
+        } finally {
+          set((state) => ({ incidentChannelsLoadingByCallId: { ...state.incidentChannelsLoadingByCallId, [callId]: false } }));
         }
       },
 
@@ -893,6 +903,7 @@ export const useChatStore = create<ChatState>()(
         set({
           channels: [],
           incidentChannelsByCallId: {},
+          incidentChannelsLoadingByCallId: {},
           messagesByChannel: {},
           membersByChannel: {},
           typingByChannel: {},

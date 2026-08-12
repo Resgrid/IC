@@ -644,11 +644,15 @@ interface CreateDrawerMenuButtonProps {
 }
 
 const CreateDrawerMenuButton = ({ setIsOpen }: CreateDrawerMenuButtonProps) => {
+  const { t } = useTranslation();
+
   return (
     <Pressable
       className="p-3"
       hitSlop={8}
       testID="drawer-menu-button"
+      accessibilityRole="button"
+      accessibilityLabel={t('sidebar.menu')}
       onPress={() => {
         setIsOpen(true);
       }}
@@ -662,11 +666,15 @@ const CreateDrawerMenuButton = ({ setIsOpen }: CreateDrawerMenuButtonProps) => {
 };
 
 const CreateHeaderBackButton = () => {
+  const { t } = useTranslation();
+
   return (
     <Pressable
       className="p-3"
       hitSlop={8}
       testID="header-back-button"
+      accessibilityRole="button"
+      accessibilityLabel={t('common.back')}
       onPress={() => {
         if (router.canGoBack()) {
           router.back();
