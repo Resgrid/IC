@@ -30,6 +30,11 @@ interface TestExpoConfig {
 
 const withAppIconBadge = jest.requireActual('../with-app-icon-badge.js') as (config: TestExpoConfig, options?: AppIconBadgeConfig) => TestExpoConfig;
 
+// The plugin builds absolute paths with node:path, so expected values must go through
+// path.resolve too — otherwise the assertions only hold on POSIX separators.
+const nodePath = jest.requireActual('node:path') as typeof import('node:path');
+const projectPath = (...segments: string[]) => nodePath.resolve('/project', ...segments);
+
 describe('withAppIconBadge', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -56,18 +61,18 @@ describe('withAppIconBadge', () => {
     };
     expect(payload.jobs).toEqual([
       {
-        sourcePath: '/project/assets/icon.png',
-        outputPath: '/project/.expo/app-icon-badge/icon.png',
+        sourcePath: projectPath('assets/icon.png'),
+        outputPath: projectPath('.expo/app-icon-badge/icon.png'),
         isAdaptiveIcon: false,
       },
       {
-        sourcePath: '/project/assets/ios-icon.png',
-        outputPath: '/project/.expo/app-icon-badge/ios-icon.png',
+        sourcePath: projectPath('assets/ios-icon.png'),
+        outputPath: projectPath('.expo/app-icon-badge/ios-icon.png'),
         isAdaptiveIcon: false,
       },
       {
-        sourcePath: '/project/assets/adaptive-icon.png',
-        outputPath: '/project/.expo/app-icon-badge/foregroundImage.png',
+        sourcePath: projectPath('assets/adaptive-icon.png'),
+        outputPath: projectPath('.expo/app-icon-badge/foregroundImage.png'),
         isAdaptiveIcon: true,
       },
     ]);

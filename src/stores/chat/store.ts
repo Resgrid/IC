@@ -283,6 +283,10 @@ export const useChatStore = create<ChatState>()(
 
       setActiveChannel: (channelId: string | null) => {
         set({ activeChannelId: channelId });
+        // Hub signature: SetActiveChannel(channelId, asUnitId). A channelId marks the
+        // conversation as actively viewed (server suppresses push for it); null clears it.
+        // Both args must be sent — SignalR rejects invocations with omitted optionals.
+        void safeInvoke('SetActiveChannel', channelId ?? null, null);
       },
 
       // ------------------------------------------------------------------
@@ -847,6 +851,8 @@ export const useChatStore = create<ChatState>()(
         void get().drainOutbox();
         if (activeChannelId) {
           void get().joinChannel(activeChannelId);
+          // Re-assert the active-channel marker; the server forgets it on disconnect.
+          void safeInvoke('SetActiveChannel', activeChannelId, null);
           void get().loadNewerMessages(activeChannelId);
         }
       },
