@@ -1,3 +1,4 @@
+import { MessageCircle } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView } from 'react-native';
@@ -6,7 +7,9 @@ import { CustomBottomSheet } from '@/components/ui/bottom-sheet';
 import { Button, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
+import { Icon } from '@/components/ui/icon';
 import { Input, InputField } from '@/components/ui/input';
+import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { type CommandStructureNode, type IncidentMap, type IncidentNeed, IncidentNeedStatus, type TacticalObjective, TacticalObjectiveStatus } from '@/models/v4/incidentCommand/incidentCommandModels';
@@ -46,10 +49,12 @@ interface LaneDetailsSheetProps {
   resourceCount?: number;
   /** Delete the lane; disposition decides what happens to its resources first. */
   onDelete?: (commandStructureNodeId: string, disposition: 'pool' | 'release') => void;
+  /** Start a 1:1 with a lead. Only offered for Resgrid users — external leads have no account to message. */
+  onMessageLead?: (userId: string) => void;
 }
 
 /** Edit an existing lane: leads (primary/secondary — Resgrid user or external contact) and linked objectives/need. */
-export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onClose, node, objectives, needs, maps, users, onSave, resourceCount = 0, onDelete }) => {
+export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onClose, node, objectives, needs, maps, users, onSave, resourceCount = 0, onDelete, onMessageLead }) => {
   const { t } = useTranslation();
   const [primaryLead, setPrimaryLead] = useState<LeadDraft>(emptyLead);
   const [secondaryLead, setSecondaryLead] = useState<LeadDraft>(emptyLead);
@@ -107,7 +112,14 @@ export const LaneDetailsSheet: React.FC<LaneDetailsSheetProps> = ({ isOpen, onCl
 
   const renderLeadEditor = (slot: 'primary' | 'secondary', lead: LeadDraft, setLead: (value: LeadDraft) => void) => (
     <VStack space="xs">
-      <Text className="text-sm font-medium text-gray-600 dark:text-gray-300">{slot === 'primary' ? t('command.primary_lead_label') : t('command.secondary_lead_label')}</Text>
+      <HStack className="items-center justify-between">
+        <Text className="text-sm font-medium text-gray-600 dark:text-gray-300">{slot === 'primary' ? t('command.primary_lead_label') : t('command.secondary_lead_label')}</Text>
+        {onMessageLead && lead.userId ? (
+          <Pressable accessibilityLabel={t('command.message_lead')} onPress={() => onMessageLead(lead.userId as string)} className="p-2" hitSlop={8} testID={`lane-lead-${slot}-message`}>
+            <Icon as={MessageCircle} size="md" className="text-blue-600 dark:text-blue-400" />
+          </Pressable>
+        ) : null}
+      </HStack>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <HStack space="sm">
           <Button size="xs" variant={!lead.userId ? 'solid' : 'outline'} onPress={() => setLead({ ...lead, userId: null })} testID={`lane-lead-${slot}-external`}>

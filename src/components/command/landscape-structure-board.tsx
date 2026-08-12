@@ -1,4 +1,4 @@
-import { CloudOff, Eye, GripVertical, Pencil, Plus, UserPlus } from 'lucide-react-native';
+import { CloudOff, Eye, GripVertical, MessagesSquare, Pencil, Plus, UserPlus } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Animated, PanResponder, ScrollView, View as NativeView } from 'react-native';
@@ -8,6 +8,7 @@ import { Box } from '@/components/ui/box';
 import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
+import { Icon } from '@/components/ui/icon';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
@@ -79,6 +80,35 @@ export const WorkTimeLight: React.FC<{ assignedOn?: string | null; rotationAfter
 const LONG_PRESS_DELAY_MS = 350;
 const DROP_MOVEMENT_THRESHOLD = 8;
 
+/**
+ * A lane's resource list. The lane is a fixed height, so a busy lane needs to scroll its own crews —
+ * but iOS does not chain a nested same-axis scroll view to its parent, so an always-on inner scroller
+ * turns every lane into a dead zone for scrolling the board. Scrolling is therefore enabled only once
+ * the content genuinely overflows; until then the drag falls through to the page.
+ */
+const LaneResourceList: React.FC<{ children: React.ReactNode; testID?: string }> = ({ children, testID }) => {
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
+
+  // A pixel of slack so rounding never leaves a non-overflowing lane capturing gestures.
+  const overflows = viewportHeight > 0 && contentHeight > viewportHeight + 1;
+
+  return (
+    <ScrollView
+      className="flex-1"
+      directionalLockEnabled
+      nestedScrollEnabled
+      onContentSizeChange={(_width, height) => setContentHeight(height)}
+      onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}
+      scrollEnabled={overflows}
+      showsVerticalScrollIndicator={overflows}
+      testID={testID}
+    >
+      {children}
+    </ScrollView>
+  );
+};
+
 interface LandscapeStructureBoardProps {
   nodes: CommandStructureNode[];
   assignments: ResourceAssignment[];
@@ -88,6 +118,8 @@ interface LandscapeStructureBoardProps {
   onAddLane: () => void;
   /** Open the lane details editor (leads, linked objectives/need, delete). */
   onEditLane?: (nodeId: string) => void;
+  /** Open the lane's own chat channel. Omitted when the board has no chat. */
+  onOpenLaneChat?: (nodeId: string) => void;
   onAssignResource: (nodeId: string) => void;
   onMoveResource: (assignmentId: string, targetNodeId: string) => void | Promise<void>;
   /** Opens the resource details sheet for a lane assignment (hosts remove-from-lane). */
@@ -211,7 +243,7 @@ const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo(
         >
           <HStack className="items-center justify-between" space="xs">
             <HStack className="flex-1 items-center" space="xs">
-              <GripVertical aria-hidden={true} className="text-gray-400" size={16} />
+              <Icon as={GripVertical} aria-hidden={true} className="text-gray-500 dark:text-gray-400" size={16} />
               <Text className="flex-1 text-sm font-medium text-gray-900 web:line-clamp-2 dark:text-white" {...twoLine}>
                 {name}
               </Text>
@@ -223,13 +255,13 @@ const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo(
               redAfterMinutes={redAfterMinutes}
               testID={`landscape-worktime-${assignment.ResourceAssignmentId}`}
             />
-            <Pressable accessibilityLabel={t('command.view_details')} accessibilityRole="button" className="p-1" onPress={handleView} testID={`landscape-resource-view-${assignment.ResourceAssignmentId}`}>
-              <Eye className="text-gray-400" size={16} />
+            <Pressable accessibilityLabel={t('command.view_details')} accessibilityRole="button" className="p-2" hitSlop={8} onPress={handleView} testID={`landscape-resource-view-${assignment.ResourceAssignmentId}`}>
+              <Icon as={Eye} className="text-gray-600 dark:text-gray-300" size={18} />
             </Pressable>
           </HStack>
           {assignment.ResourceAssignmentId.startsWith('local-') || assignment.RequirementsWarning || isSelected ? (
             <HStack className="mt-1 items-center" space="xs">
-              {assignment.ResourceAssignmentId.startsWith('local-') ? <CloudOff className="text-amber-500" size={14} /> : null}
+              {assignment.ResourceAssignmentId.startsWith('local-') ? <Icon as={CloudOff} className="text-amber-500" size={14} /> : null}
               {assignment.RequirementsWarning ? (
                 <Badge action="warning" size="sm" variant="solid">
                   <BadgeText className="text-white">{t('command.requirements_warning')}</BadgeText>
@@ -259,6 +291,7 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
   resolveResourceName,
   onAddLane,
   onEditLane,
+  onOpenLaneChat,
   onAssignResource,
   onMoveResource,
   onViewResource,
@@ -273,7 +306,10 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
   const selectedAssignment = activeAssignments.find((assignment) => assignment.ResourceAssignmentId === selectedAssignmentId);
   const totalGapWidth = Math.max(activeNodes.length - 1, 0) * 12;
   const laneWidth = Math.min(320, Math.max(220, (viewportWidth - 64 - totalGapWidth) / Math.max(activeNodes.length, 1)));
-  const laneHeight = Math.max(320, viewportHeight - 360);
+  // A FIXED height, clamped so the board never eats more than a screenful. Previously this was a
+  // minHeight, so a lane with a lot of crews grew without bound and the page scrolled forever to get
+  // past the structure section. Each lane now scrolls its own resources instead.
+  const laneHeight = Math.max(280, Math.min(560, viewportHeight - 360));
 
   const moveAssignment = useCallback(
     async (assignmentId: string, targetNodeId: string) => {
@@ -344,7 +380,7 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
       {activeNodes.length === 0 ? (
         <Text className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">{t('command.empty_structure')}</Text>
       ) : (
-        <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator testID="command-landscape-lanes">
+        <ScrollView horizontal directionalLockEnabled nestedScrollEnabled showsHorizontalScrollIndicator testID="command-landscape-lanes">
           <NativeView style={{ flexDirection: 'row', gap: 12, paddingBottom: 4 }}>
             {activeNodes.map((node) => {
               const laneAssignments = activeAssignments.filter((assignment) => assignment.CommandStructureNodeId === node.CommandStructureNodeId);
@@ -357,7 +393,7 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
                   ref={(lane) => {
                     laneRefs.current[node.CommandStructureNodeId] = lane;
                   }}
-                  style={{ minHeight: laneHeight, width: laneWidth }}
+                  style={{ height: laneHeight, width: laneWidth }}
                 >
                   <Pressable
                     accessibilityHint={
@@ -385,26 +421,40 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
                             <BadgeText className="text-white">{t('command.lane_understaffed', { count: laneUnitCount, min: node.MinUnits })}</BadgeText>
                           </Badge>
                         ) : null}
-                        {node.CommandStructureNodeId.startsWith('local-') ? <CloudOff className="text-amber-500" size={16} /> : null}
+                        {node.CommandStructureNodeId.startsWith('local-') ? <Icon as={CloudOff} className="text-amber-500" size={16} /> : null}
+                        {onOpenLaneChat ? (
+                          <Pressable
+                            accessibilityLabel={t('command.lane_chat')}
+                            accessibilityRole="button"
+                            className="p-3"
+                            hitSlop={8}
+                            onPress={() => onOpenLaneChat(node.CommandStructureNodeId)}
+                            testID={`landscape-lane-chat-${node.CommandStructureNodeId}`}
+                          >
+                            <Icon as={MessagesSquare} className="text-gray-600 dark:text-gray-300" size={20} />
+                          </Pressable>
+                        ) : null}
                         {onEditLane ? (
                           <Pressable
                             accessibilityLabel={t('command.edit_lane')}
                             accessibilityRole="button"
-                            className="p-2"
+                            className="p-3"
+                            hitSlop={8}
                             onPress={() => onEditLane(node.CommandStructureNodeId)}
                             testID={`landscape-lane-edit-${node.CommandStructureNodeId}`}
                           >
-                            <Pencil className="text-gray-400" size={18} />
+                            <Icon as={Pencil} className="text-gray-600 dark:text-gray-300" size={20} />
                           </Pressable>
                         ) : null}
                         <Pressable
                           accessibilityLabel={t('command.assign_resource')}
                           accessibilityRole="button"
-                          className="p-2"
+                          className="p-3"
+                          hitSlop={8}
                           onPress={() => onAssignResource(node.CommandStructureNodeId)}
                           testID={`landscape-lane-assign-${node.CommandStructureNodeId}`}
                         >
-                          <UserPlus className="text-primary-500" size={18} />
+                          <Icon as={UserPlus} className="text-blue-600 dark:text-blue-400" size={20} />
                         </Pressable>
                       </HStack>
                     </HStack>
@@ -412,24 +462,29 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
                     {laneAssignments.length === 0 ? (
                       <Text className="rounded-lg border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">{t('command.no_resources_in_lane')}</Text>
                     ) : (
-                      <VStack space="sm">
-                        {laneAssignments.map((assignment) => (
-                          <DraggableResourceCard
-                            key={assignment.ResourceAssignmentId}
-                            assignment={assignment}
-                            rotationAfterMinutes={node.MaxTimeInRole}
-                            amberAfterMinutes={node.WorkTimeAmberMinutes}
-                            redAfterMinutes={node.WorkTimeRedMinutes}
-                            isSelected={selectedAssignmentId === assignment.ResourceAssignmentId}
-                            name={resolveResourceName(assignment.ResourceKind, assignment.ResourceId)}
-                            onDragEnd={() => setDraggingAssignmentId(null)}
-                            onDragStart={setDraggingAssignmentId}
-                            onDrop={(assignmentId, pageX, pageY) => void handleDrop(assignmentId, pageX, pageY)}
-                            onView={onViewResource}
-                            onSelect={handleSelect}
-                          />
-                        ))}
-                      </VStack>
+                      // The lane is a fixed height, so a busy lane scrolls its own crews rather than
+                      // stretching the whole board. directionalLockEnabled keeps a sideways drag going
+                      // to the lane strip instead of being eaten here.
+                      <LaneResourceList testID={`landscape-lane-resources-${node.CommandStructureNodeId}`}>
+                        <VStack space="sm">
+                          {laneAssignments.map((assignment) => (
+                            <DraggableResourceCard
+                              key={assignment.ResourceAssignmentId}
+                              assignment={assignment}
+                              rotationAfterMinutes={node.MaxTimeInRole}
+                              amberAfterMinutes={node.WorkTimeAmberMinutes}
+                              redAfterMinutes={node.WorkTimeRedMinutes}
+                              isSelected={selectedAssignmentId === assignment.ResourceAssignmentId}
+                              name={resolveResourceName(assignment.ResourceKind, assignment.ResourceId)}
+                              onDragEnd={() => setDraggingAssignmentId(null)}
+                              onDragStart={setDraggingAssignmentId}
+                              onDrop={(assignmentId, pageX, pageY) => void handleDrop(assignmentId, pageX, pageY)}
+                              onView={onViewResource}
+                              onSelect={handleSelect}
+                            />
+                          ))}
+                        </VStack>
+                      </LaneResourceList>
                     )}
                     {draggingAssignmentId && laneAssignments.every((assignment) => assignment.ResourceAssignmentId !== draggingAssignmentId) ? (
                       <NativeView className="absolute inset-0 rounded-xl border-2 border-dashed border-primary-500" pointerEvents="none" testID={`landscape-drop-target-${node.CommandStructureNodeId}`} />

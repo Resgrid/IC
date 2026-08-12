@@ -26,6 +26,7 @@ describe('Security Permission Logic', () => {
         CanCreateCalls: true,
         CanAddNote: false,
         CanCreateMessage: false,
+        CanLoginToCommandApp: true,
         Groups: []
       };
 
@@ -44,6 +45,7 @@ describe('Security Permission Logic', () => {
         CanCreateCalls: false,
         CanAddNote: true,
         CanCreateMessage: true,
+        CanLoginToCommandApp: true,
         Groups: []
       };
 
@@ -65,6 +67,7 @@ describe('Security Permission Logic', () => {
         CanViewPII: true,
         CanAddNote: true,
         CanCreateMessage: true,
+        CanLoginToCommandApp: true,
         Groups: []
       } as unknown as DepartmentRightsResultData;
 
@@ -85,6 +88,7 @@ describe('Security Permission Logic', () => {
         CanCreateCalls: true,
         CanAddNote: false,
         CanCreateMessage: false,
+        CanLoginToCommandApp: true,
         Groups: []
       };
 
@@ -107,6 +111,7 @@ describe('Security Permission Logic', () => {
         CanCreateCalls: false,
         CanAddNote: true,
         CanCreateMessage: true,
+        CanLoginToCommandApp: true,
         Groups: []
       };
 

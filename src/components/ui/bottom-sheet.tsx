@@ -47,6 +47,11 @@ export function CustomBottomSheet({
   const translateY = useRef(new Animated.Value(1)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
+  // Read inside the close-animation callback, which fires after the animation and would otherwise
+  // see a stale `isOpen` from the render that started it.
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
+
   // Compute sheet height from first snap point (percentage of screen height).
   // Clamp between 300px and the screen height to remain usable in all orientations.
   const rawSheetHeight = snapPoints.length > 0 ? Math.round(snapPoints[0] * windowHeight * 0.01) : Math.round(0.67 * windowHeight);
@@ -95,8 +100,14 @@ export function CustomBottomSheet({
           duration: 200,
           useNativeDriver: true,
         }),
-      ]).start(({ finished }) => {
-        if (finished) {
+      ]).start(() => {
+        // Tear the Modal down whether or not the animation ran to completion. An interrupted close
+        // (finished === false — another animation started on these values, the app backgrounded,
+        // a re-render restarted the effect) used to leave a transparent, full-screen Modal mounted
+        // over the app: the screen below looked normal but swallowed every touch, so scrolling was
+        // dead until the route unmounted. Guarded on the CURRENT isOpen so a close that was
+        // superseded by a re-open doesn't hide a sheet the user just opened.
+        if (!isOpenRef.current) {
           setModalVisible(false);
         }
       });

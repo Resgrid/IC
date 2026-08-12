@@ -6,6 +6,7 @@ import { StyleSheet } from 'react-native';
 import { Badge, BadgeText } from '@/components/ui/badge';
 import { Box } from '@/components/ui/box';
 import { HStack } from '@/components/ui/hstack';
+import { Icon } from '@/components/ui/icon';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { View } from '@/components/ui/view';
@@ -55,9 +56,9 @@ const CardShell: React.FC<CardShellProps> = ({ isLocal, onView, testID, viewTest
         {children}
       </VStack>
       <HStack className="items-center" space="xs">
-        {isLocal ? <CloudOff className="text-amber-500" size={16} /> : null}
-        <Pressable accessibilityLabel={t('command.view_details')} accessibilityRole="button" className="p-1" onPress={onView} testID={viewTestID}>
-          <Eye className="text-gray-400" size={16} />
+        {isLocal ? <Icon as={CloudOff} className="text-amber-500" size={16} /> : null}
+        <Pressable accessibilityLabel={t('command.view_details')} accessibilityRole="button" className="p-2" hitSlop={8} onPress={onView} testID={viewTestID}>
+          <Icon as={Eye} className="text-gray-600 dark:text-gray-300" size={18} />
         </Pressable>
       </HStack>
     </HStack>
@@ -89,7 +90,7 @@ export const UnitResourceCard: React.FC<UnitResourceCardProps> = ({ name, unit, 
     <CardShell isLocal={isLocal} onView={onView} testID={testID} viewTestID={viewTestID}>
       <HStack className="items-center" space="sm">
         <Box className="size-8 items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-950">
-          <Truck className="text-primary-600 dark:text-primary-400" size={16} />
+          <Icon as={Truck} className="text-blue-600 dark:text-blue-400" size={16} />
         </Box>
         <VStack className="min-w-0 flex-1">
           <Text className="text-base font-semibold text-gray-900 dark:text-white" {...oneLine}>
@@ -106,7 +107,7 @@ export const UnitResourceCard: React.FC<UnitResourceCardProps> = ({ name, unit, 
 
       {status?.DestinationName || status?.Eta ? (
         <HStack className="items-center" space="xs">
-          <MapPin className="text-gray-400" size={12} />
+          <Icon as={MapPin} className="text-gray-500 dark:text-gray-400" size={12} />
           <Text className="text-xs text-gray-500 dark:text-gray-400" {...oneLine}>
             {[status?.DestinationName, status?.Eta ? t('command.unit_eta', { eta: status.Eta }) : ''].filter(Boolean).join(' • ')}
           </Text>

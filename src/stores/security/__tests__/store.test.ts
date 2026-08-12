@@ -55,6 +55,7 @@ describe('useSecurityStore', () => {
     CanCreateCalls: true,
     CanAddNote: true,
     CanCreateMessage: true,
+        CanLoginToCommandApp: true,
     Groups: [
       {
         GroupId: 1,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, cleanup, act } from '@testing-library/react-native';
-import { Text as RNText, View } from 'react-native';
+import { Animated, Text as RNText, View } from 'react-native';
 
 import { CustomBottomSheet } from '../bottom-sheet';
 
@@ -420,6 +420,64 @@ describe('CustomBottomSheet', () => {
       expect(centers.length).toBe(2);
       expect(spinner).toBeTruthy();
       expect(text).toBeTruthy();
+    });
+  });
+
+  describe('Close animation interruption', () => {
+    /**
+     * Regression: the close used to unmount the Modal only when the animation reported
+     * finished === true. A native-driver animation that gets cancelled (another animation starts on
+     * the same value, the app backgrounds, the view is re-attached) reports finished === false, and
+     * the Modal stayed mounted — transparent and full-screen — swallowing every touch on the screen
+     * underneath. The symptom was a page that rendered fine but would not scroll until the route
+     * unmounted.
+     */
+    it('unmounts the modal even when the close animation does not finish', () => {
+      const parallelSpy = jest.spyOn(Animated, 'parallel');
+
+      const { rerender } = render(<CustomBottomSheet {...defaultProps} isOpen={true} />);
+      expect(screen.getByTestId('bottom-sheet')).toBeTruthy();
+
+      // Every animation from here reports as interrupted.
+      parallelSpy.mockReturnValue({
+        start: (callback?: (result: { finished: boolean }) => void) => callback?.({ finished: false }),
+      } as unknown as Animated.CompositeAnimation);
+
+      act(() => {
+        rerender(<CustomBottomSheet {...defaultProps} isOpen={false} />);
+      });
+
+      expect(screen.queryByTestId('bottom-sheet')).toBeNull();
+
+      parallelSpy.mockRestore();
+    });
+
+    it('keeps the sheet mounted when a close is superseded by a re-open', () => {
+      const { rerender } = render(<CustomBottomSheet {...defaultProps} isOpen={true} />);
+
+      const parallelSpy = jest.spyOn(Animated, 'parallel');
+      // Defer the close callback so the re-open lands first, the way an interrupted close behaves.
+      let closeCallback: ((result: { finished: boolean }) => void) | undefined;
+      parallelSpy.mockReturnValueOnce({
+        start: (callback?: (result: { finished: boolean }) => void) => {
+          closeCallback = callback;
+        },
+      } as unknown as Animated.CompositeAnimation);
+
+      act(() => {
+        rerender(<CustomBottomSheet {...defaultProps} isOpen={false} />);
+      });
+      act(() => {
+        rerender(<CustomBottomSheet {...defaultProps} isOpen={true} />);
+      });
+      act(() => {
+        closeCallback?.({ finished: false });
+      });
+
+      // The superseded close must not tear down the sheet the user just re-opened.
+      expect(screen.getByTestId('bottom-sheet')).toBeTruthy();
+
+      parallelSpy.mockRestore();
     });
   });
 });

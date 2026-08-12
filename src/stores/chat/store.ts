@@ -73,6 +73,13 @@ interface ChatState {
 
   // --- Channels ---------------------------------------------------------
   fetchChannels: (activeUnitId?: number) => Promise<void>;
+  /**
+   * Chat channels anchored to one incident (its command channel and each lane's), kept out of the
+   * main channel list so a closed incident's frozen conversations don't clutter it. Includes archived
+   * channels: once a command closes its chat stays readable as a point-in-time record.
+   */
+  incidentChannelsByCallId: Record<string, ChatChannelResultData[]>;
+  loadIncidentChannels: (callId: string) => Promise<void>;
   setActiveChannel: (channelId: string | null) => void;
 
   // --- Messages ---------------------------------------------------------
@@ -226,6 +233,23 @@ async function safeInvoke(method: string, ...args: unknown[]): Promise<void> {
   }
 }
 
+/** Active-channel marker the hub has not confirmed yet. Kept — null included, since
+ * null means "clear the marker" — until an invoke succeeds, so a send that failed
+ * while offline can be replayed on reconnect. */
+let pendingActiveChannelSync: { channelId: string | null } | null = null;
+
+async function syncActiveChannelMarker(channelId: string | null): Promise<void> {
+  const marker = { channelId };
+  pendingActiveChannelSync = marker;
+  try {
+    await signalRService.invoke(Env.CHAT_HUB_NAME, 'SetActiveChannel', channelId, null);
+    // Only clear if no newer marker superseded this one while in flight.
+    if (pendingActiveChannelSync === marker) pendingActiveChannelSync = null;
+  } catch (error) {
+    logger.debug({ message: 'chat: invoke SetActiveChannel skipped', context: { error } });
+  }
+}
+
 export const useChatStore = create<ChatState>()(
   persist(
     (set, get) => ({
@@ -246,6 +270,23 @@ export const useChatStore = create<ChatState>()(
       // ------------------------------------------------------------------
       // Channels
       // ------------------------------------------------------------------
+      incidentChannelsByCallId: {},
+
+      loadIncidentChannels: async (callId: string) => {
+        const numericCallId = parseInt(callId, 10);
+        if (Number.isNaN(numericCallId)) {
+          return;
+        }
+
+        try {
+          const response = await chatApi.getChannels(undefined, true);
+          const forCall = (response.Data ?? []).filter((channel) => channel.CallId === numericCallId);
+          set((state) => ({ incidentChannelsByCallId: { ...state.incidentChannelsByCallId, [callId]: forCall } }));
+        } catch (error) {
+          logger.error({ message: 'chat: failed to load incident channels', context: { error, callId } });
+        }
+      },
+
       fetchChannels: async (activeUnitId?: number) => {
         set({ isLoadingChannels: true });
         try {
@@ -259,6 +300,10 @@ export const useChatStore = create<ChatState>()(
 
       setActiveChannel: (channelId: string | null) => {
         set({ activeChannelId: channelId });
+        // Hub signature: SetActiveChannel(channelId, asUnitId). A channelId marks the
+        // conversation as actively viewed (server suppresses push for it); null clears it.
+        // Both args must be sent — SignalR rejects invocations with omitted optionals.
+        void syncActiveChannelMarker(channelId ?? null);
       },
 
       // ------------------------------------------------------------------
@@ -825,6 +870,12 @@ export const useChatStore = create<ChatState>()(
           void get().joinChannel(activeChannelId);
           void get().loadNewerMessages(activeChannelId);
         }
+        // Re-assert the active-channel marker; the server forgets it on disconnect.
+        // A pending null (screen closed while offline) is flushed too, so the server
+        // stops suppressing push for a channel no longer on screen.
+        if (activeChannelId !== null || pendingActiveChannelSync !== null) {
+          void syncActiveChannelMarker(activeChannelId);
+        }
       },
 
       reset: () => {
@@ -833,6 +884,7 @@ export const useChatStore = create<ChatState>()(
         lastTypingSentAt.clear();
         lastMarkedSeq.clear();
         pendingChatbotMessages.clear();
+        pendingActiveChannelSync = null;
         clearChatbotTypingTimeout();
         if (outboxDrainTimer) {
           clearTimeout(outboxDrainTimer);
@@ -840,6 +892,7 @@ export const useChatStore = create<ChatState>()(
         }
         set({
           channels: [],
+          incidentChannelsByCallId: {},
           messagesByChannel: {},
           membersByChannel: {},
           typingByChannel: {},

@@ -36,6 +36,11 @@ export function SideDrawer({ children, isOpen, onClose, testID }: SideDrawerProp
   const translateX = useRef(new Animated.Value(1)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
+  // Read inside the close-animation callback, which fires after the animation and would otherwise
+  // see a stale `isOpen` from the render that started it.
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
+
   useEffect(() => {
     if (isOpen) {
       hasBeenOpened.current = true;
@@ -53,13 +58,14 @@ export function SideDrawer({ children, isOpen, onClose, testID }: SideDrawerProp
     } else if (hasBeenOpened.current) {
       setBackdropEnabled(false);
       if (backdropTimerRef.current) clearTimeout(backdropTimerRef.current);
-      Animated.parallel([Animated.timing(translateX, { toValue: 1, duration: 180, useNativeDriver: true }), Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: true })]).start(
-        ({ finished }) => {
-          if (finished) {
-            setModalVisible(false);
-          }
+      Animated.parallel([Animated.timing(translateX, { toValue: 1, duration: 180, useNativeDriver: true }), Animated.timing(backdropOpacity, { toValue: 0, duration: 180, useNativeDriver: true })]).start(() => {
+        // Unmount whether or not the animation finished: an interrupted close otherwise leaves a
+        // transparent, full-screen Modal over the whole app that eats every touch. This drawer is
+        // mounted app-wide, so that strands the user on any screen until it remounts.
+        if (!isOpenRef.current) {
+          setModalVisible(false);
         }
-      );
+      });
     }
     return () => {
       if (backdropTimerRef.current) clearTimeout(backdropTimerRef.current);
