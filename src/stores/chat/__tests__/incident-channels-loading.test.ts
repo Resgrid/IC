@@ -52,10 +52,10 @@ beforeAll(() => {
   useChatStore = require('../store').useChatStore as ChatStoreApi;
 });
 
-describe('loadIncidentChannels loading marker', () => {
+describe('loadIncidentChannels status', () => {
   beforeEach(() => {
     mockGetChannels.mockReset();
-    useChatStore.setState({ incidentChannelsByCallId: {}, incidentChannelsLoadingByCallId: {} });
+    useChatStore.setState({ incidentChannelsByCallId: {}, incidentChannelsStatusByCallId: {} });
   });
 
   it('marks the incident as loading until the request resolves', async () => {
@@ -68,39 +68,104 @@ describe('loadIncidentChannels loading marker', () => {
 
     const pending = useChatStore.getState().loadIncidentChannels('42');
 
-    expect(useChatStore.getState().incidentChannelsLoadingByCallId['42']).toBe(true);
-    // The map is still empty mid-flight — the marker is the only way to tell that apart from "none".
+    expect(useChatStore.getState().incidentChannelsStatusByCallId['42']).toBe('loading');
+    // The map is still empty mid-flight — the status is the only way to tell that apart from "none".
     expect(useChatStore.getState().incidentChannelsByCallId['42']).toBeUndefined();
 
     resolveChannels({ Data: [{ ChatChannelId: 'c-1', CallId: 42 }] });
     await pending;
 
-    expect(useChatStore.getState().incidentChannelsLoadingByCallId['42']).toBe(false);
+    expect(useChatStore.getState().incidentChannelsStatusByCallId['42']).toBe('loaded');
     expect(useChatStore.getState().incidentChannelsByCallId['42']).toHaveLength(1);
   });
 
   it('records an empty result as loaded so callers can report chat unavailable', async () => {
+    // The incident has no channels of its own: the request succeeded, the filter matched nothing.
     mockGetChannels.mockResolvedValue({ Data: [{ ChatChannelId: 'c-9', CallId: 99 }] });
 
     await useChatStore.getState().loadIncidentChannels('42');
 
-    expect(useChatStore.getState().incidentChannelsLoadingByCallId['42']).toBe(false);
+    expect(useChatStore.getState().incidentChannelsStatusByCallId['42']).toBe('loaded');
     expect(useChatStore.getState().incidentChannelsByCallId['42']).toEqual([]);
   });
 
-  it('clears the loading marker when the request fails', async () => {
+  it('marks the incident failed — not loaded — when the request throws', async () => {
     mockGetChannels.mockRejectedValue(new Error('network down'));
 
     await useChatStore.getState().loadIncidentChannels('42');
 
-    expect(useChatStore.getState().incidentChannelsLoadingByCallId['42']).toBe(false);
+    expect(useChatStore.getState().incidentChannelsStatusByCallId['42']).toBe('failed');
+    expect(useChatStore.getState().incidentChannelsStatusByCallId['42']).not.toBe('loaded');
+    // Nothing was written, so an empty map here must not read as "this incident has no chat".
     expect(useChatStore.getState().incidentChannelsByCallId['42']).toBeUndefined();
   });
 
-  it('does not mark loading for an unparseable call id', async () => {
+  it('recovers to loaded when a retry succeeds after a failure', async () => {
+    mockGetChannels.mockRejectedValueOnce(new Error('network down'));
+    await useChatStore.getState().loadIncidentChannels('42');
+    expect(useChatStore.getState().incidentChannelsStatusByCallId['42']).toBe('failed');
+
+    mockGetChannels.mockResolvedValue({ Data: [{ ChatChannelId: 'c-1', CallId: 42 }] });
+    await useChatStore.getState().loadIncidentChannels('42');
+
+    expect(useChatStore.getState().incidentChannelsStatusByCallId['42']).toBe('loaded');
+    expect(useChatStore.getState().incidentChannelsByCallId['42']).toHaveLength(1);
+  });
+
+  it('runs one request per incident while a fetch is already open', async () => {
+    let resolveChannels: (value: { Data: unknown[] }) => void = () => undefined;
+    mockGetChannels.mockReturnValue(
+      new Promise((resolve) => {
+        resolveChannels = resolve as (value: { Data: unknown[] }) => void;
+      })
+    );
+
+    // The board's load effect and a retry tap both firing while the first fetch is open.
+    const first = useChatStore.getState().loadIncidentChannels('42');
+    const second = useChatStore.getState().loadIncidentChannels('42');
+
+    // The second call is a no-op that resolves immediately; the first is still in flight.
+    await second;
+    expect(mockGetChannels).toHaveBeenCalledTimes(1);
+    expect(useChatStore.getState().incidentChannelsStatusByCallId['42']).toBe('loading');
+
+    resolveChannels({ Data: [{ ChatChannelId: 'c-1', CallId: 42 }] });
+    await first;
+
+    expect(mockGetChannels).toHaveBeenCalledTimes(1);
+    expect(useChatStore.getState().incidentChannelsStatusByCallId['42']).toBe('loaded');
+    expect(useChatStore.getState().incidentChannelsByCallId['42']).toHaveLength(1);
+  });
+
+  it('lets a different incident load while one is in flight', async () => {
+    const resolvers: ((value: { Data: unknown[] }) => void)[] = [];
+    mockGetChannels.mockImplementation(() => new Promise((resolve) => resolvers.push(resolve as (value: { Data: unknown[] }) => void)));
+
+    const first = useChatStore.getState().loadIncidentChannels('42');
+    const second = useChatStore.getState().loadIncidentChannels('43');
+
+    // The guard is per call id — a second incident must not be blocked by the first.
+    expect(mockGetChannels).toHaveBeenCalledTimes(2);
+    expect(useChatStore.getState().incidentChannelsStatusByCallId['43']).toBe('loading');
+
+    resolvers.forEach((resolve) => resolve({ Data: [] }));
+    await Promise.all([first, second]);
+  });
+
+  it('allows a fresh request once the previous one settled', async () => {
+    mockGetChannels.mockResolvedValue({ Data: [{ ChatChannelId: 'c-1', CallId: 42 }] });
+
+    await useChatStore.getState().loadIncidentChannels('42');
+    await useChatStore.getState().loadIncidentChannels('42');
+
+    expect(mockGetChannels).toHaveBeenCalledTimes(2);
+    expect(useChatStore.getState().incidentChannelsStatusByCallId['42']).toBe('loaded');
+  });
+
+  it('does not set a status for an unparseable call id', async () => {
     await useChatStore.getState().loadIncidentChannels('not-a-number');
 
     expect(mockGetChannels).not.toHaveBeenCalled();
-    expect(useChatStore.getState().incidentChannelsLoadingByCallId['not-a-number']).toBeUndefined();
+    expect(useChatStore.getState().incidentChannelsStatusByCallId['not-a-number']).toBeUndefined();
   });
 });

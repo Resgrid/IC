@@ -358,7 +358,6 @@
     "flag_spam": "Spam",
     "frozen_notice": "This incident is closed. The conversation is kept as a point-in-time record — no new messages or edits, but you can still flag content.",
     "group_name": "Group name (optional)",
-    "unit": "Unit",
     "incident_command_channel": "Command chat",
     "incident_lane_channel": "Lane chat",
     "is_typing": "{{name}} is typing...",
@@ -397,6 +396,7 @@
     "thread_replies": "{{count}} replies",
     "title": "Chat",
     "type_a_message": "Type a message",
+    "unit": "Unit",
     "unpin": "Unpin",
     "urgent": "Urgent",
     "urgent_will_send": "This message will be sent as urgent"
@@ -475,6 +475,7 @@
     "channel_name_placeholder": "e.g. Tactical 1",
     "channel_preset_command": "Command",
     "channel_preset_tactical": "Tactical",
+    "chat_load_failed": "Couldn't load this incident's chat channels. Tap again to retry.",
     "close_channels": "Close All",
     "command_chat": "Command chat",
     "command_chat_unavailable": "No command chat channel has been created for this incident yet.",

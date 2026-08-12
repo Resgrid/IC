@@ -33,6 +33,9 @@ const getTranslatedMessage = (key: Parameters<typeof translate>[0], fallback: st
   return typeof message === 'string' && message.length > 0 && message !== key ? message : fallback;
 };
 
+/** Request state for one incident's chat channels; absent from the map means never requested. */
+export type IncidentChannelsStatus = 'loading' | 'loaded' | 'failed';
+
 export interface ChatTypingUser {
   userId: string;
   displayName?: string;
@@ -80,11 +83,11 @@ interface ChatState {
    */
   incidentChannelsByCallId: Record<string, ChatChannelResultData[]>;
   /**
-   * In-flight marker per incident. Callers need it to tell "channels not loaded yet" from "the
-   * request finished and this incident genuinely has no such channel" — the map holds undefined
-   * in both cases.
+   * Per-incident request status. The channel map holds undefined for "still loading", "the request
+   * failed" and "this incident genuinely has no such channel" alike, so callers need this to tell
+   * a retryable failure from a channel that really does not exist. Absent = never requested.
    */
-  incidentChannelsLoadingByCallId: Record<string, boolean>;
+  incidentChannelsStatusByCallId: Record<string, IncidentChannelsStatus>;
   loadIncidentChannels: (callId: string) => Promise<void>;
   setActiveChannel: (channelId: string | null) => void;
 
@@ -277,7 +280,7 @@ export const useChatStore = create<ChatState>()(
       // Channels
       // ------------------------------------------------------------------
       incidentChannelsByCallId: {},
-      incidentChannelsLoadingByCallId: {},
+      incidentChannelsStatusByCallId: {},
 
       loadIncidentChannels: async (callId: string) => {
         const numericCallId = parseInt(callId, 10);
@@ -285,15 +288,25 @@ export const useChatStore = create<ChatState>()(
           return;
         }
 
-        set((state) => ({ incidentChannelsLoadingByCallId: { ...state.incidentChannelsLoadingByCallId, [callId]: true } }));
+        // One request per incident at a time. The board's load effect and a retry tap can both fire
+        // while a fetch is open, and the extra round trips only race the same result into the store.
+        if (get().incidentChannelsStatusByCallId[callId] === 'loading') {
+          return;
+        }
+
+        const setStatus = (status: IncidentChannelsStatus) => set((state) => ({ incidentChannelsStatusByCallId: { ...state.incidentChannelsStatusByCallId, [callId]: status } }));
+
+        setStatus('loading');
         try {
           const response = await chatApi.getChannels(undefined, true);
           const forCall = (response.Data ?? []).filter((channel) => channel.CallId === numericCallId);
           set((state) => ({ incidentChannelsByCallId: { ...state.incidentChannelsByCallId, [callId]: forCall } }));
+          setStatus('loaded');
         } catch (error) {
           logger.error({ message: 'chat: failed to load incident channels', context: { error, callId } });
-        } finally {
-          set((state) => ({ incidentChannelsLoadingByCallId: { ...state.incidentChannelsLoadingByCallId, [callId]: false } }));
+          // Failed, not loaded: an empty channel map here means the request never landed, so callers
+          // must offer a retry rather than report the incident has no chat.
+          setStatus('failed');
         }
       },
 
@@ -903,7 +916,7 @@ export const useChatStore = create<ChatState>()(
         set({
           channels: [],
           incidentChannelsByCallId: {},
-          incidentChannelsLoadingByCallId: {},
+          incidentChannelsStatusByCallId: {},
           messagesByChannel: {},
           membersByChannel: {},
           typingByChannel: {},

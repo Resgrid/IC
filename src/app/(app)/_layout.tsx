@@ -25,6 +25,7 @@ import { useAppLifecycle } from '@/hooks/use-app-lifecycle';
 import { useSignalRLifecycle } from '@/hooks/use-signalr-lifecycle';
 import { getAppHeaderHeight } from '@/lib/app-shell-layout';
 import { useAuthStore } from '@/lib/auth';
+import { enforceCommandAppAccess } from '@/lib/auth/command-app-access';
 import { logger } from '@/lib/logging';
 import { getMapsHeaderState } from '@/lib/maps-route';
 import { useIsFirstTime } from '@/lib/storage';
@@ -39,7 +40,6 @@ import { FeatureFlagKeys, featureFlagsStore } from '@/stores/feature-flags/store
 import { useRolesStore } from '@/stores/roles/store';
 import { securityStore } from '@/stores/security/store';
 import { useSignalRStore } from '@/stores/signalr/signalr-store';
-import { useToastStore } from '@/stores/toast/store';
 import { useWeatherAlertsStore } from '@/stores/weather-alerts/store';
 
 export default function TabLayout() {
@@ -177,14 +177,10 @@ export default function TabLayout() {
       await useWeatherAlertsStore.getState().init();
       await securityStore.getState().getRights();
 
-      // The IC app is for commanders. A member the department has not authorized must not get past
-      // initialization — the server refuses them the board endpoints anyway, so signing them straight
-      // back out is far clearer than an app that loads and then fails every request.
+      // An unauthorized member is toasted and signed out here rather than left in an app that would
+      // fail every board request; see enforceCommandAppAccess.
       if (!isCurrentRun()) return;
-      if (securityStore.getState().rights?.CanLoginToCommandApp === false) {
-        logger.warn({ message: 'User is not authorized to use the IC app; signing out', context: { userId } });
-        useToastStore.getState().showToast('error', t('login.command_not_authorized'));
-        await useAuthStore.getState().logout();
+      if (await enforceCommandAppAccess({ deniedMessage: t('login.command_not_authorized'), userId })) {
         return;
       }
 
