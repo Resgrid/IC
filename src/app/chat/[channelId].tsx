@@ -267,6 +267,32 @@ export default function ChannelConversationScreen() {
     [channelId, isFrozen]
   );
 
+  /**
+   * The actions sheet already hides Edit on a frozen channel, but a channel can freeze while the edit
+   * sheet is open — the incident closes and SignalR flips IsArchived under it. Drop the in-progress
+   * edit rather than leave a sheet whose save the server would reject.
+   */
+  useEffect(() => {
+    if (isFrozen && editMessage) {
+      setEditMessage(null);
+      setEditText('');
+      useToastStore.getState().showToast('info', t('chat.frozen_notice'));
+    }
+  }, [isFrozen, editMessage, t]);
+
+  const handleSaveEdit = useCallback(() => {
+    // Guards the race between the freeze landing and this press.
+    if (isFrozen) {
+      setEditMessage(null);
+      setEditText('');
+      return;
+    }
+    if (editMessage && channelId && editText.trim()) {
+      void useChatStore.getState().editMessage(editMessage.ChatMessageId, channelId, editText.trim());
+    }
+    setEditMessage(null);
+  }, [isFrozen, editMessage, channelId, editText]);
+
   const openThread = useCallback(
     (message: ChatMessageResultData) => {
       router.push(`/chat/thread/${message.ChatMessageId}?channelId=${channelId ?? ''}` as Href);
@@ -422,7 +448,7 @@ export default function ChannelConversationScreen() {
       />
 
       {/* Edit message sheet */}
-      <Actionsheet isOpen={editMessage !== null} onClose={() => setEditMessage(null)}>
+      <Actionsheet isOpen={editMessage !== null && !isFrozen} onClose={() => setEditMessage(null)}>
         <ActionsheetBackdrop />
         <ActionsheetContent>
           <ActionsheetDragIndicatorWrapper>
@@ -433,15 +459,7 @@ export default function ChannelConversationScreen() {
             <Textarea>
               <TextareaInput value={editText} onChangeText={setEditText} multiline />
             </Textarea>
-            <Button
-              className="bg-primary-600"
-              onPress={() => {
-                if (editMessage && channelId && editText.trim()) {
-                  void useChatStore.getState().editMessage(editMessage.ChatMessageId, channelId, editText.trim());
-                }
-                setEditMessage(null);
-              }}
-            >
+            <Button className="bg-primary-600" isDisabled={isFrozen} onPress={handleSaveEdit} testID="chat-edit-save">
               <ButtonText>{t('chat.save')}</ButtonText>
             </Button>
           </VStack>

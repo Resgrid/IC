@@ -130,4 +130,7 @@ describe('Security Permission Logic', () => {
       expect(shouldShowMenu).toBe(false);
     });
   });
+
+  // The IC authorization gate (CanLoginToCommandApp) is production code in
+  // src/lib/auth/command-app-access.ts and is covered by its own test suite.
 });

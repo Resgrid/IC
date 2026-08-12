@@ -207,6 +207,15 @@ export default function CommandBoard() {
 
   const incidentChannels = useChatStore((state) => (boardCallId ? state.incidentChannelsByCallId[boardCallId] : undefined));
 
+  const incidentChannelsStatus = useChatStore((state) => (boardCallId ? state.incidentChannelsStatusByCallId[boardCallId] : undefined));
+
+  // The channel map holds undefined mid-fetch, after a failure, and for an incident that genuinely
+  // has no such channel, so a tap would otherwise claim chat is unavailable in all three cases. The
+  // status is still absent between the board opening and the load effect firing — treat that as
+  // loading too, so only a completed request can produce a message.
+  const isLoadingIncidentChannels = boardCallId ? (incidentChannelsStatus ?? 'loading') === 'loading' : false;
+  const didIncidentChannelsFail = incidentChannelsStatus === 'failed';
+
   const commandChatChannelId = useMemo(() => incidentChannels?.find((channel) => channel.ChannelType === ChatChannelType.IncidentCommand)?.ChatChannelId ?? null, [incidentChannels]);
 
   const laneChatChannelId = useCallback((nodeId: string) => incidentChannels?.find((channel) => channel.CommandStructureNodeId === nodeId)?.ChatChannelId ?? null, [incidentChannels]);
@@ -214,12 +223,23 @@ export default function CommandBoard() {
   const openChatChannel = useCallback(
     (channelId: string | null, unavailableMessage: string) => {
       if (!channelId) {
+        // Still fetching: stay silent rather than report a channel missing that may yet arrive.
+        if (isLoadingIncidentChannels) {
+          return;
+        }
+        // The channel list never arrived, so nothing is known about this incident's chat — say the
+        // load failed and let the commander retry instead of declaring the channel missing.
+        if (didIncidentChannelsFail) {
+          showToast('error', t('command.chat_load_failed'));
+          void useChatStore.getState().loadIncidentChannels(boardCallId ?? '');
+          return;
+        }
         showToast('info', unavailableMessage);
         return;
       }
       router.push(`/chat/${channelId}`);
     },
-    [showToast]
+    [showToast, isLoadingIncidentChannels, didIncidentChannelsFail, boardCallId, t]
   );
 
   const handleOpenCommandChat = useCallback(() => openChatChannel(commandChatChannelId, t('command.command_chat_unavailable')), [openChatChannel, commandChatChannelId, t]);

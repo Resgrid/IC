@@ -358,7 +358,6 @@
     "flag_spam": "Spam",
     "frozen_notice": "This incident is closed. The conversation is kept as a point-in-time record — no new messages or edits, but you can still flag content.",
     "group_name": "Nome del gruppo (facoltativo)",
-    "unit": "Unità",
     "incident_command_channel": "Command chat",
     "incident_lane_channel": "Lane chat",
     "is_typing": "{{name}} sta scrivendo...",
@@ -397,6 +396,7 @@
     "thread_replies": "{{count}} risposte",
     "title": "Chat",
     "type_a_message": "Scrivi un messaggio",
+    "unit": "Unità",
     "unpin": "Rimuovi fissaggio",
     "urgent": "Urgente",
     "urgent_will_send": "Questo messaggio verrà inviato come urgente"
@@ -475,6 +475,7 @@
     "channel_name_placeholder": "es. Tattico 1",
     "channel_preset_command": "Comando",
     "channel_preset_tactical": "Tattico",
+    "chat_load_failed": "Couldn't load this incident's chat channels. Tap again to retry.",
     "close_channels": "Chiudi tutto",
     "command_chat": "Command chat",
     "command_chat_unavailable": "No command chat channel has been created for this incident yet.",

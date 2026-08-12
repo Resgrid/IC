@@ -1,6 +1,6 @@
 import { useColorScheme } from 'nativewind';
 import type { ReactNode } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 
 import { Center } from './center';
@@ -48,9 +48,13 @@ export function CustomBottomSheet({
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
   // Read inside the close-animation callback, which fires after the animation and would otherwise
-  // see a stale `isOpen` from the render that started it.
+  // see a stale `isOpen` from the render that started it. Written in a layout effect rather than
+  // during render so an abandoned render can't leave the ref describing a state never committed;
+  // layout effects still run before the passive effect below starts the animation.
   const isOpenRef = useRef(isOpen);
-  isOpenRef.current = isOpen;
+  useLayoutEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
 
   // Compute sheet height from first snap point (percentage of screen height).
   // Clamp between 300px and the screen height to remain usable in all orientations.
