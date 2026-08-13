@@ -94,7 +94,9 @@ const captureIncidentCommandHandler = async (): Promise<(message: unknown) => vo
 describe('incidentCommandUpdated realtime routing', () => {
   beforeEach(() => {
     (signalRService.on as jest.Mock).mockClear();
-    (signalRService.invoke as jest.Mock).mockClear();
+    // mockClear keeps implementations, so a test that made invoke reject would break the next
+    // connectUpdateHub before it ever subscribes.
+    (signalRService.invoke as jest.Mock).mockReset().mockResolvedValue(undefined);
     commandState.refreshBoard.mockClear();
     commandState.syncFromServer.mockClear();
     commandState.boards = { '1001': { callId: '1001' } };
@@ -135,6 +137,33 @@ describe('incidentCommandUpdated realtime routing', () => {
     expect(commandState.syncFromServer).not.toHaveBeenCalled();
   });
 
+  it('accepts a numeric call id inside an object payload', async () => {
+    const handler = await captureIncidentCommandHandler();
+
+    handler({ CallId: 1001 });
+
+    expect(commandState.refreshBoard).toHaveBeenCalledWith('1001');
+  });
+
+  it.each([
+    ['NaN', { CallId: NaN }],
+    ['Infinity', { CallId: Infinity }],
+    ['a nested object', { CallId: {} }],
+    ['an array', { CallId: ['1001'] }],
+    ['a boolean', { CallId: true }],
+  ])('does not treat %s as a call id', async (_label, payload) => {
+    const handler = await captureIncidentCommandHandler();
+
+    // Stringifying these yields plausible-looking ids ("NaN", "[object Object]", "1001"), which
+    // would refresh the wrong board or none at all; they belong on the full-sync fallback.
+    handler(payload);
+
+    expect(commandState.refreshBoard).not.toHaveBeenCalled();
+
+    jest.advanceTimersByTime(2000);
+    expect(commandState.syncFromServer).toHaveBeenCalledTimes(1);
+  });
+
   it('falls back to a debounced full sync for an incident this device has not opened', async () => {
     const handler = await captureIncidentCommandHandler();
 
@@ -166,6 +195,54 @@ describe('incidentCommandUpdated realtime routing', () => {
     // The hub replays nothing from the outage, so the boards have to be resynced.
     jest.advanceTimersByTime(2000);
     expect(commandState.syncFromServer).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the connected flag and retries when the rejoin fails', async () => {
+    await captureIncidentCommandHandler();
+    useSignalRStore.setState({ isUpdateHubConnected: true });
+
+    const reconnect = (signalRService.on as jest.Mock).mock.calls.find(([event]) => event === '__hubReconnected:eventingHub');
+    (signalRService.invoke as jest.Mock).mockClear();
+    (signalRService.invoke as jest.Mock).mockRejectedValue(new Error('hub refused'));
+
+    (reconnect?.[1] as () => void)();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // An automatic reconnect never raises the disconnected event, so nothing else would clear this
+    // and connectUpdateHub's already-connected guard would block every later repair.
+    expect(useSignalRStore.getState().isUpdateHubConnected).toBe(false);
+
+    // A failed rejoin means no group membership at all, so it retries rather than going quiet.
+    (signalRService.invoke as jest.Mock).mockResolvedValue(undefined);
+    jest.advanceTimersByTime(5000);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(signalRService.invoke).toHaveBeenCalledWith('eventingHub', 'connect', 123);
+    expect(useSignalRStore.getState().isUpdateHubConnected).toBe(true);
+  });
+
+  it('stops retrying after the attempt budget and leaves the session rebuildable', async () => {
+    await captureIncidentCommandHandler();
+    useSignalRStore.setState({ isUpdateHubConnected: true });
+
+    const reconnect = (signalRService.on as jest.Mock).mock.calls.find(([event]) => event === '__hubReconnected:eventingHub');
+    (signalRService.invoke as jest.Mock).mockClear();
+    (signalRService.invoke as jest.Mock).mockRejectedValue(new Error('hub refused'));
+
+    (reconnect?.[1] as () => void)();
+    for (let i = 0; i < 4; i += 1) {
+      await Promise.resolve();
+      await Promise.resolve();
+      jest.advanceTimersByTime(5000);
+    }
+    await Promise.resolve();
+    await Promise.resolve();
+
+    // Three attempts, then it stops rather than retrying forever.
+    expect((signalRService.invoke as jest.Mock).mock.calls.length).toBe(3);
+    expect(useSignalRStore.getState().isUpdateHubConnected).toBe(false);
   });
 
   it('marks the update hub disconnected so it can be rebuilt later', async () => {
