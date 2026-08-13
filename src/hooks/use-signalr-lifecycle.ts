@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 import { logger } from '@/lib/logging';
+import { useCommandStore } from '@/stores/command/store';
 import { useSignalRStore } from '@/stores/signalr/signalr-store';
 
 import { useAppLifecycle } from './use-app-lifecycle';
@@ -132,6 +133,22 @@ export function useSignalRLifecycle({ isSignedIn, hasInitialized }: UseSignalRLi
           });
         }
       });
+
+      // The hubs do not replay what was pushed while the app was away, so anything another user
+      // changed on a command board during the gap would stay invisible until the next event.
+      // Reconnecting only restores the feed; this backfills what it missed.
+      // connectUpdateHub swallows its own errors, so a fulfilled result alone does not mean the
+      // hub is up — the store's connected flag is the real signal.
+      if (results[0].status === 'fulfilled' && useSignalRStore.getState().isUpdateHubConnected) {
+        try {
+          await useCommandStore.getState().syncFromServer();
+        } catch (syncError) {
+          logger.warn({
+            message: 'Failed to resync command boards after app resume',
+            context: { error: syncError },
+          });
+        }
+      }
     } catch (error) {
       logger.error({
         message: 'Unexpected error during SignalR reconnect on app resume',

@@ -680,11 +680,11 @@ export default function CommandBoard() {
               </Button>
               <Button onPress={handleOpenCommandDetails} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('command.command_details')} testID="command-edit-details">
                 <ButtonIcon as={Pencil} className="text-gray-700 dark:text-gray-200" />
-                {showLabels ? <ButtonText>{t('command.command_details')}</ButtonText> : null}
+                {showLabels ? <ButtonText>{t('command.details_short')}</ButtonText> : null}
               </Button>
               <Button onPress={handleOpenTransfer} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('command.transfer_command')} testID="command-transfer">
                 <ButtonIcon as={UserCog} className="text-gray-700 dark:text-gray-200" />
-                {showLabels ? <ButtonText>{t('command.transfer_command')}</ButtonText> : null}
+                {showLabels ? <ButtonText>{t('command.transfer_short')}</ButtonText> : null}
               </Button>
               <Button onPress={handleRefresh} variant="outline" size={controlSize} className={iconButtonClass} isDisabled={isRefreshing} accessibilityLabel={t('common.refresh')} testID="command-refresh">
                 <ButtonIcon as={RefreshCw} className="text-gray-700 dark:text-gray-200" />
@@ -705,7 +705,7 @@ export default function CommandBoard() {
               </Button>
               <Button onPress={handleOpenCommandChat} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('command.command_chat')} testID="command-open-chat">
                 <ButtonIcon as={MessagesSquare} className="text-gray-700 dark:text-gray-200" />
-                {showLabels ? <ButtonText>{t('command.command_chat')}</ButtonText> : null}
+                {showLabels ? <ButtonText>{t('command.command_chat_short')}</ButtonText> : null}
               </Button>
               <Button onPress={handleOpenLeadsChat} variant="outline" size={controlSize} className={iconButtonClass} accessibilityLabel={t('command.leads_chat')} testID="command-open-leads-chat">
                 <ButtonIcon as={Users} className="text-gray-700 dark:text-gray-200" />
