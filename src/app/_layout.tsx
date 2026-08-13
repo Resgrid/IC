@@ -1,5 +1,5 @@
-// Import  global CSS file
-import '../../global.css';
+// Import global CSS (platform-specific entry: global.css on native, global.web.css on web)
+import '../lib/theme-styles';
 import '../lib/i18n';
 
 import { Env } from '@env';
@@ -223,7 +223,7 @@ function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <SafeAreaProvider>
-      <GestureHandlerRootView>
+      <GestureHandlerRootView style={{ flex: 1 }}>
         <KeyboardProvider>
           {Env.COUNTLY_APP_KEY ? (
             <CountlyProvider appKey={Env.COUNTLY_APP_KEY} serverURL={Env.COUNTLY_SERVER_URL}>

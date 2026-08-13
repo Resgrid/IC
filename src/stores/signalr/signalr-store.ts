@@ -34,6 +34,20 @@ const CHAT_HUB_METHODS = [
 // Track registered chat handlers for cleanup and the heartbeat timer.
 // Hub methods can send several positional arguments, so handlers are variadic.
 const chatHubHandlers: Record<string, ((...args: unknown[]) => void) | null> = {};
+
+// Same for the update hub's lifecycle listeners, which have to be torn down on disconnect so they
+// do not accumulate across reconnects.
+const updateHubHandlers: Record<string, ((...args: unknown[]) => void) | null> = {};
+
+function unregisterUpdateHubHandlers(): void {
+  Object.keys(updateHubHandlers).forEach((event) => {
+    const handler = updateHubHandlers[event];
+    if (handler) {
+      signalRService.off(event, handler);
+      updateHubHandlers[event] = null;
+    }
+  });
+}
 const CHAT_ARM_RETRY_MS = 5000;
 const CHAT_ARM_MAX_ATTEMPTS = 3;
 // The hub replays a full resync on arm; collapse the duplicate that arrives when the
@@ -161,18 +175,35 @@ function extractAlertId(message: unknown): string | undefined {
   return undefined;
 }
 
-/** Minimal shape of the incidentCommandUpdated payload — server identifies the
- *  affected incident by call (PascalCase or lower-camel). */
+/** Object form of the incidentCommandUpdated payload — an incident identified by call
+ *  (PascalCase or lower-camel). */
 interface IncidentCommandSignalRMessage {
-  CallId?: string;
-  callId?: string;
+  CallId?: string | number;
+  callId?: string | number;
 }
 
+/**
+ * The affected incident's call id.
+ *
+ * Core sends the call id as a bare string: the eventing worker calls
+ * `SendAsync("incidentCommandUpdated", id)` with the `ItemId` the topic provider set to
+ * `CallId.ToString()`. Object payloads are still accepted so a producer that sends a richer message
+ * keeps working. Reading only objects meant every real event fell through to the debounced full
+ * bundle sync instead of refreshing the one board that changed — the whole board still updated, but
+ * seconds late and after re-fetching every open incident.
+ */
 function extractCommandCallId(message: unknown): string | undefined {
+  if (typeof message === 'string') {
+    const trimmed = message.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  if (typeof message === 'number' && Number.isFinite(message)) {
+    return String(message);
+  }
   if (message !== null && typeof message === 'object') {
     const m = message as IncidentCommandSignalRMessage;
     const id = m.CallId ?? m.callId;
-    return id !== undefined && id !== null ? String(id) : undefined;
+    return id !== undefined && id !== null && String(id).trim().length > 0 ? String(id).trim() : undefined;
   }
   return undefined;
 }
@@ -408,6 +439,42 @@ export const useSignalRStore = create<SignalRState>((set, get) => ({
         });
         set({ isUpdateHubConnected: true, error: null });
       });
+
+      /**
+       * An automatic reconnect gets a new connection id, so the department group this connection
+       * joined above is gone with the old one — without re-announcing, the device goes quiet and
+       * stops seeing other users' board changes until the app is backgrounded and resumed.
+       *
+       * The hub also does not replay what was sent during the outage, so the boards are resynced
+       * once the group is rejoined; that is what backfills the changes made while offline.
+       */
+      unregisterUpdateHubHandlers();
+
+      const updateReconnected = `${SignalRService.HUB_RECONNECTED_EVENT}:${Env.CHANNEL_HUB_NAME}`;
+      const onUpdateReconnected = () => {
+        const departmentId = parseInt(securityStore.getState().rights?.DepartmentId ?? '0');
+        signalRService
+          .invoke(Env.CHANNEL_HUB_NAME, 'connect', departmentId)
+          .then(() => {
+            set({ isUpdateHubConnected: true, error: null });
+            logger.info({ message: 'Re-announced to update hub after reconnect; resyncing command boards', context: { departmentId } });
+            debouncedFullSync();
+          })
+          .catch((error) => {
+            logger.warn({ message: 'Failed to re-announce to update hub after reconnect', context: { error } });
+          });
+      };
+      updateHubHandlers[updateReconnected] = onUpdateReconnected;
+      signalRService.on(updateReconnected, onUpdateReconnected);
+
+      const updateDisconnected = `${SignalRService.HUB_DISCONNECTED_EVENT}:${Env.CHANNEL_HUB_NAME}`;
+      const onUpdateDisconnected = () => {
+        // Clearing the flag is what lets connectUpdateHub rebuild the session later; while it stayed
+        // true the hub could never be re-announced.
+        set({ isUpdateHubConnected: false });
+      };
+      updateHubHandlers[updateDisconnected] = onUpdateDisconnected;
+      signalRService.on(updateDisconnected, onUpdateDisconnected);
     } catch (error) {
       const err = error instanceof Error ? error : new Error('Unknown error occurred');
       logger.warn({
@@ -419,6 +486,7 @@ export const useSignalRStore = create<SignalRState>((set, get) => ({
   },
   disconnectUpdateHub: async () => {
     try {
+      unregisterUpdateHubHandlers();
       await signalRService.disconnectFromHub(Env.CHANNEL_HUB_NAME);
       set({ isUpdateHubConnected: false, lastUpdateMessage: null });
     } catch (error) {

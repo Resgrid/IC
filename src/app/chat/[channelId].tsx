@@ -32,10 +32,16 @@ import { useChatSystemStatus } from '@/stores/feature-flags/store';
 import { securityStore } from '@/stores/security/store';
 import { useToastStore } from '@/stores/toast/store';
 
-/** Command-type channels (Incident / IncidentLane / IncidentCommand) where the user
- * posts as the Incident Commander rather than as themselves. */
+/** Command-type channels (Incident / IncidentLane / IncidentCommand / IncidentLeads /
+ * IncidentDispatch) where the user posts as the Incident Commander rather than as themselves. */
 function isCommandChannelType(channelType?: number): boolean {
-  return channelType === ChatChannelType.Incident || channelType === ChatChannelType.IncidentLane || channelType === ChatChannelType.IncidentCommand;
+  return (
+    channelType === ChatChannelType.Incident ||
+    channelType === ChatChannelType.IncidentLane ||
+    channelType === ChatChannelType.IncidentCommand ||
+    channelType === ChatChannelType.IncidentLeads ||
+    channelType === ChatChannelType.IncidentDispatch
+  );
 }
 
 export default function ChannelConversationScreen() {

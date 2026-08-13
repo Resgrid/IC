@@ -33,7 +33,12 @@ export default function ThreadScreen() {
   const isChatEnabled = chatStatus === 'enabled';
 
   // IC delta: thread replies in command-type channels also post as the Incident Commander.
-  const isCommandChannel = channel?.ChannelType === ChatChannelType.Incident || channel?.ChannelType === ChatChannelType.IncidentLane || channel?.ChannelType === ChatChannelType.IncidentCommand;
+  const isCommandChannel =
+    channel?.ChannelType === ChatChannelType.Incident ||
+    channel?.ChannelType === ChatChannelType.IncidentLane ||
+    channel?.ChannelType === ChatChannelType.IncidentCommand ||
+    channel?.ChannelType === ChatChannelType.IncidentLeads ||
+    channel?.ChannelType === ChatChannelType.IncidentDispatch;
 
   const root = useMemo(() => (channelMessages ?? []).find((m) => m.ChatMessageId === messageId), [channelMessages, messageId]);
 
