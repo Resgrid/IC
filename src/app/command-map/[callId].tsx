@@ -26,10 +26,11 @@ import { IncidentMapAnnotationType } from '@/models/v4/incidentCommand/incidentC
 import { type MapMakerInfoData } from '@/models/v4/mapping/getMapDataAndMarkersData';
 import { useCommandStore } from '@/stores/command/store';
 import { useToastStore } from '@/stores/toast/store';
+import { getDepartmentMapCenter } from '@/lib/map-center';
 
 type DrawMode = 'none' | 'line' | 'area' | 'text';
 
-const DEFAULT_CENTER: [number, number] = [-98.5795, 39.8283];
+const DEFAULT_CENTER: [number, number] = [getDepartmentMapCenter().longitude, getDepartmentMapCenter().latitude];
 
 /**
  * Fullscreen editable incident tactical map: pan/zoom freely, save the incident's framing (Save View),
