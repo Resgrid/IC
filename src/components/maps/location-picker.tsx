@@ -9,7 +9,7 @@ import { Box } from '@/components/ui/box';
 import { Button, ButtonText } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Env } from '@/lib/env';
-import { getDepartmentMapCenter } from '@/lib/map-center';
+import { useDepartmentMapCenter } from '@/lib/map-center';
 
 // Ensure Mapbox access token is set before using any Mapbox components
 if (!Env.IC_MAPBOX_PUBKEY) {
@@ -38,11 +38,12 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ initialLocation, onLoca
   const mapRef = useRef<React.ElementRef<typeof Mapbox.MapView>>(null);
   const cameraRef = useRef<any>(null); // Using any due to imperative handle
   const isMountedRef = useRef(true);
+  const departmentCenter = useDepartmentMapCenter();
   // Always start with a location - either initial, or default
   const [currentLocation, setCurrentLocation] = useState<{
     latitude: number;
     longitude: number;
-  }>(initialLocation || getDepartmentMapCenter());
+  }>(initialLocation || { latitude: departmentCenter.latitude, longitude: departmentCenter.longitude });
   const [isLocating, setIsLocating] = useState(false);
   const [hasUserLocation, setHasUserLocation] = useState(!!initialLocation);
 
@@ -123,6 +124,15 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ initialLocation, onLoca
     };
   }, [initialLocation, getUserLocation]);
 
+  // Department config can land after mount. Follow it only while the placeholder is still on
+  // screen — an initial location or anything the user/device picked outranks it.
+  useEffect(() => {
+    if (initialLocation || hasUserLocation) {
+      return;
+    }
+    setCurrentLocation({ latitude: departmentCenter.latitude, longitude: departmentCenter.longitude });
+  }, [initialLocation, hasUserLocation, departmentCenter.latitude, departmentCenter.longitude]);
+
   const handleMapPress = (event: GeoJSON.Feature) => {
     const geometry = event.geometry as GeoJSON.Point;
     const [longitude, latitude] = geometry.coordinates;
@@ -141,7 +151,14 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ initialLocation, onLoca
   return (
     <Box style={[styles.container, { height }]}>
       <Mapbox.MapView ref={mapRef} style={styles.map} logoEnabled={false} attributionEnabled={false} compassEnabled={true} zoomEnabled={true} rotateEnabled={true} onPress={handleMapPress}>
-        <Mapbox.Camera ref={cameraRef} zoomLevel={hasUserLocation ? 15 : 4} centerCoordinate={[currentLocation.longitude, currentLocation.latitude]} animationMode="flyTo" animationDuration={1000} />
+        {/* Without a real location the camera sits on the department center, so it frames it at the department's configured zoom rather than a hardcoded one. */}
+        <Mapbox.Camera
+          ref={cameraRef}
+          zoomLevel={hasUserLocation ? 15 : departmentCenter.zoomLevel}
+          centerCoordinate={[currentLocation.longitude, currentLocation.latitude]}
+          animationMode="flyTo"
+          animationDuration={1000}
+        />
         {/* Marker for the selected location */}
         <Mapbox.PointAnnotation id="selectedLocation" coordinate={[currentLocation.longitude, currentLocation.latitude]} title={t('common.selected_location')}>
           <Box className="items-center justify-center">

@@ -22,15 +22,13 @@ import { useCommandMapOverlay } from '@/hooks/use-command-map-overlay';
 import { useMapGeolocationUpdates } from '@/hooks/use-map-geolocation-updates';
 import { useMapSignalRUpdates } from '@/hooks/use-map-signalr-updates';
 import { logger } from '@/lib/logging';
+import { useDepartmentMapCenter } from '@/lib/map-center';
 import { IncidentMapAnnotationType } from '@/models/v4/incidentCommand/incidentCommandEnums';
 import { type MapMakerInfoData } from '@/models/v4/mapping/getMapDataAndMarkersData';
 import { useCommandStore } from '@/stores/command/store';
 import { useToastStore } from '@/stores/toast/store';
-import { getDepartmentMapCenter } from '@/lib/map-center';
 
 type DrawMode = 'none' | 'line' | 'area' | 'text';
-
-const DEFAULT_CENTER: [number, number] = [getDepartmentMapCenter().longitude, getDepartmentMapCenter().latitude];
 
 /**
  * Fullscreen editable incident tactical map: pan/zoom freely, save the incident's framing (Save View),
@@ -50,6 +48,8 @@ export default function CommandMapScreen() {
   const saveMapAnnotationEntry = useCommandStore((state) => state.saveMapAnnotationEntry);
   const deleteMapAnnotationEntry = useCommandStore((state) => state.deleteMapAnnotationEntry);
   const showToast = useToastStore((state) => state.showToast);
+  // Reactive: department config can land after this screen mounts.
+  const departmentCenter = useDepartmentMapCenter();
 
   const boardState = boards[callId];
   const command = boardState?.board?.Command ?? null;
@@ -72,6 +72,9 @@ export default function CommandMapScreen() {
   // Tracks what the camera was auto-centered on so higher-priority targets
   // arriving later (saved view > ICP > first pin) can still recenter.
   const autoCenterPriorityRef = useRef<0 | 1 | 2>(0);
+  // The department center at mount is already baked into initialCamera, so only a later change
+  // (config landing after mount) needs an imperative move. Null until the first effect run.
+  const appliedDepartmentCenterRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,7 +119,7 @@ export default function CommandMapScreen() {
     if (first) {
       return { centerCoordinate: [first.Longitude, first.Latitude] as [number, number], zoomLevel: 13 };
     }
-    return { centerCoordinate: DEFAULT_CENTER, zoomLevel: 4 };
+    return { centerCoordinate: [departmentCenter.longitude, departmentCenter.latitude] as [number, number], zoomLevel: 4 };
     // incidentPins intentionally omitted: pins arrive async and are applied via the recenter effect below
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -128,6 +131,8 @@ export default function CommandMapScreen() {
     namedMap?.CenterLatitude,
     namedMap?.CenterLongitude,
     namedMap?.ZoomLevel,
+    departmentCenter.latitude,
+    departmentCenter.longitude,
   ]);
 
   // initialCamera is only applied at mount (defaultSettings). Pins and the ICP
@@ -152,8 +157,21 @@ export default function CommandMapScreen() {
     if (first && autoCenterPriorityRef.current < 1) {
       autoCenterPriorityRef.current = 1;
       cameraRef.current?.setCamera({ centerCoordinate: [first.Longitude, first.Latitude], zoomLevel: 13, animationDuration: 500 });
+      return;
     }
-  }, [incidentPins, namedMap, command]);
+
+    // Nothing incident-specific to frame: stay on the department center, which changes when config
+    // lands after mount. The priority stays 0 so an ICP or a pin arriving later still wins.
+    if (autoCenterPriorityRef.current === 0) {
+      const center = `${departmentCenter.longitude},${departmentCenter.latitude}`;
+      const applied = appliedDepartmentCenterRef.current;
+      appliedDepartmentCenterRef.current = center;
+      // The first run only records what defaultSettings already applied — no camera move.
+      if (applied !== null && applied !== center) {
+        cameraRef.current?.setCamera({ centerCoordinate: [departmentCenter.longitude, departmentCenter.latitude], zoomLevel: 4, animationDuration: 500 });
+      }
+    }
+  }, [incidentPins, namedMap, command, departmentCenter.latitude, departmentCenter.longitude]);
 
   const handleCameraChanged = useCallback((state: { properties?: { center?: number[]; zoom?: number } }) => {
     const center = state?.properties?.center;
