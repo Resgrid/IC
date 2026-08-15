@@ -33,6 +33,24 @@ import { useToast } from '@/hooks/use-toast';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useCallsStore } from '@/stores/calls/store';
 import { type DispatchSelection } from '@/stores/dispatch/store';
+import { useNewCallFieldPolicy } from '@/hooks/use-new-call-field-policy';
+import { type NewCallFieldKey, NewCallFieldKeys } from '@/models/v4/calls/newCallFieldPolicyResultData';
+
+// The policy speaks in stable wire keys; a dispatcher told to fill in 'contactName' is being shown
+// the protocol rather than their own form. Map each key back to the label this screen already puts
+// on the field. Only the fields this screen renders appear here — anything else falls back to the
+// raw key, which at least names something, rather than being dropped from the message.
+const NEW_CALL_FIELD_LABEL_KEYS: Partial<Record<NewCallFieldKey, string>> = {
+  [NewCallFieldKeys.Address]: 'calls.address',
+  [NewCallFieldKeys.Geolocation]: 'calls.coordinates',
+  [NewCallFieldKeys.What3Words]: 'calls.what3words',
+  [NewCallFieldKeys.PlusCode]: 'calls.plus_code',
+  [NewCallFieldKeys.Note]: 'calls.note',
+  [NewCallFieldKeys.ContactName]: 'calls.contact_name',
+  [NewCallFieldKeys.ContactInfo]: 'calls.contact_info',
+  [NewCallFieldKeys.DestinationPoi]: 'calls.destination',
+  [NewCallFieldKeys.DispatchList]: 'calls.dispatch_to',
+};
 
 // Define the form schema using zod
 const formSchema = z.object({
@@ -132,6 +150,10 @@ export default function NewCall() {
     roles: [],
     units: [],
   });
+
+  // The department's new-call field policy: hides fields it does not use and blocks submission
+  // until the ones it marked required have values. Unconfigured departments see the stock form.
+  const fieldPolicy = useNewCallFieldPolicy();
   const [selectedLocation, setSelectedLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -184,6 +206,47 @@ export default function NewCall() {
 
   const onSubmit = async (data: FormValues) => {
     try {
+      // The policy arrives asynchronously and reads as "nothing required" until it lands, so a
+      // submit in that window would skip every field the department marked required. Hold the call
+      // back instead. Fail-open only applies once the lookup has finished one way or the other.
+      if (!fieldPolicy.isLoaded) {
+        toast.error(t('calls.field_policy_loading'));
+        return;
+      }
+
+      // A location on the equator or the prime meridian has a zero coordinate, which is a real
+      // place, not a blank field — test that both are finite rather than truthy.
+      const hasGeolocation = Number.isFinite(data.latitude) && Number.isFinite(data.longitude);
+
+      // The department may require fields beyond the built-in mandatory four. Enforced here for a
+      // clear message, and again on the server so an old build cannot slip an incomplete call past.
+      // DispatchOn is deliberately absent: this app has no scheduling input, so validating it here
+      // could only produce a required field the dispatcher has no way to fill. The server still
+      // enforces it and rejects the save with a reason.
+      const missingFields = fieldPolicy.missingRequired({
+        [NewCallFieldKeys.Address]: data.address,
+        [NewCallFieldKeys.Geolocation]: hasGeolocation ? `${data.latitude},${data.longitude}` : '',
+        [NewCallFieldKeys.What3Words]: data.what3words,
+        [NewCallFieldKeys.PlusCode]: data.plusCode,
+        [NewCallFieldKeys.Note]: data.note,
+        [NewCallFieldKeys.ContactName]: data.contactName,
+        [NewCallFieldKeys.ContactInfo]: data.contactInfo,
+        [NewCallFieldKeys.DestinationPoi]: data.destinationPoiId,
+        [NewCallFieldKeys.DispatchList]:
+          dispatchSelection.everyone || dispatchSelection.units.length > 0 || dispatchSelection.users.length > 0 || dispatchSelection.groups.length > 0 || dispatchSelection.roles.length > 0,
+      });
+
+      if (missingFields.length > 0) {
+        const missingLabels = missingFields.map((key) => {
+          const labelKey = NEW_CALL_FIELD_LABEL_KEYS[key];
+
+          return labelKey ? t(labelKey) : key;
+        });
+
+        toast.error(t('calls.required_fields_missing', { fields: missingLabels.join(', ') }));
+        return;
+      }
+
       // If we have latitude and longitude, add them to the data
       if (selectedLocation?.latitude && selectedLocation?.longitude) {
         data.latitude = selectedLocation.latitude;
@@ -715,26 +778,28 @@ export default function NewCall() {
               </FormControl>
             </Card>
 
-            <Card className={`mb-8 rounded-lg border p-4 ${colorScheme === 'dark' ? 'border-neutral-800 bg-neutral-900' : 'border-neutral-200 bg-white'}`}>
-              <FormControl>
-                <FormControlLabel>
-                  <FormControlLabelText>{t('calls.note')}</FormControlLabelText>
-                </FormControlLabel>
-                <Controller
-                  control={control}
-                  name="note"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <Textarea>
-                      <TextareaInput value={value} onChangeText={onChange} onBlur={onBlur} numberOfLines={4} placeholder={t('calls.note_placeholder')} />
-                    </Textarea>
-                  )}
-                />
-              </FormControl>
-            </Card>
+            {fieldPolicy.isVisible(NewCallFieldKeys.Note) ? (
+              <Card className={`mb-8 rounded-lg border p-4 ${colorScheme === 'dark' ? 'border-neutral-800 bg-neutral-900' : 'border-neutral-200 bg-white'}`}>
+                <FormControl>
+                  <FormControlLabel>
+                    <FormControlLabelText>{t('calls.note')}</FormControlLabelText>
+                  </FormControlLabel>
+                  <Controller
+                    control={control}
+                    name="note"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <Textarea>
+                        <TextareaInput value={value} onChangeText={onChange} onBlur={onBlur} numberOfLines={4} placeholder={t('calls.note_placeholder')} />
+                      </Textarea>
+                    )}
+                  />
+                </FormControl>
+              </Card>
+            ) : null}
 
             <Card className={`mb-8 rounded-lg border p-4 ${colorScheme === 'dark' ? 'border-neutral-800 bg-neutral-900' : 'border-neutral-200 bg-white'}`}>
               <Text className="mb-4 text-lg font-semibold">{t('calls.call_location')}</Text>
-
+                          
               {/* Address Field */}
               <FormControl className="mb-4">
                 <FormControlLabel>
@@ -757,7 +822,7 @@ export default function NewCall() {
                   )}
                 />
               </FormControl>
-
+                          
               {/* GPS Coordinates Field */}
               <FormControl className="mb-4">
                 <FormControlLabel>
@@ -780,7 +845,7 @@ export default function NewCall() {
                   )}
                 />
               </FormControl>
-
+                          
               {/* what3words Field */}
               <FormControl className="mb-4">
                 <FormControlLabel>
@@ -803,7 +868,7 @@ export default function NewCall() {
                   )}
                 />
               </FormControl>
-
+                          
               {/* Plus Code Field */}
               <FormControl className="mb-4">
                 <FormControlLabel>
@@ -826,7 +891,7 @@ export default function NewCall() {
                   )}
                 />
               </FormControl>
-
+                          
               {/* Map Preview */}
               <Box className="mb-4">
                 {selectedLocation ? (
@@ -837,7 +902,7 @@ export default function NewCall() {
                   </Button>
                 )}
               </Box>
-
+                          
               <Controller
                 control={control}
                 name="destinationPoiId"
@@ -853,39 +918,43 @@ export default function NewCall() {
               />
             </Card>
 
-            <Card className={`mb-8 rounded-lg border p-4 ${colorScheme === 'dark' ? 'border-neutral-800 bg-neutral-900' : 'border-neutral-200 bg-white'}`}>
-              <FormControl>
-                <FormControlLabel>
-                  <FormControlLabelText>{t('calls.contact_name')}</FormControlLabelText>
-                </FormControlLabel>
-                <Controller
-                  control={control}
-                  name="contactName"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <Input>
-                      <InputField placeholder={t('calls.contact_name_placeholder')} value={value} onChangeText={onChange} onBlur={onBlur} />
-                    </Input>
-                  )}
-                />
-              </FormControl>
-            </Card>
+            {fieldPolicy.isVisible(NewCallFieldKeys.ContactName) ? (
+              <Card className={`mb-8 rounded-lg border p-4 ${colorScheme === 'dark' ? 'border-neutral-800 bg-neutral-900' : 'border-neutral-200 bg-white'}`}>
+                <FormControl>
+                  <FormControlLabel>
+                    <FormControlLabelText>{t('calls.contact_name')}</FormControlLabelText>
+                  </FormControlLabel>
+                  <Controller
+                    control={control}
+                    name="contactName"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <Input>
+                        <InputField placeholder={t('calls.contact_name_placeholder')} value={value} onChangeText={onChange} onBlur={onBlur} />
+                      </Input>
+                    )}
+                  />
+                </FormControl>
+              </Card>
+            ) : null}
 
-            <Card className={`mb-8 rounded-lg border p-4 ${colorScheme === 'dark' ? 'border-neutral-800 bg-neutral-900' : 'border-neutral-200 bg-white'}`}>
-              <FormControl>
-                <FormControlLabel>
-                  <FormControlLabelText>{t('calls.contact_info')}</FormControlLabelText>
-                </FormControlLabel>
-                <Controller
-                  control={control}
-                  name="contactInfo"
-                  render={({ field: { onChange, onBlur, value } }) => (
-                    <Input>
-                      <InputField placeholder={t('calls.contact_info_placeholder')} value={value} onChangeText={onChange} onBlur={onBlur} />
-                    </Input>
-                  )}
-                />
-              </FormControl>
-            </Card>
+            {fieldPolicy.isVisible(NewCallFieldKeys.ContactInfo) ? (
+              <Card className={`mb-8 rounded-lg border p-4 ${colorScheme === 'dark' ? 'border-neutral-800 bg-neutral-900' : 'border-neutral-200 bg-white'}`}>
+                <FormControl>
+                  <FormControlLabel>
+                    <FormControlLabelText>{t('calls.contact_info')}</FormControlLabelText>
+                  </FormControlLabel>
+                  <Controller
+                    control={control}
+                    name="contactInfo"
+                    render={({ field: { onChange, onBlur, value } }) => (
+                      <Input>
+                        <InputField placeholder={t('calls.contact_info_placeholder')} value={value} onChangeText={onChange} onBlur={onBlur} />
+                      </Input>
+                    )}
+                  />
+                </FormControl>
+              </Card>
+            ) : null}
 
             <Card className={`mb-8 rounded-lg border p-4 ${colorScheme === 'dark' ? 'border-neutral-800 bg-neutral-900' : 'border-neutral-200 bg-white'}`}>
               <Text className="mb-4 text-lg font-semibold">{t('calls.dispatch_to')}</Text>
@@ -898,7 +967,7 @@ export default function NewCall() {
               <Button className="mr-10 flex-1" variant="outline" onPress={() => router.back()}>
                 <ButtonText>{t('common.cancel')}</ButtonText>
               </Button>
-              <Button className="ml-10 flex-1" variant="solid" action="primary" onPress={handleSubmit(onSubmit)}>
+              <Button className="ml-10 flex-1" variant="solid" action="primary" isDisabled={!fieldPolicy.isLoaded} onPress={handleSubmit(onSubmit)}>
                 <PlusIcon size={18} className="mr-2" />
                 <ButtonText>{t('calls.create')}</ButtonText>
               </Button>

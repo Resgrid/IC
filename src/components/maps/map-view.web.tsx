@@ -10,6 +10,7 @@ import React, { forwardRef, useCallback, useContext, useEffect, useImperativeHan
 import { createRoot } from 'react-dom/client';
 
 import { Env } from '@/lib/env';
+import { useDepartmentMapCenter } from '@/lib/map-center';
 
 // Set the access token globally
 mapboxgl.accessToken = Env.IC_MAPBOX_PUBKEY;
@@ -208,6 +209,10 @@ export const MapView = forwardRef<any, MapViewProps>(
     const map = useRef<any | null>(null);
     const [isLoaded, setIsLoaded] = useState(false);
     const [hasSize, setHasSize] = useState(false);
+    // Reactive: department config can land after the map is constructed.
+    const departmentCenter = useDepartmentMapCenter();
+    const appliedDepartmentCenterRef = useRef<string | null>(null);
+    const hasUserMovedRef = useRef(false);
 
     useImperativeHandle(ref, () => ({
       getMap: () => map.current,
@@ -252,7 +257,7 @@ export const MapView = forwardRef<any, MapViewProps>(
       try {
         // Use initialCenter/initialZoom if provided so the map starts at the
         // correct position without needing a programmatic camera move later.
-        const startCenter = initialCenter && isFinite(initialCenter[0]) && isFinite(initialCenter[1]) ? initialCenter : ([-98.5795, 39.8283] as [number, number]); // Default US center
+        const startCenter = initialCenter && isFinite(initialCenter[0]) && isFinite(initialCenter[1]) ? initialCenter : ([departmentCenter.longitude, departmentCenter.latitude] as [number, number]); // Department center
         const startZoom = initialZoom != null && isFinite(initialZoom) ? initialZoom : 4;
 
         const newMap = new mapboxgl.Map({
@@ -292,6 +297,9 @@ export const MapView = forwardRef<any, MapViewProps>(
           // We tag all programmatic camera moves with { _programmatic: true } so the
           // moveend handler can distinguish them from real user interactions.
           const wasUser = !e._programmatic;
+          if (wasUser) {
+            hasUserMovedRef.current = true;
+          }
           onCameraChanged?.({ properties: { isUserInteraction: wasUser } });
         });
 
@@ -383,6 +391,22 @@ export const MapView = forwardRef<any, MapViewProps>(
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hasSize]);
+
+    // The constructor center is fixed at build time, and department config can land after that.
+    // Recenter when it changes — but only when the caller pinned no initial center and the user
+    // has not already moved the map themselves.
+    useEffect(() => {
+      if (!isLoaded || !map.current) return;
+      if (initialCenter && isFinite(initialCenter[0]) && isFinite(initialCenter[1])) return;
+      if (hasUserMovedRef.current) return;
+
+      const center = `${departmentCenter.longitude},${departmentCenter.latitude}`;
+      if (appliedDepartmentCenterRef.current === center) return;
+      appliedDepartmentCenterRef.current = center;
+
+      // Tagged programmatic so moveend does not report this as a user interaction.
+      map.current.easeTo({ center: [departmentCenter.longitude, departmentCenter.latitude], duration: 500 }, { _programmatic: true });
+    }, [isLoaded, initialCenter, departmentCenter.longitude, departmentCenter.latitude]);
 
     // Keep the map canvas in sync with container size changes.
     useEffect(() => {

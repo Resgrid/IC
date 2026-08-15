@@ -10,15 +10,13 @@ import { Box } from '@/components/ui/box';
 import { Button, ButtonText } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { Env } from '@/lib/env';
+import { useDepartmentMapCenter } from '@/lib/map-center';
 
 // Ensure Mapbox access token is set before using any Mapbox components
 Mapbox.setAccessToken(Env.IC_MAPBOX_PUBKEY);
 
-// Default location (center of USA) used when user location is unavailable
-const DEFAULT_LOCATION = {
-  latitude: 39.8283,
-  longitude: -98.5795,
-};
+// Falls back to the department's configured map center rather than a hardcoded point, so a
+// department outside the US does not open every picker on the middle of Kansas.
 
 // Timeout for location fetching (in milliseconds)
 const LOCATION_TIMEOUT = 10000;
@@ -37,11 +35,12 @@ const FullScreenLocationPicker: React.FC<FullScreenLocationPickerProps> = ({ ini
   const insets = useSafeAreaInsets();
   const mapRef = useRef<React.ElementRef<typeof Mapbox.MapView>>(null);
   const cameraRef = useRef<any>(null); // Using any due to imperative handle
+  const departmentCenter = useDepartmentMapCenter();
   // Always start with a location - either initial, or default
   const [currentLocation, setCurrentLocation] = useState<{
     latitude: number;
     longitude: number;
-  }>(initialLocation || DEFAULT_LOCATION);
+  }>(initialLocation || { latitude: departmentCenter.latitude, longitude: departmentCenter.longitude });
   const [isLocating, setIsLocating] = useState(false);
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
   const [address, setAddress] = useState<string | undefined>(undefined);
@@ -154,6 +153,15 @@ const FullScreenLocationPicker: React.FC<FullScreenLocationPickerProps> = ({ ini
     };
   }, [initialLocation, getUserLocation, reverseGeocode]);
 
+  // Department config can land after mount. Follow it only while the placeholder is still on
+  // screen — an initial location or anything the user/device picked outranks it.
+  useEffect(() => {
+    if (initialLocation || hasUserLocation) {
+      return;
+    }
+    setCurrentLocation({ latitude: departmentCenter.latitude, longitude: departmentCenter.longitude });
+  }, [initialLocation, hasUserLocation, departmentCenter.latitude, departmentCenter.longitude]);
+
   const handleMapPress = (event: GeoJSON.Feature) => {
     if (event.geometry.type !== 'GeometryCollection' && 'coordinates' in event.geometry) {
       const coords = event.geometry.coordinates as number[];
@@ -179,7 +187,14 @@ const FullScreenLocationPicker: React.FC<FullScreenLocationPickerProps> = ({ ini
   return (
     <Box style={styles.container}>
       <Mapbox.MapView ref={mapRef} style={styles.map} logoEnabled={false} attributionEnabled={true} compassEnabled={true} zoomEnabled={true} rotateEnabled={true} onPress={handleMapPress}>
-        <Mapbox.Camera ref={cameraRef} zoomLevel={hasUserLocation ? 15 : 4} centerCoordinate={[currentLocation.longitude, currentLocation.latitude]} animationMode="flyTo" animationDuration={1000} />
+        {/* Without a real location the camera sits on the department center, so it frames it at the department's configured zoom rather than a hardcoded one. */}
+        <Mapbox.Camera
+          ref={cameraRef}
+          zoomLevel={hasUserLocation ? 15 : departmentCenter.zoomLevel}
+          centerCoordinate={[currentLocation.longitude, currentLocation.latitude]}
+          animationMode="flyTo"
+          animationDuration={1000}
+        />
         {/* Marker for the selected location */}
         <Mapbox.PointAnnotation id="selectedLocation" coordinate={[currentLocation.longitude, currentLocation.latitude]} title="Selected Location">
           <Box className="items-center justify-center">

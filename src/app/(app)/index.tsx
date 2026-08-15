@@ -21,6 +21,7 @@ import { useMapGeolocationUpdates } from '@/hooks/use-map-geolocation-updates';
 import { useMapSignalRUpdates } from '@/hooks/use-map-signalr-updates';
 import { Env } from '@/lib/env';
 import { logger } from '@/lib/logging';
+import { useDepartmentMapCenter } from '@/lib/map-center';
 import { type MapMakerInfoData } from '@/models/v4/mapping/getMapDataAndMarkersData';
 import { locationService } from '@/services/location';
 import { useCoreStore } from '@/stores/app/core-store';
@@ -60,6 +61,9 @@ function MapContent() {
   const locationLongitude = useLocationStore((state) => state.longitude);
   const locationHeading = useLocationStore((state) => state.heading);
   const isMapLocked = useLocationStore((state) => state.isMapLocked);
+  // Reactive: department config can land after this screen mounts.
+  const departmentCenter = useDepartmentMapCenter();
+  const appliedDepartmentCenterRef = useRef<string | null>(null);
 
   // Weather alert banner state
   const weatherAlerts = useWeatherAlertsStore((state) => state.alerts);
@@ -108,14 +112,36 @@ function MapContent() {
       };
     }
 
-    // Fallback: default US center when location hasn't arrived yet
+    // Fallback: the department's configured center when location hasn't arrived yet
     return {
-      centerCoordinate: [-98.5795, 39.8283] as [number, number],
+      centerCoordinate: [departmentCenter.longitude, departmentCenter.latitude] as [number, number],
       zoomLevel: 4,
       heading: 0,
       pitch: 0,
     };
-  }, [locationLatitude, locationLongitude, isMapLocked]);
+  }, [locationLatitude, locationLongitude, isMapLocked, departmentCenter.latitude, departmentCenter.longitude]);
+
+  // defaultSettings only applies at mount, and department config can land after it. Move the camera
+  // to the department center when it changes, unless a device fix or the user got there first.
+  useEffect(() => {
+    if (!isMapReady || hasUserMovedMap || (locationLatitude != null && locationLongitude != null)) {
+      return;
+    }
+
+    const center = `${departmentCenter.longitude},${departmentCenter.latitude}`;
+    if (appliedDepartmentCenterRef.current === center) {
+      return;
+    }
+    appliedDepartmentCenterRef.current = center;
+
+    cameraRef.current?.setCamera({
+      centerCoordinate: [departmentCenter.longitude, departmentCenter.latitude],
+      zoomLevel: 4,
+      heading: 0,
+      pitch: 0,
+      animationDuration: 500,
+    });
+  }, [isMapReady, hasUserMovedMap, locationLatitude, locationLongitude, departmentCenter.latitude, departmentCenter.longitude]);
 
   // Fetch map layers (department-level, no unit context needed)
   useEffect(() => {
