@@ -245,6 +245,7 @@
     "edit_call": "Anruf bearbeiten",
     "edit_call_description": "Anrufinformationen aktualisieren",
     "everyone": "Alle",
+    "field_policy_loading": "Die Einsatzeinstellungen Ihrer Abteilung werden noch geladen, bitte versuchen Sie es gleich erneut",
     "files": {
       "error": "Fehler beim Abrufen der Dateien",
       "file_name": "Dateiname",
@@ -286,6 +287,7 @@
     "plus_code_required": "Bitte einen Plus-Code zum Suchen eingeben",
     "priority": "Priorität",
     "priority_placeholder": "Priorität des Anrufs auswählen",
+    "required_fields_missing": "Ihre Abteilung benötigt diese Felder, bevor ein Einsatz angelegt werden kann: {{fields}}",
     "roles": "Rollen",
     "search": "Anrufe suchen...",
     "select_active_call": "Aktiven Anruf auswählen",
@@ -315,9 +317,7 @@
     "what3words_invalid_format": "Ungültiges what3words-Format. Bitte Format verwenden: wort.wort.wort",
     "what3words_not_found": "what3words-Adresse nicht gefunden, bitte eine andere Adresse versuchen",
     "what3words_placeholder": "what3words-Adresse eingeben (z. B. filled.count.soap)",
-    "what3words_required": "Bitte eine what3words-Adresse zum Suchen eingeben",
-    "required_fields_missing": "Ihre Abteilung benötigt diese Felder, bevor ein Einsatz angelegt werden kann: {{fields}}",
-    "field_policy_loading": "Die Einsatzeinstellungen Ihrer Abteilung werden noch geladen, bitte versuchen Sie es gleich erneut"
+    "what3words_required": "Bitte eine what3words-Adresse zum Suchen eingeben"
   },
   "chat": {
     "ack_pending_count": "Sie haben {{count}} dringende Nachrichten zu bestätigen",
@@ -1587,8 +1587,8 @@
     "general": "Allgemein",
     "generale": "Allgemein",
     "german": "Deutsch",
-    "greek": "Griechisch",
     "github": "Github",
+    "greek": "Griechisch",
     "help_center": "Hilfecenter",
     "italian": "Italienisch",
     "keep_alive": "Aktiv halten",
