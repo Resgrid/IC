@@ -172,11 +172,14 @@ jobs:
       # back node_modules patched by some other revision. The yarn tarball cache is handled
       # by setup-node's `cache: yarn` above, so a key miss here is only a re-link, not a
       # re-download.
+      # The job name and runner.arch are in the key because node_modules holds compiled
+      # native binaries: runner.os alone collapses macos-26 (this job) and macos-15
+      # (build-electron) onto one entry, and says nothing about x64 vs arm64.
       - name: 📦 Setup node_modules cache
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('yarn.lock', 'patches/**') }}
+          key: build-mobile-${{ runner.os }}-${{ runner.arch }}-node-modules-${{ hashFiles('yarn.lock', 'patches/**') }}
 
       - name: 📦 Install dependencies
         run: |
@@ -535,11 +538,14 @@ jobs:
       # back node_modules patched by some other revision. The yarn tarball cache is handled
       # by setup-node's `cache: yarn` above, so a key miss here is only a re-link, not a
       # re-download.
+      # The job name and runner.arch are in the key because node_modules holds compiled
+      # native binaries: runner.os alone collapses macos-15 (this job) and macos-26
+      # (build-mobile) onto one entry, and says nothing about x64 vs arm64.
       - name: 📦 Setup node_modules cache
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('yarn.lock', 'patches/**') }}
+          key: build-electron-${{ runner.os }}-${{ runner.arch }}-node-modules-${{ hashFiles('yarn.lock', 'patches/**') }}
 
       - name: 📦 Install dependencies
         run: yarn install --frozen-lockfile

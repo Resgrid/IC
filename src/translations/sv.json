@@ -245,6 +245,7 @@
     "edit_call": "Redigera samtal",
     "edit_call_description": "Uppdatera samtalsinformation",
     "everyone": "Alla",
+    "field_policy_loading": "Din avdelnings samtalsinställningar laddas fortfarande, försök igen om ett ögonblick",
     "files": {
       "error": "Fel vid hämtning av filer",
       "file_name": "Filnamn",
@@ -286,6 +287,7 @@
     "plus_code_required": "Ange en plus-kod att söka efter",
     "priority": "Prioritet",
     "priority_placeholder": "Välj samtalets prioritet",
+    "required_fields_missing": "Din avdelning kräver dessa fält innan ett samtal kan skapas: {{fields}}",
     "roles": "Roller",
     "search": "Sök samtal...",
     "select_active_call": "Välj aktivt samtal",
@@ -315,9 +317,7 @@
     "what3words_invalid_format": "Ogiltigt what3words-format. Använd formatet: ord.ord.ord",
     "what3words_not_found": "what3words-adress hittades inte, försök med en annan adress",
     "what3words_placeholder": "Ange what3words-adress (t.ex. filled.count.soap)",
-    "what3words_required": "Ange en what3words-adress att söka efter",
-    "required_fields_missing": "Din avdelning kräver dessa fält innan ett samtal kan skapas: {{fields}}",
-    "field_policy_loading": "Din avdelnings samtalsinställningar laddas fortfarande, försök igen om ett ögonblick"
+    "what3words_required": "Ange en what3words-adress att söka efter"
   },
   "chat": {
     "ack_pending_count": "Du har {{count}} brådskande meddelanden att kvittera",
@@ -1587,8 +1587,8 @@
     "general": "Allmänt",
     "generale": "Allmänt",
     "german": "Tyska",
-    "greek": "Grekiska",
     "github": "Github",
+    "greek": "Grekiska",
     "help_center": "Hjälpcenter",
     "italian": "Italienska",
     "keep_alive": "Håll vid liv",
