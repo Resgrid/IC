@@ -49,18 +49,40 @@ jest.mock('react-native-keyboard-controller', () => ({
   },
 }));
 
-// Mock lucide icons
-jest.mock('lucide-react-native', () => ({
-  ChevronDown: () => null,
-}));
-
 // Mock UI components
+jest.mock('@/components/ui/actionsheet', () => {
+  const { View } = require('react-native');
+  return {
+    Actionsheet: ({ isOpen, children, testID }: any) => (isOpen ? <View testID={testID ?? 'actionsheet'}>{children}</View> : null),
+    ActionsheetBackdrop: ({ children }: any) => <View testID="actionsheet-backdrop">{children}</View>,
+    ActionsheetContent: ({ children, style }: any) => (
+      <View testID="actionsheet-content" style={style}>
+        {children}
+      </View>
+    ),
+    ActionsheetDragIndicator: () => <View testID="actionsheet-drag-indicator" />,
+    ActionsheetDragIndicatorWrapper: ({ children }: any) => <View testID="actionsheet-drag-indicator-wrapper">{children}</View>,
+  };
+});
+
 jest.mock('@/components/ui/button', () => ({
-  Button: ({ children, onPress, testID, disabled, ...props }: any) => {
+  Button: ({ children, onPress, testID, disabled, isDisabled, ...props }: any) => {
     const { TouchableOpacity } = require('react-native');
-    return <TouchableOpacity onPress={onPress} testID={testID} disabled={disabled} {...props}>{children}</TouchableOpacity>;
+    const resolvedDisabled = disabled ?? isDisabled;
+    return (
+      <TouchableOpacity onPress={onPress} testID={testID} disabled={resolvedDisabled} accessibilityState={{ disabled: !!resolvedDisabled }} {...props}>
+        {children}
+      </TouchableOpacity>
+    );
   },
   ButtonText: ({ children, ...props }: any) => {
+    const { Text } = require('react-native');
+    return <Text {...props}>{children}</Text>;
+  },
+}));
+
+jest.mock('@/components/ui/heading', () => ({
+  Heading: ({ children, ...props }: any) => {
     const { Text } = require('react-native');
     return <Text {...props}>{children}</Text>;
   },
@@ -84,6 +106,58 @@ jest.mock('@/components/ui/hstack', () => ({
   HStack: ({ children, ...props }: any) => {
     const { View } = require('react-native');
     return <View {...props}>{children}</View>;
+  },
+}));
+
+jest.mock('@/components/ui/form-control', () => ({
+  FormControl: ({ children, ...props }: any) => {
+    const { View } = require('react-native');
+    return <View {...props}>{children}</View>;
+  },
+  FormControlLabel: ({ children, ...props }: any) => {
+    const { View } = require('react-native');
+    return <View {...props}>{children}</View>;
+  },
+  FormControlLabelText: ({ children, ...props }: any) => {
+    const { Text } = require('react-native');
+    return <Text {...props}>{children}</Text>;
+  },
+}));
+
+jest.mock('@/components/ui/select', () => ({
+  Select: ({ children, testID, onValueChange, ...props }: any) => {
+    const { View } = require('react-native');
+    return (
+      <View testID={testID} onValueChange={onValueChange} {...props}>
+        {children}
+      </View>
+    );
+  },
+  SelectTrigger: ({ children, ...props }: any) => {
+    const { View } = require('react-native');
+    return <View {...props}>{children}</View>;
+  },
+  SelectInput: ({ placeholder, ...props }: any) => {
+    const { Text } = require('react-native');
+    return <Text {...props}>{placeholder}</Text>;
+  },
+  SelectIcon: () => null,
+  SelectPortal: ({ children, ...props }: any) => {
+    const { View } = require('react-native');
+    return <View {...props}>{children}</View>;
+  },
+  SelectBackdrop: () => null,
+  SelectContent: ({ children, ...props }: any) => {
+    const { View } = require('react-native');
+    return <View {...props}>{children}</View>;
+  },
+  SelectItem: ({ label, ...props }: any) => {
+    const { View, Text } = require('react-native');
+    return (
+      <View {...props}>
+        <Text>{label}</Text>
+      </View>
+    );
   },
 }));
 
@@ -117,12 +191,10 @@ const mockUseCallDetailStore = useCallDetailStore as jest.MockedFunction<typeof 
 const mockUseCallsStore = useCallsStore as jest.MockedFunction<typeof useCallsStore>;
 const mockUseToastStore = useToastStore as jest.MockedFunction<typeof useToastStore>;
 
-/** Helper: select a close call type via the inline dropdown */
+/** Helper: select a close call type via the gluestack Select's onValueChange */
 function selectCloseCallType(type: string) {
   const typeSelect = screen.getByTestId('close-call-type-select');
-  fireEvent.press(typeSelect);
-  const option = screen.getByTestId(`close-call-type-option-${type}`);
-  fireEvent.press(option);
+  fireEvent(typeSelect, 'onValueChange', type);
 }
 
 describe('CloseCallBottomSheet', () => {
@@ -168,6 +240,7 @@ describe('CloseCallBottomSheet', () => {
     expect(screen.getByText('call_detail.close_call_type')).toBeTruthy();
     expect(screen.getByText('call_detail.close_call_note')).toBeTruthy();
     expect(screen.getByText('common.cancel')).toBeTruthy();
+    expect(screen.getByTestId('close-call-bottom-sheet')).toBeTruthy();
   });
 
   it('should show error toast when no close type is selected', async () => {
@@ -191,7 +264,7 @@ describe('CloseCallBottomSheet', () => {
     const mockOnClose = jest.fn();
     render(<CloseCallBottomSheet isOpen={true} onClose={mockOnClose} callId="test-call-1" />);
 
-    // Select close type via inline dropdown
+    // Select close type
     selectCloseCallType('1');
 
     // Add note
@@ -277,7 +350,7 @@ describe('CloseCallBottomSheet', () => {
 
     render(<CloseCallBottomSheet isOpen={true} onClose={jest.fn()} callId="test-call-1" />);
 
-    // Select close type via inline dropdown
+    // Select close type
     selectCloseCallType(type);
 
     // Submit
@@ -316,8 +389,10 @@ describe('CloseCallBottomSheet', () => {
     fireEvent.press(submitButton);
 
     // Buttons should be disabled while submitting
-    expect(submitButton).toBeDisabled();
-    expect(cancelButton).toBeDisabled();
+    await waitFor(() => {
+      expect(cancelButton).toBeDisabled();
+    });
+    expect(screen.getByText('common.submitting')).toBeTruthy();
 
     // Resolve the promise to complete the test
     resolveCloseCall!();
