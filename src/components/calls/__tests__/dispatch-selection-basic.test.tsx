@@ -79,6 +79,23 @@ jest.mock('nativewind', () => ({
   cssInterop: jest.fn(),
 }));
 
+// The gluestack Actionsheet does not render its children in the jest environment,
+// so mock it with plain Views the same way the other bottom-sheet tests do.
+jest.mock('@/components/ui/actionsheet', () => {
+  const { View } = require('react-native');
+  return {
+    Actionsheet: ({ isOpen, children, testID }: any) => (isOpen ? <View testID={testID ?? 'actionsheet'}>{children}</View> : null),
+    ActionsheetBackdrop: ({ children }: any) => <View testID="actionsheet-backdrop">{children}</View>,
+    ActionsheetContent: ({ children, style }: any) => (
+      <View testID="actionsheet-content" style={style}>
+        {children}
+      </View>
+    ),
+    ActionsheetDragIndicator: () => <View testID="actionsheet-drag-indicator" />,
+    ActionsheetDragIndicatorWrapper: ({ children }: any) => <View testID="actionsheet-drag-indicator-wrapper">{children}</View>,
+  };
+});
+
 // Mock cssInterop globally
 (global as any).cssInterop = jest.fn();
 
