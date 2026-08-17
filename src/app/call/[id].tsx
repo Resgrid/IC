@@ -1,7 +1,6 @@
 import { format, isValid } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ClockIcon, FileTextIcon, ImageIcon, InfoIcon, LoaderIcon, MessageSquareIcon, PaperclipIcon, RouteIcon, TimerIcon, UserIcon, UsersIcon, VideoIcon } from 'lucide-react-native';
-import { useColorScheme } from 'nativewind';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -12,6 +11,7 @@ import { CheckInTabContent } from '@/components/check-in-timers/check-in-tab-con
 import { MessageCommanderSheet } from '@/components/command/message-commander-sheet';
 import { ReopenCommandSheet } from '@/components/command/reopen-command-sheet';
 import { StartCommandSheet } from '@/components/command/start-command-sheet';
+import { HeaderBackButton } from '@/components/common/header-back-button';
 import { Loading } from '@/components/common/loading';
 import ZeroState from '@/components/common/zero-state';
 // Import a static map component instead of react-native-maps
@@ -83,9 +83,6 @@ export default function CallDetail() {
   const startPolling = useCheckInTimerStore((state) => state.startPolling);
   const stopPolling = useCheckInTimerStore((state) => state.stopPolling);
   const resetTimers = useCheckInTimerStore((state) => state.reset);
-
-  const { colorScheme } = useColorScheme();
-  const textColor = colorScheme === 'dark' ? '#FFFFFF' : '#000000';
 
   // Get current user location from the location store
   const userLatitude = useLocationStore((state) => state.latitude);
@@ -288,6 +285,7 @@ export default function CallDetail() {
           options={{
             title: t('call_detail.title'),
             headerShown: true,
+            headerLeft: () => <HeaderBackButton onPress={handleBack} />,
             headerRight: HeaderRightMenu,
             headerBackTitle: '',
           }}
@@ -307,6 +305,7 @@ export default function CallDetail() {
           options={{
             title: t('call_detail.title'),
             headerShown: true,
+            headerLeft: () => <HeaderBackButton onPress={handleBack} />,
             headerRight: HeaderRightMenu,
             headerBackTitle: '',
           }}
@@ -328,6 +327,7 @@ export default function CallDetail() {
           options={{
             title: t('call_detail.title'),
             headerShown: true,
+            headerLeft: () => <HeaderBackButton onPress={handleBack} />,
             headerBackTitle: '',
           }}
         />
@@ -352,7 +352,7 @@ export default function CallDetail() {
         title: t('call_detail.tabs.info'),
         icon: <InfoIcon size={16} />,
         content: (
-          <Box className={`p-4 shadow-xs ${colorScheme === 'dark' ? 'bg-neutral-900' : 'bg-neutral-100'}`}>
+          <Box className="p-4">
             <VStack className="space-y-3">
               <Box className="border-b border-outline-100 pb-2">
                 <Text className="text-sm text-gray-500">{t('call_detail.priority')}</Text>
@@ -425,7 +425,7 @@ export default function CallDetail() {
             {callExtraData?.Protocols && callExtraData.Protocols.length > 0 ? (
               <VStack className="space-y-3">
                 {callExtraData.Protocols.map((protocol, index) => (
-                  <Box key={index} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
+                  <Box key={index} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-700">
                     <Text className="font-semibold">{protocol.Name}</Text>
                     <Text className="text-sm text-gray-600 dark:text-gray-400">{protocol.Description}</Text>
                     <Box>
@@ -449,7 +449,7 @@ export default function CallDetail() {
             {callExtraData?.Dispatches && callExtraData.Dispatches.length > 0 ? (
               <VStack className="space-y-3">
                 {callExtraData.Dispatches.map((dispatched, index) => (
-                  <Box key={index} className={`rounded-lg p-3 ${colorScheme === 'dark' ? 'bg-neutral-900' : 'bg-neutral-100'}`}>
+                  <Box key={index} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-700">
                     <Text className="font-semibold">{dispatched.Name}</Text>
                     <HStack className="mt-1">
                       <Text className="mr-2 text-sm text-gray-600">
@@ -527,13 +527,14 @@ export default function CallDetail() {
         options={{
           title: t('call_detail.title'),
           headerShown: true,
+          headerLeft: () => <HeaderBackButton onPress={handleBack} />,
           headerRight: HeaderRightMenu,
           headerBackTitle: '',
         }}
       />
-      <ScrollView className={`size-full w-full flex-1 ${colorScheme === 'dark' ? 'bg-neutral-950' : 'bg-neutral-50'}`}>
+      <ScrollView className="size-full w-full flex-1 bg-gray-50 dark:bg-gray-900" contentContainerStyle={{ paddingBottom: 16 }}>
         {/* Header */}
-        <Box className={`p-4 shadow-xs ${colorScheme === 'dark' ? 'bg-neutral-900' : 'bg-neutral-100'}`}>
+        <Box className="mx-4 mt-3 rounded-xl bg-white p-4 shadow-xs dark:bg-gray-800">
           <HStack className="mb-2 items-center justify-between">
             <Heading size="md">
               {call.Name} ({call.Number})
@@ -572,13 +573,13 @@ export default function CallDetail() {
 
         {/* Map - only show when valid coordinates exist */}
         {coordinates.latitude !== null && coordinates.longitude !== null ? (
-          <Box className="w-full">
+          <Box className="mx-4 mt-3 overflow-hidden rounded-xl shadow-xs">
             <StaticMap latitude={coordinates.latitude} longitude={coordinates.longitude} address={call.Address} zoom={15} height={200} showUserLocation={true} />
           </Box>
         ) : null}
 
         {/* Action Buttons */}
-        <HStack className={`justify-around p-4 shadow-xs ${colorScheme === 'dark' ? 'bg-neutral-900' : 'bg-neutral-100'}`}>
+        <HStack className="mx-4 mt-3 justify-around rounded-xl bg-white p-4 shadow-xs dark:bg-gray-800">
           <Box className="relative mx-1 flex-1">
             <Button onPress={() => openNotesModal()} variant="outline" className="w-full" size={isLandscape ? 'md' : 'sm'}>
               <ButtonIcon as={FileTextIcon} />
@@ -621,7 +622,7 @@ export default function CallDetail() {
         </HStack>
 
         {/* Tabs */}
-        <Box className={`mt-2 flex-1 pb-8 ${colorScheme === 'dark' ? 'bg-neutral-900' : 'bg-neutral-100'}`}>
+        <Box className="mx-4 mb-4 mt-3 flex-1 overflow-hidden rounded-xl bg-white pb-8 shadow-xs dark:bg-gray-800">
           <SharedTabs tabs={renderTabs()} variant="underlined" size={isLandscape ? 'md' : 'sm'} />
         </Box>
       </ScrollView>
