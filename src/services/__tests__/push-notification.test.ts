@@ -47,12 +47,14 @@ jest.mock('@/api/devices/push', () => ({
   registerDevice: (...args: unknown[]) => mockRegisterDevice(...args),
 }));
 
-jest.mock('@/lib/auth', () => ({
-  useAuthStore: jest.fn((selector) => {
-    const state = { userId: 'test-user' };
-    return selector ? selector(state) : state;
-  }),
-}));
+jest.mock('@/lib/auth', () => {
+  // handleChatDeepLink gates the cold-start push on a hydrated session, so the mock has to
+  // answer getState() as well as being callable as a selector hook.
+  const state = { userId: 'test-user', status: 'signedIn' };
+  const store: any = jest.fn((selector: any) => (selector ? selector(state) : state));
+  store.getState = () => state;
+  return { useAuthStore: store };
+});
 
 jest.mock('@/stores/app/core-store', () => ({
   useCoreStore: {
