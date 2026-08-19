@@ -12,7 +12,7 @@ import { getDeviceUuid } from '@/lib/storage/app';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useLocationStore } from '@/stores/app/location-store';
 import { useCheckInTimerStore } from '@/stores/check-in-timers/store';
-import { usePushNotificationModalStore } from '@/stores/push-notification/store';
+import { parseNotificationData, usePushNotificationModalStore } from '@/stores/push-notification/store';
 import { securityStore } from '@/stores/security/store';
 
 // Numeric value for the CheckInType field expected by the API. IC users always
@@ -33,13 +33,45 @@ export interface PushNotificationData {
 }
 
 /**
+ * Pulls the Resgrid eventCode (and the data record that carried it) out of a
+ * notification request. On Android the FCM data payload is surfaced as
+ * content.data, but on iOS expo-notifications only maps the APNs custom key
+ * "body" to content.data — Core sends eventCode as a top-level custom key (or
+ * nested under aps for FCM-relayed APNs), so content.data is empty there and we
+ * must fall back to the raw push payload exposed on the trigger.
+ */
+export function extractPushNotificationData(request: Notifications.NotificationRequest): { eventCode: string | undefined; data: Record<string, unknown> } {
+  const contentData = request.content.data;
+  if (contentData && typeof contentData === 'object' && typeof (contentData as Record<string, unknown>).eventCode === 'string') {
+    return { eventCode: (contentData as Record<string, unknown>).eventCode as string, data: contentData as Record<string, unknown> };
+  }
+
+  const trigger = request.trigger as { payload?: Record<string, unknown> } | null | undefined;
+  const payload = trigger && typeof trigger === 'object' ? trigger.payload : undefined;
+  if (payload && typeof payload === 'object') {
+    const candidates = [payload, payload.body, payload.aps];
+    for (const candidate of candidates) {
+      if (candidate && typeof candidate === 'object' && typeof (candidate as Record<string, unknown>).eventCode === 'string') {
+        return { eventCode: (candidate as Record<string, unknown>).eventCode as string, data: candidate as Record<string, unknown> };
+      }
+    }
+  }
+
+  return {
+    eventCode: undefined,
+    data: contentData && typeof contentData === 'object' ? (contentData as Record<string, unknown>) : {},
+  };
+}
+
+/**
  * Handles chat push deep-links. Chat notifications carry an eventCode of
  * "t:{channelId}" (direct message) or "g:{channelId}" (group/channel); both
- * navigate to the chat conversation route. Returns true when the tap was
+ * navigate to the chat conversation route. Case-insensitive so the legacy
+ * uppercase prefixes deep-link too. Returns true when the tap was
  * consumed as a chat deep-link (so the caller skips the generic modal).
  */
 export function handleChatDeepLink(eventCode: string): boolean {
-  const match = /^([tg]):(.+)$/.exec(eventCode);
+  const match = /^([tg]):(.+)$/i.exec(eventCode);
   if (!match) return false;
   const channelId = match[2];
   if (/[/\\?#]/.test(channelId)) return false;
@@ -55,6 +87,30 @@ export function handleChatDeepLink(eventCode: string): boolean {
     }
   ).catch((error) => {
     logger.error({ message: 'Failed to deep-link to chat channel', context: { error, eventCode } });
+  });
+  return true;
+}
+
+/**
+ * Handles call push deep-links. Call notifications carry an eventCode of
+ * "C:{callId}" (or legacy "C{callId}"); tapping one navigates straight to the
+ * call detail screen. Returns true when the tap was consumed as a call
+ * deep-link (so the caller skips the generic modal).
+ */
+export function handleCallDeepLink(eventCode: string): boolean {
+  const parsed = parseNotificationData({ eventCode });
+  if (parsed.type !== 'call' || !parsed.id || /[/\\?#]/.test(parsed.id)) return false;
+  void routerPushWithRetry(
+    { pathname: '/call/[id]', params: { id: parsed.id } },
+    {
+      maxAttempts: 40,
+      retryDelayMs: 250,
+      // Same cold-start gate as chat: wait for the session to hydrate so the auth
+      // guard does not swallow the navigation.
+      waitUntil: () => useAuthStore.getState().status === 'signedIn',
+    }
+  ).catch((error) => {
+    logger.error({ message: 'Failed to deep-link to call from push notification', context: { error, eventCode } });
   });
   return true;
 }
@@ -193,13 +249,14 @@ class PushNotificationService {
     void usePushNotificationModalStore.getState().showNotificationModal(notificationData);
   }
 
-  // Foreground push received via expo-notifications.
+  // Foreground push received via expo-notifications. The extractor handles the iOS
+  // case where the eventCode only exists on the raw trigger payload.
   private handleNotificationReceived = (notification: Notifications.Notification): void => {
-    const data = notification.request.content.data as Record<string, unknown> | undefined;
+    const { eventCode, data } = extractPushNotificationData(notification.request);
 
     logger.info({
       message: 'Notification received',
-      context: { data },
+      context: { eventCode, data },
     });
 
     this.showModalForData(data, notification.request.content.title, notification.request.content.body);
@@ -225,20 +282,24 @@ class PushNotificationService {
     }
 
     const content = request.content;
-    const data = content.data as Record<string, unknown> | undefined;
+    const { eventCode, data } = extractPushNotificationData(request);
 
     logger.info({
       message: 'Notification response received (tap)',
-      context: { data, actionIdentifier: response.actionIdentifier, source },
+      context: { eventCode, data, actionIdentifier: response.actionIdentifier, source },
     });
 
     // Delay so the React tree is mounted and the modal store is ready.
     setTimeout(() => {
-      // Chat notifications ("t:{channelId}" / "g:{channelId}") deep-link straight
-      // to the conversation instead of surfacing the generic notification modal.
-      const eventCode = data?.eventCode;
-      if (typeof eventCode === 'string' && handleChatDeepLink(eventCode)) {
-        return;
+      // Chat ("t:{channelId}" / "g:{channelId}") and call ("C:{callId}") notifications
+      // deep-link straight to their screens instead of surfacing the generic modal.
+      if (typeof eventCode === 'string') {
+        if (handleChatDeepLink(eventCode)) {
+          return;
+        }
+        if (handleCallDeepLink(eventCode)) {
+          return;
+        }
       }
       this.showModalForData(data, content.title, content.body);
     }, delayMs);
@@ -263,10 +324,10 @@ class PushNotificationService {
         await this.handleCheckInAction();
       }
 
-      // Handle notification press → chat deep-link or modal
+      // Handle notification press → chat/call deep-link or modal
       if (type === EventType.PRESS && detail.notification) {
         const eventCode = detail.notification.data?.eventCode;
-        if (typeof eventCode === 'string' && handleChatDeepLink(eventCode)) {
+        if (typeof eventCode === 'string' && (handleChatDeepLink(eventCode) || handleCallDeepLink(eventCode))) {
           return;
         }
         this.showModalForData(detail.notification.data, detail.notification.title, detail.notification.body);
@@ -482,6 +543,19 @@ if (Platform.OS !== 'web') {
   notifee.onBackgroundEvent(async ({ type, detail }) => {
     if (type === EventType.ACTION_PRESS && detail.pressAction?.id === 'check-in') {
       await handleCheckInActionFromEvent();
+    }
+
+    // Tapping a notifee-displayed notification from the background/killed state.
+    // routerPushWithRetry waits for the router to mount and the session to hydrate,
+    // so deep-linking here is safe even on a cold start.
+    if (type === EventType.PRESS) {
+      const eventCode = detail.notification?.data?.eventCode;
+      if (typeof eventCode === 'string') {
+        if (handleChatDeepLink(eventCode)) {
+          return;
+        }
+        handleCallDeepLink(eventCode);
+      }
     }
   });
 }

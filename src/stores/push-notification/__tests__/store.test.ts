@@ -1,6 +1,6 @@
 import { logger } from '@/lib/logging';
 import { notificationSoundService } from '@/services/notification-sound.service';
-import { usePushNotificationModalStore } from '../store';
+import { parseNotificationData, usePushNotificationModalStore } from '../store';
 
 // Mock logger service
 jest.mock('@/lib/logging', () => ({
@@ -52,6 +52,28 @@ describe('usePushNotificationModalStore', () => {
         type: 'call',
         id: '1234',
         eventCode: 'C1234',
+        title: 'Emergency Call',
+        body: 'Structure fire reported at Main St',
+        data: undefined,
+      });
+    });
+
+    it('should show modal with colon-format call notification (id excludes the colon)', async () => {
+      const callData = {
+        eventCode: 'C:1234',
+        title: 'Emergency Call',
+        body: 'Structure fire reported at Main St',
+      };
+
+      const store = usePushNotificationModalStore.getState();
+      await store.showNotificationModal(callData);
+
+      const state = usePushNotificationModalStore.getState();
+      expect(state.isOpen).toBe(true);
+      expect(state.notification).toEqual({
+        type: 'call',
+        id: '1234',
+        eventCode: 'C:1234',
         title: 'Emergency Call',
         body: 'Structure fire reported at Main St',
         data: undefined,
@@ -263,69 +285,45 @@ describe('usePushNotificationModalStore', () => {
   });
 
   describe('parseNotification', () => {
-    it('should parse call event code correctly', () => {
+    it.each([
+      // Colon format sent by Core ("C:1234") and legacy no-colon format ("C1234")
+      ['C:1234', 'call', '1234'],
+      ['C1234', 'call', '1234'],
+      ['c:1234', 'call', '1234'],
+      ['c1234', 'call', '1234'],
+      ['M:5678', 'message', '5678'],
+      ['M5678', 'message', '5678'],
+      ['T:9101', 'chat', '9101'],
+      ['T9101', 'chat', '9101'],
+      ['t:channel-1', 'chat', 'channel-1'],
+      ['G:1121', 'group-chat', '1121'],
+      ['G1121', 'group-chat', '1121'],
+      ['g:B7EE41BE-6DBD-4CA7-90BC-3ECC79C0BEF7', 'group-chat', 'B7EE41BE-6DBD-4CA7-90BC-3ECC79C0BEF7'],
+    ])('should parse event code %s as type %s with id %s', (eventCode, type, id) => {
       const store = usePushNotificationModalStore.getState();
       const parsed = store.parseNotification({
-        eventCode: 'C1234',
-        title: 'Emergency Call',
-        body: 'Structure fire',
+        eventCode,
+        title: 'Title',
+        body: 'Body',
       });
 
-      expect(parsed.type).toBe('call');
-      expect(parsed.id).toBe('1234');
-      expect(parsed.eventCode).toBe('C1234');
+      expect(parsed.type).toBe(type);
+      expect(parsed.id).toBe(id);
+      expect(parsed.eventCode).toBe(eventCode);
     });
 
-    it('should parse message event code correctly', () => {
-      const store = usePushNotificationModalStore.getState();
-      const parsed = store.parseNotification({
-        eventCode: 'M5678',
-        title: 'New Message',
-        body: 'Message content',
-      });
-
-      expect(parsed.type).toBe('message');
-      expect(parsed.id).toBe('5678');
-      expect(parsed.eventCode).toBe('M5678');
-    });
-
-    it('should parse chat event code correctly', () => {
-      const store = usePushNotificationModalStore.getState();
-      const parsed = store.parseNotification({
-        eventCode: 'T9101',
-        title: 'Chat Message',
-        body: 'Chat content',
-      });
+    it('should split on the first colon only so an id containing a colon survives', () => {
+      const parsed = parseNotificationData({ eventCode: 't:abc:def' });
 
       expect(parsed.type).toBe('chat');
-      expect(parsed.id).toBe('9101');
-      expect(parsed.eventCode).toBe('T9101');
+      expect(parsed.id).toBe('abc:def');
     });
 
-    it('should parse group chat event code correctly', () => {
-      const store = usePushNotificationModalStore.getState();
-      const parsed = store.parseNotification({
-        eventCode: 'G1121',
-        title: 'Group Chat',
-        body: 'Group chat content',
-      });
+    it('should parse an unknown colon-format prefix as unknown but keep the id', () => {
+      const parsed = parseNotificationData({ eventCode: 'X:9999' });
 
-      expect(parsed.type).toBe('group-chat');
-      expect(parsed.id).toBe('1121');
-      expect(parsed.eventCode).toBe('G1121');
-    });
-
-    it('should handle lowercase event codes', () => {
-      const store = usePushNotificationModalStore.getState();
-      const parsed = store.parseNotification({
-        eventCode: 'c1234',
-        title: 'Emergency Call',
-        body: 'Structure fire',
-      });
-
-      expect(parsed.type).toBe('call');
-      expect(parsed.id).toBe('1234');
-      expect(parsed.eventCode).toBe('c1234');
+      expect(parsed.type).toBe('unknown');
+      expect(parsed.id).toBe('9999');
     });
 
     it('should handle single character event code', () => {
