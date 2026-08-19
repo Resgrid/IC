@@ -5,7 +5,7 @@ import { usePushNotificationModalStore } from '@/stores/push-notification/store'
 // Mock the store, but keep the REAL parseNotificationData — the service deep-links
 // based on what the parser extracts, so the tests must exercise the real parsing.
 jest.mock('@/stores/push-notification/store', () => ({
-  parseNotificationData: jest.requireActual('@/stores/push-notification/store').parseNotificationData,
+  ...jest.requireActual('@/stores/push-notification/store'),
   usePushNotificationModalStore: {
     getState: jest.fn(),
   },
@@ -249,7 +249,9 @@ describe('PushNotificationService (expo-notifications transport)', () => {
       });
 
       expect(mockRouterPushWithRetry).not.toHaveBeenCalled();
-      jest.advanceTimersByTime(400);
+      // The tap handler awaits its deep-link before deciding on the modal fallback, so the
+      // routing lands a microtask after the timer — advanceTimersByTimeAsync flushes both.
+      await jest.advanceTimersByTimeAsync(400);
       expect(mockRouterPushWithRetry).toHaveBeenCalledWith({ pathname: '/call/[id]', params: { id: '55' } }, expect.objectContaining({ maxAttempts: 40 }));
       expect(mockShowNotificationModal).not.toHaveBeenCalled();
     });
@@ -270,7 +272,9 @@ describe('PushNotificationService (expo-notifications transport)', () => {
         },
       });
 
-      jest.advanceTimersByTime(400);
+      // The tap handler awaits its deep-link before deciding on the modal fallback, so the
+      // routing lands a microtask after the timer — advanceTimersByTimeAsync flushes both.
+      await jest.advanceTimersByTimeAsync(400);
       expect(mockRouterPushWithRetry).toHaveBeenCalledWith({ pathname: '/call/[id]', params: { id: '88' } }, expect.objectContaining({ maxAttempts: 40 }));
       expect(mockShowNotificationModal).not.toHaveBeenCalled();
     });
@@ -295,7 +299,9 @@ describe('PushNotificationService (expo-notifications transport)', () => {
       });
 
       expect(mockShowNotificationModal).not.toHaveBeenCalled();
-      jest.advanceTimersByTime(400);
+      // The tap handler awaits its deep-link before deciding on the modal fallback, so the
+      // routing lands a microtask after the timer — advanceTimersByTimeAsync flushes both.
+      await jest.advanceTimersByTimeAsync(400);
       expect(mockShowNotificationModal).toHaveBeenCalledWith(expect.objectContaining({ eventCode: 'M:12' }));
       expect(mockRouterPushWithRetry).not.toHaveBeenCalled();
     });
@@ -345,7 +351,9 @@ describe('PushNotificationService (expo-notifications transport)', () => {
 
       responseHandler(makeResponse('tap-a', 'C:1'));
       responseHandler(makeResponse('tap-b', 'C:2'));
-      jest.advanceTimersByTime(400);
+      // The tap handler awaits its deep-link before deciding on the modal fallback, so the
+      // routing lands a microtask after the timer — advanceTimersByTimeAsync flushes both.
+      await jest.advanceTimersByTimeAsync(400);
 
       expect(mockRouterPushWithRetry).toHaveBeenCalledTimes(2);
       expect(mockRouterPushWithRetry).toHaveBeenCalledWith({ pathname: '/call/[id]', params: { id: '1' } }, expect.objectContaining({ maxAttempts: 40 }));
@@ -466,14 +474,22 @@ describe('handleChatDeepLink', () => {
     ['g:9101', '9101'],
     ['T:channel-1', 'channel-1'],
     ['G:9101', '9101'],
-  ])('navigates to the chat conversation for %s', (eventCode, channelId) => {
-    expect(handleChatDeepLink(eventCode)).toBe(true);
+  ])('navigates to the chat conversation for %s', async (eventCode, channelId) => {
+    await expect(handleChatDeepLink(eventCode)).resolves.toBe(true);
     expect(mockRouterPushWithRetry).toHaveBeenCalledWith({ pathname: '/chat/[channelId]', params: { channelId } }, expect.objectContaining({ maxAttempts: 40 }));
   });
 
-  it.each(['t:a/b', 't:a\\b', 'g:a?x=1', 'g:a#fragment', 'x:123', 't:', 'notacode', ':missingprefix'])('rejects invalid payload %s', (eventCode) => {
-    expect(handleChatDeepLink(eventCode)).toBe(false);
+  it.each(['t:a/b', 't:a\\b', 'g:a?x=1', 'g:a#fragment', 'x:123', 't:', 'notacode', ':missingprefix'])('rejects invalid payload %s', async (eventCode) => {
+    await expect(handleChatDeepLink(eventCode)).resolves.toBe(false);
     expect(mockRouterPushWithRetry).not.toHaveBeenCalled();
+  });
+
+  // Resolving false is what tells the tap handler to fall back to the notification modal
+  // instead of leaving the app on whatever screen it opened to.
+  it('resolves false when the navigation never lands', async () => {
+    mockRouterPushWithRetry.mockRejectedValueOnce(new Error('navigation never became ready'));
+
+    await expect(handleChatDeepLink('t:channel-1')).resolves.toBe(false);
   });
 });
 
@@ -486,14 +502,20 @@ describe('handleCallDeepLink', () => {
     ['C:1234', '1234'],
     ['c:1234', '1234'],
     ['C1234', '1234'],
-  ])('navigates to the call detail screen for %s', (eventCode, id) => {
-    expect(handleCallDeepLink(eventCode)).toBe(true);
+  ])('navigates to the call detail screen for %s', async (eventCode, id) => {
+    await expect(handleCallDeepLink(eventCode)).resolves.toBe(true);
     expect(mockRouterPushWithRetry).toHaveBeenCalledWith({ pathname: '/call/[id]', params: { id } }, expect.objectContaining({ maxAttempts: 40 }));
   });
 
-  it.each(['C:12/34', 'C:12?x=1', 'C:12#frag', 'M:1', 't:chan', 'C:', 'C', 'notacode'])('does not consume %s', (eventCode) => {
-    expect(handleCallDeepLink(eventCode)).toBe(false);
+  it.each(['C:12/34', 'C:12?x=1', 'C:12#frag', 'M:1', 't:chan', 'C:', 'C', 'notacode'])('does not consume %s', async (eventCode) => {
+    await expect(handleCallDeepLink(eventCode)).resolves.toBe(false);
     expect(mockRouterPushWithRetry).not.toHaveBeenCalled();
+  });
+
+  it('resolves false when the navigation never lands', async () => {
+    mockRouterPushWithRetry.mockRejectedValueOnce(new Error('navigation never became ready'));
+
+    await expect(handleCallDeepLink('C:1234')).resolves.toBe(false);
   });
 });
 
