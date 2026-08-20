@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { Pressable } from 'react-native';
 
-import { formatDateForDisplay, parseDateISOString, stripHtmlTags } from '@/lib/utils';
+import { formatDateForDisplay, parseUtcMs, stripHtmlTags } from '@/lib/utils';
 import { type CallProtocolsResultData } from '@/models/v4/callProtocols/callProtocolsResultData';
 
 import { Badge } from '../ui/badge';
@@ -20,6 +20,9 @@ export const ProtocolCard: React.FC<ProtocolCardProps> = ({ protocol, onPress })
     onPress(protocol.ProtocolId);
   }, [onPress, protocol.ProtocolId]);
 
+  // Zone-less API timestamps are UTC; parseUtcMs pins them before local formatting.
+  const stampMs = parseUtcMs(protocol.UpdatedOn || protocol.CreatedOn);
+
   return (
     <Pressable onPress={handlePress} testID={`protocol-card-${protocol.ProtocolId}`}>
       <Box className="mb-3 rounded-lg bg-white p-4 shadow-xs dark:bg-gray-800">
@@ -35,7 +38,7 @@ export const ProtocolCard: React.FC<ProtocolCardProps> = ({ protocol, onPress })
               </Badge>
             </HStack>
           )}
-          <Text className="mt-2 text-xs text-gray-500 dark:text-gray-400">{formatDateForDisplay(parseDateISOString(protocol.UpdatedOn || protocol.CreatedOn), 'yyyy-MM-dd HH:mm Z')}</Text>
+          <Text className="mt-2 text-xs text-gray-500 dark:text-gray-400">{stampMs !== null ? formatDateForDisplay(new Date(stampMs), 'yyyy-MM-dd HH:mm Z') : ''}</Text>
         </VStack>
       </Box>
     </Pressable>

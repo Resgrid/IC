@@ -15,7 +15,14 @@ import { Input, InputField } from '@/components/ui/input';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { parseUtcMs } from '@/lib/utils';
 import { type IncidentMap } from '@/models/v4/incidentCommand/incidentCommandModels';
+
+/** API timestamps are zone-less UTC; parseUtcMs pins them before local rendering. */
+const formatUtcWhen = (value?: string | null): string => {
+  const ms = parseUtcMs(value);
+  return ms === null ? '' : new Date(ms).toLocaleString();
+};
 
 /** Quick-select expiry offsets (hours from now) for a named map. */
 const EXPIRY_OFFSETS = [12, 24, 48, 168];
@@ -60,10 +67,10 @@ export const IncidentMapsSection: React.FC<IncidentMapsSectionProps> = ({ callId
   const auditLine = useCallback(
     (map: IncidentMap) => {
       if (map.UpdatedByUserId && map.UpdatedOn) {
-        return t('command.incident_maps_updated_by', { name: resolveUserName?.(map.UpdatedByUserId) ?? map.UpdatedByUserId, when: new Date(map.UpdatedOn).toLocaleString() });
+        return t('command.incident_maps_updated_by', { name: resolveUserName?.(map.UpdatedByUserId) ?? map.UpdatedByUserId, when: formatUtcWhen(map.UpdatedOn) });
       }
       if (map.CreatedByUserId && map.CreatedOn) {
-        return t('command.incident_maps_created_by', { name: resolveUserName?.(map.CreatedByUserId) ?? map.CreatedByUserId, when: new Date(map.CreatedOn).toLocaleString() });
+        return t('command.incident_maps_created_by', { name: resolveUserName?.(map.CreatedByUserId) ?? map.CreatedByUserId, when: formatUtcWhen(map.CreatedOn) });
       }
       return null;
     },

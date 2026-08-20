@@ -9,6 +9,7 @@ import { Button, ButtonText } from '@/components/ui/button';
 import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { parseUtcMs } from '@/lib/utils';
 import type { CheckInTimerStatusResultData } from '@/models/v4/checkIn/checkInTimerStatusResultData';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -57,7 +58,9 @@ export const CheckInTimerCard: React.FC<CheckInTimerCardProps> = ({ timer, onChe
   const duration = timer.DurationMinutes ? Number(timer.DurationMinutes) : 0;
   const progress = duration > 0 ? Math.min(localElapsed / duration, 1) : 0;
   const safeStatusLower = typeof timer.Status === 'string' ? timer.Status.toLowerCase() : '';
-  const minutesSinceLastCheckIn = timer.LastCheckIn ? differenceInMinutes(new Date(), timer.LastCheckIn) : 0;
+  // LastCheckIn is a zone-less UTC string; parseUtcMs pins it so the gap is right off-UTC.
+  const lastCheckInMs = timer.LastCheckIn ? parseUtcMs(timer.LastCheckIn) : null;
+  const minutesSinceLastCheckIn = lastCheckInMs === null ? 0 : differenceInMinutes(new Date(), lastCheckInMs);
 
   return (
     <Box className="mb-2 rounded-xl border border-outline-100 p-3">

@@ -17,6 +17,12 @@ jest.mock('@/hooks/use-analytics', () => ({
 jest.mock('@/lib/utils', () => ({
   formatDateForDisplay: jest.fn((date) => date ? '2023-01-01 12:00 UTC' : ''),
   parseDateISOString: jest.fn((dateString) => dateString ? new Date(dateString) : null),
+  parseUtcMs: jest.fn((value) => {
+    if (!value) return null;
+    const hasZone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(value);
+    const ms = Date.parse(hasZone ? value : `${value}Z`);
+    return Number.isNaN(ms) ? null : ms;
+  }),
   stripHtmlTags: jest.fn((html) => html ? html.replace(/<[^>]*>/g, '') : ''),
 }));
 

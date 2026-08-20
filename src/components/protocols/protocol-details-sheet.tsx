@@ -4,7 +4,7 @@ import { StyleSheet } from 'react-native';
 
 import { HtmlRenderer } from '@/components/ui/html-renderer';
 import { useAnalytics } from '@/hooks/use-analytics';
-import { formatDateForDisplay, parseDateISOString, stripHtmlTags } from '@/lib/utils';
+import { formatDateForDisplay, parseUtcMs, stripHtmlTags } from '@/lib/utils';
 import { useProtocolsStore } from '@/stores/protocols/store';
 
 import { Actionsheet, ActionsheetBackdrop, ActionsheetContent, ActionsheetDragIndicator, ActionsheetDragIndicatorWrapper } from '../ui/actionsheet';
@@ -38,6 +38,9 @@ export const ProtocolDetailsSheet: React.FC = () => {
       });
     }
   }, [isDetailsOpen, selectedProtocol, trackEvent]);
+
+  // Zone-less API timestamps are UTC; parseUtcMs pins them before local formatting.
+  const stampMs = selectedProtocol ? parseUtcMs(selectedProtocol.UpdatedOn || selectedProtocol.CreatedOn) : null;
 
   if (!selectedProtocol) {
     return (
@@ -94,7 +97,7 @@ export const ProtocolDetailsSheet: React.FC = () => {
             {/* Date information */}
             <HStack space="xs" className="items-center">
               <Calendar size={18} className="text-gray-600 dark:text-gray-400" />
-              <Text className="text-gray-700 dark:text-gray-300">{formatDateForDisplay(parseDateISOString(selectedProtocol.UpdatedOn || selectedProtocol.CreatedOn), 'yyyy-MM-dd HH:mm Z')}</Text>
+              <Text className="text-gray-700 dark:text-gray-300">{stampMs !== null ? formatDateForDisplay(new Date(stampMs), 'yyyy-MM-dd HH:mm Z') : ''}</Text>
             </HStack>
           </VStack>
         </Box>

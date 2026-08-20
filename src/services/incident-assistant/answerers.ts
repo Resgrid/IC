@@ -12,6 +12,7 @@
 import { type TFunction } from 'i18next';
 
 import { getCommandNodeTypeName, getIncidentRoleName, getNeedCategoryName } from '@/lib/incident-command-utils';
+import { parseUtcMs } from '@/lib/utils';
 import { IncidentTimerStatus } from '@/models/v4/incidentCommand/incidentCommandEnums';
 import {
   type CommandLogEntry,
@@ -85,11 +86,9 @@ export const formatDuration = (milliseconds: number): string => {
 };
 
 const elapsedSince = (iso?: string | null): number => {
-  if (!iso) {
-    return 0;
-  }
-  const parsed = new Date(iso).getTime();
-  return Number.isNaN(parsed) ? 0 : Date.now() - parsed;
+  // API timestamps are zone-less UTC; parseUtcMs pins them so elapsed time is right off-UTC.
+  const parsed = parseUtcMs(iso);
+  return parsed === null ? 0 : Date.now() - parsed;
 };
 
 const liveNodes = (board: IncidentCommandBoard): CommandStructureNode[] => (board.Nodes ?? []).filter((n) => !n.DeletedOn).sort((a, b) => a.SortOrder - b.SortOrder);
@@ -213,11 +212,9 @@ const formatObjective = (objective: TacticalObjective, t: TFunction): string => 
 };
 
 const localTime = (iso?: string | null): string => {
-  if (!iso) {
-    return '';
-  }
-  const parsed = new Date(iso);
-  return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleTimeString();
+  // API timestamps are zone-less UTC; parseUtcMs pins them before local rendering.
+  const parsed = parseUtcMs(iso);
+  return parsed === null ? '' : new Date(parsed).toLocaleTimeString();
 };
 
 const join = (lines: (string | null | undefined)[]): string => lines.filter((line): line is string => typeof line === 'string' && line.length > 0).join('\n');
@@ -405,7 +402,7 @@ export const answerNeeds = (context: IncidentAnswerContext, t: TFunction): strin
 
   const outstanding = needs
     .filter((n) => n.Status === IncidentNeedStatus.Open || n.Status === IncidentNeedStatus.PartiallyMet)
-    .sort((a, b) => b.Priority - a.Priority || new Date(a.CreatedOn).getTime() - new Date(b.CreatedOn).getTime());
+    .sort((a, b) => b.Priority - a.Priority || (parseUtcMs(a.CreatedOn) ?? 0) - (parseUtcMs(b.CreatedOn) ?? 0));
 
   const header = t('incident_assistant.needs_header', {
     incident: incidentLabel(context, t),
@@ -537,7 +534,7 @@ export const answerTimers = (context: IncidentAnswerContext, t: TFunction): stri
 };
 
 export const answerNotes = (context: IncidentAnswerContext, t: TFunction): string => {
-  const notes: IncidentNote[] = (context.board!.Notes ?? []).filter((n) => !n.DeletedOn).sort((a, b) => new Date(b.CreatedOn).getTime() - new Date(a.CreatedOn).getTime());
+  const notes: IncidentNote[] = (context.board!.Notes ?? []).filter((n) => !n.DeletedOn).sort((a, b) => (parseUtcMs(b.CreatedOn) ?? 0) - (parseUtcMs(a.CreatedOn) ?? 0));
 
   if (notes.length === 0) {
     return t('incident_assistant.no_notes', { incident: incidentLabel(context, t) });

@@ -623,7 +623,7 @@ export default function CallDetail() {
 
         {/* Tabs */}
         <Box className="mx-4 mb-4 mt-3 flex-1 overflow-hidden rounded-xl bg-white pb-8 shadow-xs dark:bg-gray-800">
-          <SharedTabs tabs={renderTabs()} variant="underlined" size={isLandscape ? 'md' : 'sm'} />
+          <SharedTabs tabs={renderTabs()} variant="underlined" size={isLandscape ? 'lg' : 'md'} tabClassName="min-h-11" />
         </Box>
       </ScrollView>
       <CallNotesModal isOpen={isNotesModalOpen} onClose={() => setIsNotesModalOpen(false)} callId={callId} />

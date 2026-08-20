@@ -15,7 +15,14 @@ import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { VStack } from '@/components/ui/vstack';
 import { getNeedCategoryName, getNeedStatusBadgeAction, getNeedStatusName } from '@/lib/incident-command-utils';
 import { logger } from '@/lib/logging';
+import { parseUtcMs } from '@/lib/utils';
 import { type IncidentNeed, IncidentNeedStatus, type IncidentNeedUpdate } from '@/models/v4/incidentCommand/incidentCommandModels';
+
+/** API timestamps are zone-less UTC; parseUtcMs pins them before local rendering. */
+const formatUtcWhen = (value?: string | null): string => {
+  const ms = parseUtcMs(value);
+  return ms === null ? '' : new Date(ms).toLocaleString();
+};
 
 /** i18n keys for the quick-pick reason chips shown above the note box. */
 const REASON_KEYS = ['need_reason_mutual_aid', 'need_reason_internal', 'need_reason_called_off', 'need_reason_not_needed', 'need_reason_duplicate'] as const;
@@ -237,7 +244,7 @@ export const NeedDetailsSheet: React.FC<NeedDetailsSheetProps> = ({ isOpen, onCl
                   <Text className="min-w-0 flex-1 pr-2 text-xs font-semibold text-gray-700 dark:text-gray-200" numberOfLines={1}>
                     {row.CreatedByUserName || t('command.need_history_unknown_user')}
                   </Text>
-                  <Text className="text-xs text-gray-500 dark:text-gray-400">{new Date(row.CreatedOn).toLocaleString()}</Text>
+                  <Text className="text-xs text-gray-500 dark:text-gray-400">{formatUtcWhen(row.CreatedOn)}</Text>
                 </HStack>
                 <Text className="text-xs text-gray-600 dark:text-gray-300">{changeSummary(row)}</Text>
                 {row.Note ? <Text className="text-sm text-gray-800 dark:text-gray-200">{row.Note}</Text> : null}
