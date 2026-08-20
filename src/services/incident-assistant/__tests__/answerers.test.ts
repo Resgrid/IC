@@ -242,6 +242,14 @@ describe('incident assistant answers', () => {
     expect(answer).toContain('1/2');
   });
 
+  it('reads zone-less UTC timestamps as UTC, not device-local time (need age)', () => {
+    // The API serialises these fields without a trailing "Z"; the value is still UTC.
+    const context = buildContext();
+    context.board!.Needs![0]!.CreatedOn = minutesAgo(12).replace(/\.\d{3}Z$/, '');
+
+    expect(answerNeeds(context, t)).toContain('12m');
+  });
+
   it('answers a specific ICS position lookup', () => {
     expect(answerRoles(buildContext(), t, 'safety officer')).toContain('Dana Cross');
     expect(answerRoles(buildContext(), t, 'staging area manager')).toContain('No Staging Area Manager is assigned');

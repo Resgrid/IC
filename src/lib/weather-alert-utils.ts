@@ -197,16 +197,16 @@ export const formatWeatherAlertDate = (value?: string | null): string => {
 export const sortAlertsBySeverity = (alerts: WeatherAlertResultData[]): WeatherAlertResultData[] => {
   return [...alerts].sort((a, b) => {
     if (a.Severity !== b.Severity) return a.Severity - b.Severity;
-    const bEffectiveAt = parseWeatherAlertDate(b.EffectiveUtc)?.getTime() ?? 0;
-    const aEffectiveAt = parseWeatherAlertDate(a.EffectiveUtc)?.getTime() ?? 0;
+    const bEffectiveAt = parseWeatherAlertDate(b.EffectiveOnUtc || b.EffectiveUtc)?.getTime() ?? 0;
+    const aEffectiveAt = parseWeatherAlertDate(a.EffectiveOnUtc || a.EffectiveUtc)?.getTime() ?? 0;
     return bEffectiveAt - aEffectiveAt;
   });
 };
 
 export const isAlertActive = (alert: WeatherAlertResultData): boolean => {
   if (alert.Status !== WeatherAlertStatus.Active) return false;
-  if (alert.ExpiresUtc) {
-    const expiresAt = parseWeatherAlertDate(alert.ExpiresUtc);
+  if (alert.ExpiresOnUtc || alert.ExpiresUtc) {
+    const expiresAt = parseWeatherAlertDate(alert.ExpiresOnUtc || alert.ExpiresUtc);
     return expiresAt ? expiresAt.getTime() > Date.now() : true;
   }
   return true;
