@@ -1,6 +1,5 @@
 import { useNotifications } from '@novu/react-native';
 import { router } from 'expo-router';
-import { CheckCircle, ChevronRight, Circle, ExternalLink, MoreVertical, Trash2, X } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +9,7 @@ import { deleteMessage } from '@/api/novu/inbox';
 import { NotificationDetail } from '@/components/notifications/NotificationDetail';
 import { Button } from '@/components/ui/button';
 import { FlatList } from '@/components/ui/flat-list';
+import { CheckCircle, ChevronRight, Circle, ExternalLink, MoreVertical, Trash2, X } from '@/components/ui/lucide-icons';
 import { Modal, ModalBackdrop, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/ui/modal';
 import { Text } from '@/components/ui/text';
 import { useAuthStore } from '@/lib/auth';

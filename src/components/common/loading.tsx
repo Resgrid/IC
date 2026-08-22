@@ -1,8 +1,8 @@
-import { Loader2 } from 'lucide-react-native';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { View, type ViewStyle } from 'react-native';
 
+import { Loader2 } from '@/components/ui/lucide-icons';
 import { isWeb } from '@/lib/platform';
 
 import { Box } from '../ui/box';

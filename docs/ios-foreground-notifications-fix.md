@@ -234,7 +234,7 @@ Test background/killed state notifications:
 
 - `/plugins/withForegroundNotifications.js` - Expo config plugin for iOS modifications
 - `/app.config.ts` - Expo configuration with plugin registration
-- `/ios/ResgridUnit/AppDelegate.swift` - Native iOS delegate implementation (auto-generated)
+- `/ios/ResgridIC/AppDelegate.swift` - Native iOS delegate implementation (auto-generated)
 - `/src/services/push-notification.ts` - React Native notification service
 
 ## Important Notes

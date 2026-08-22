@@ -40,7 +40,7 @@ The build system now supports:
 **Architectures**: linux/amd64, linux/arm64
 
 **Key Features**:
-- ✅ No hardcoded UNIT_ environment variables
+- ✅ No hardcoded IC_ environment variables
 - ✅ All configuration via runtime environment variables
 - ✅ Multi-architecture support
 - ✅ Automated tagging (version, latest, SHA)
@@ -55,7 +55,7 @@ The build system now supports:
 - `{branch}-{sha}` - git reference
 
 **Environment Variables** (set at runtime):
-All UNIT_* variables are configured via Docker environment variables at container startup, not baked into the image.
+All IC_* variables are configured via Docker environment variables at container startup, not baked into the image.
 
 ### 4. Electron Builds (`build-electron`)
 
@@ -92,13 +92,13 @@ build-electron:
 ## Environment Variables
 
 ### Build-Time Variables (for mobile/web/electron)
-All UNIT_* secrets are used during build for mobile platforms.
+All IC_* secrets are used during build for mobile platforms.
 
 ### Runtime Variables (for Docker only)
-Docker images do NOT contain UNIT_* variables. These must be set when running containers:
+Docker images do NOT contain IC_* variables. These must be set when running containers:
 
 ```bash
-docker run -e UNIT_BASE_API_URL="..." -e UNIT_APP_KEY="..." ...
+docker run -e IC_BASE_API_URL="..." -e IC_APP_KEY="..." ...
 ```
 
 See [docker/README.md](../docker/README.md) for complete Docker deployment guide.
@@ -110,7 +110,7 @@ See [docker/README.md](../docker/README.md) for complete Docker deployment guide
 - FIREBASE_TOKEN
 - FIREBASE_ANDROID_APP_ID
 - FIREBASE_IOS_APP_ID
-- All UNIT_* secrets
+- All IC_* secrets
 - Apple/Google signing credentials
 
 ### New Secrets (for Docker registry)
@@ -224,8 +224,8 @@ yarn web:build
 
 ### Docker
 ```bash
-docker build -t resgrid-unit:test .
-docker run -p 8080:80 -e UNIT_BASE_API_URL="..." resgrid-unit:test
+docker build -t resgrid-ic:test .
+docker run -p 8080:80 -e IC_BASE_API_URL="..." resgrid-ic:test
 ```
 
 ### Electron

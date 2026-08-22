@@ -72,7 +72,7 @@ yarn ios
 
 ### 3. Verify AppDelegate.swift
 
-After rebuild, verify that `ios/ResgridUnit/AppDelegate.swift` includes:
+After rebuild, verify that `ios/ResgridIC/AppDelegate.swift` includes:
 
 ```swift
 import UserNotifications
@@ -256,7 +256,7 @@ yarn ios
 
 ### 3. Verify AppDelegate.swift
 
-After rebuild, verify that `ios/ResgridUnit/AppDelegate.swift` should:
+After rebuild, verify that `ios/ResgridIC/AppDelegate.swift` should:
 
 **❌ Should NOT have:**
 - `, UNUserNotificationCenterDelegate` in class declaration

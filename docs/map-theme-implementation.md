@@ -1,7 +1,7 @@
 # Map Theme Implementation
 
 ## Overview
-This document outlines the implementation of light/dark theme support for the map component in the Resgrid Unit app.
+This document outlines the implementation of light/dark theme support for the map component in the Resgrid IC app.
 
 ## Changes Made
 

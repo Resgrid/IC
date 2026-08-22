@@ -1,6 +1,6 @@
 # AirPods/Bluetooth Earbuds PTT Support
 
-This document describes the implementation of Push-to-Talk (PTT) support for AirPods and other standard Bluetooth earbuds in the Resgrid Unit app.
+This document describes the implementation of Push-to-Talk (PTT) support for AirPods and other standard Bluetooth earbuds in the Resgrid IC app.
 
 ## Overview
 
@@ -157,9 +157,9 @@ The service provides audio feedback for PTT actions:
 The following native files are generated automatically by `withMediaButtonModule.js` during `expo prebuild`:
 
 **iOS:**
-- `ios/ResgridUnit/MediaButtonModule.swift` - iOS native module using MPRemoteCommandCenter
-- `ios/ResgridUnit/MediaButtonModule.m` - Objective-C bridge file
-- Updates `ResgridUnit-Bridging-Header.h` with required React Native imports
+- `ios/ResgridIC/MediaButtonModule.swift` - iOS native module using MPRemoteCommandCenter
+- `ios/ResgridIC/MediaButtonModule.m` - Objective-C bridge file
+- Updates `ResgridIC-Bridging-Header.h` with required React Native imports
 
 **Android:**
 - `android/app/src/main/java/{package}/MediaButtonModule.kt` - Android native module using MediaSession
