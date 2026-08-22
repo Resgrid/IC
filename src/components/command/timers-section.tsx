@@ -1,4 +1,3 @@
-import { AlarmClock, Check, Plus } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -8,6 +7,7 @@ import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Input, InputField } from '@/components/ui/input';
+import { AlarmClock, Check, Plus } from '@/components/ui/lucide-icons';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { parseUtcMs } from '@/lib/utils';

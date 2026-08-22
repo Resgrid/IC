@@ -66,7 +66,7 @@ docker pull ghcr.io/resgrid/unit:7.{build-number}
 
 ### Docker Hub (optional)
 ```bash
-docker pull {username}/resgrid-unit:latest
+docker pull {username}/resgrid-ic:latest
 ```
 
 ### GitHub Releases
@@ -152,10 +152,10 @@ yarn web:build
 
 ### Test Docker Build
 ```bash
-docker build -t resgrid-unit:test .
+docker build -t resgrid-ic:test .
 docker run -p 8080:80 \
   -e UNIT_BASE_API_URL="https://api.resgrid.com" \
-  resgrid-unit:test
+  resgrid-ic:test
 # Access at http://localhost:8080
 ```
 

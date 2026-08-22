@@ -1,10 +1,10 @@
 import { useNotifications } from '@novu/react-native';
-import { ArrowLeft, Calendar, ExternalLink, Trash2 } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
 import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Animated, Dimensions, Platform, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, View } from 'react-native';
 
+import { ArrowLeft, Calendar, ExternalLink, Trash2 } from '@/components/ui/lucide-icons';
 import { type NotificationPayload } from '@/types/notification';
 
 interface NotificationDetailProps {
