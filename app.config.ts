@@ -107,6 +107,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // and legacy storage permissions even when a transitive native dependency
     // contributes them during manifest merging.
     blockedPermissions: [
+      // Contributed by expo-notifications. withRestrictedBootReceivers strips every
+      // BOOT_COMPLETED intent-filter (Android 15 crashes apps that launch restricted
+      // foreground service types from boot), so nothing here listens for boot and the
+      // permission would only be dead weight the Play Console keeps flagging.
+      'android.permission.RECEIVE_BOOT_COMPLETED',
       'android.permission.READ_MEDIA_IMAGES',
       'android.permission.READ_MEDIA_VIDEO',
       'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
@@ -256,6 +261,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     './customGradle.plugin.js',
     './customManifest.plugin.js',
+    // Must run after customManifest.plugin.js: both edit the merged application node.
+    './plugins/withRestrictedBootReceivers.js',
     './plugins/withNotificationSounds.js',
     './plugins/withMediaButtonModule.js',
     './plugins/withInCallAudioModule.js',
