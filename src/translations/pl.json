@@ -1573,8 +1573,6 @@
       "unavailable": "Niedostępne",
       "wired_device": "Urządzenie przewodowe"
     },
-    "background_geolocation": "Geolokalizacja w tle",
-    "background_geolocation_warning": "Ta funkcja pozwala aplikacji śledzić Twoją lokalizację w tle. Pomaga w koordynacji reagowania na sytuacje kryzysowe, ale może wpłynąć na żywotność baterii.",
     "background_location": "Lokalizacja w tle",
     "contact_us": "Skontaktuj się z nami",
     "current_unit": "Bieżąca jednostka",

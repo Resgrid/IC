@@ -31,7 +31,7 @@ import { loadSelectedTheme } from '@/lib/hooks/use-selected-theme';
 import { logger } from '@/lib/logging';
 import { registerNavigationReadyCheck } from '@/lib/navigation';
 import { getDeviceUuid, setDeviceUuid } from '@/lib/storage/app';
-import { loadBackgroundGeolocationState } from '@/lib/storage/background-geolocation';
+import { removeLegacyStorageKeys } from '@/lib/storage/legacy-keys';
 import { uuidv4 } from '@/lib/utils';
 import { appInitializationService } from '@/services/app-initialization.service';
 
@@ -151,6 +151,9 @@ function RootLayout() {
         });
     }
 
+    // Drop storage left behind by features that no longer ship (background location)
+    removeLegacyStorageKeys();
+
     // Load keep alive state on app startup
     loadKeepAliveState()
       .then(() => {
@@ -161,20 +164,6 @@ function RootLayout() {
       .catch((error) => {
         logger.error({
           message: 'Failed to load keep alive state on startup',
-          context: { error },
-        });
-      });
-
-    // Load background geolocation state on app startup
-    loadBackgroundGeolocationState()
-      .then(() => {
-        logger.info({
-          message: 'Background geolocation state loaded on startup',
-        });
-      })
-      .catch((error) => {
-        logger.error({
-          message: 'Failed to load background geolocation state on startup',
           context: { error },
         });
       });

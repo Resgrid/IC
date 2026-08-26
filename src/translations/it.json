@@ -1573,8 +1573,6 @@
       "unavailable": "Non disponibile",
       "wired_device": "Dispositivo cablato"
     },
-    "background_geolocation": "Geolocalizzazione in background",
-    "background_geolocation_warning": "Questa funzione consente all'app di tracciare la posizione in background. Aiuta il coordinamento delle risposte di emergenza ma può influire sulla durata della batteria.",
     "background_location": "Posizione in background",
     "contact_us": "Contattaci",
     "current_unit": "Unità corrente",

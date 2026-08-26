@@ -12,10 +12,8 @@ export interface LocationState {
   speed: number | null;
   altitude: number | null;
   timestamp: number | null;
-  isBackgroundEnabled: boolean;
   isMapLocked: boolean;
   setLocation: (location: Location.LocationObject) => void;
-  setBackgroundEnabled: (enabled: boolean) => void;
   setMapLocked: (locked: boolean) => void;
 }
 
@@ -29,7 +27,6 @@ export const useLocationStore = create<LocationState>()(
       speed: null,
       altitude: null,
       timestamp: null,
-      isBackgroundEnabled: false,
       isMapLocked: false,
       // iOS ignores `timeInterval` on watchPositionAsync, so a stationary device still
       // delivers fixes many times a second. Writing every one of them notified every
@@ -53,15 +50,25 @@ export const useLocationStore = create<LocationState>()(
 
         set({ latitude, longitude, heading, accuracy, speed, altitude, timestamp: location.timestamp });
       },
-      setBackgroundEnabled: (enabled) => set({ isBackgroundEnabled: enabled }),
       setMapLocked: (locked) => set({ isMapLocked: locked }),
     }),
     {
       name: 'location-storage',
       storage: createJSONStorage(() => zustandStorage),
+      // v1 dropped `isBackgroundEnabled`: background location was removed from the app.
+      // Without the migration, persist's shallow merge would graft the stale flag back
+      // onto the store on every upgraded install and keep rewriting it to disk.
+      version: 1,
+      migrate: (persistedState, version) => {
+        if (version >= 1) {
+          return persistedState as Partial<LocationState>;
+        }
+
+        const { isBackgroundEnabled: _isBackgroundEnabled, ...rest } = (persistedState ?? {}) as Partial<LocationState> & { isBackgroundEnabled?: boolean };
+        return rest;
+      },
       partialize: (state) => ({
         // Only persist user preferences, not rapidly-changing coordinates
-        isBackgroundEnabled: state.isBackgroundEnabled,
         isMapLocked: state.isMapLocked,
       }),
     }

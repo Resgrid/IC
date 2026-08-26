@@ -354,10 +354,8 @@ describe('CallImagesModal', () => {
       speed: null,
       altitude: null,
       timestamp: null,
-      isBackgroundEnabled: false,
       isMapLocked: false,
       setLocation: jest.fn(),
-      setBackgroundEnabled: jest.fn(),
       setMapLocked: jest.fn(),
     }) : {
       latitude: 40.7128,
@@ -367,10 +365,8 @@ describe('CallImagesModal', () => {
       speed: null,
       altitude: null,
       timestamp: null,
-      isBackgroundEnabled: false,
       isMapLocked: false,
       setLocation: jest.fn(),
-      setBackgroundEnabled: jest.fn(),
       setMapLocked: jest.fn(),
     });
     mockUseAnalytics.mockReturnValue({
@@ -1064,10 +1060,8 @@ describe('CallImagesModal', () => {
         speed: null,
         altitude: null,
         timestamp: Date.now(),
-        isBackgroundEnabled: false,
         isMapLocked: false,
         setLocation: jest.fn(),
-        setBackgroundEnabled: jest.fn(),
         setMapLocked: jest.fn(),
       };
 
@@ -1092,10 +1086,8 @@ describe('CallImagesModal', () => {
         speed: null,
         altitude: null,
         timestamp: null,
-        isBackgroundEnabled: false,
         isMapLocked: false,
         setLocation: jest.fn(),
-        setBackgroundEnabled: jest.fn(),
         setMapLocked: jest.fn(),
       };
 
@@ -1120,10 +1112,8 @@ describe('CallImagesModal', () => {
         speed: null,
         altitude: null,
         timestamp: null,
-        isBackgroundEnabled: false,
         isMapLocked: false,
         setLocation: jest.fn(),
-        setBackgroundEnabled: jest.fn(),
         setMapLocked: jest.fn(),
       };
 

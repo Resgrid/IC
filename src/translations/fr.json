@@ -1573,8 +1573,6 @@
       "unavailable": "Indisponible",
       "wired_device": "Appareil filaire"
     },
-    "background_geolocation": "Géolocalisation en arrière-plan",
-    "background_geolocation_warning": "Cette fonctionnalité permet à l'application de suivre votre localisation en arrière-plan. Elle aide à la coordination des interventions d'urgence mais peut affecter la durée de vie de la batterie.",
     "background_location": "Localisation en arrière-plan",
     "contact_us": "Nous contacter",
     "current_unit": "Unité actuelle",

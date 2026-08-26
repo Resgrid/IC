@@ -1,10 +1,4 @@
 // Mock all dependencies first
-jest.mock('@/api/units/unitLocation', () => ({
-  setUnitLocation: jest.fn(),
-}));
-jest.mock('@/lib/hooks/use-background-geolocation', () => ({
-  registerLocationServiceUpdater: jest.fn(),
-}));
 jest.mock('@/lib/logging', () => ({
   logger: {
     info: jest.fn(),
@@ -12,26 +6,10 @@ jest.mock('@/lib/logging', () => ({
     error: jest.fn(),
   },
 }));
-jest.mock('@/lib/storage/background-geolocation', () => ({
-  loadBackgroundGeolocationState: jest.fn(),
-}));
-
-// Create mock store states
-const mockCoreStoreState = {
-  activeUnitId: 'unit-123' as string | null,
-};
 
 const mockLocationStoreState = {
   setLocation: jest.fn(),
-  setBackgroundEnabled: jest.fn(),
 };
-
-// Mock stores with proper Zustand structure
-jest.mock('@/stores/app/core-store', () => ({
-  useCoreStore: {
-    getState: jest.fn(() => mockCoreStoreState),
-  },
-}));
 
 jest.mock('@/stores/app/location-store', () => ({
   useLocationStore: {
@@ -39,31 +17,12 @@ jest.mock('@/stores/app/location-store', () => ({
   },
 }));
 
-jest.mock('expo-location', () => {
-  const mockRequestForegroundPermissions = jest.fn();
-  const mockRequestBackgroundPermissions = jest.fn();
-  const mockGetBackgroundPermissions = jest.fn();
-  const mockWatchPositionAsync = jest.fn();
-  const mockStartLocationUpdatesAsync = jest.fn();
-  const mockStopLocationUpdatesAsync = jest.fn();
-  return {
-    requestForegroundPermissionsAsync: mockRequestForegroundPermissions,
-    requestBackgroundPermissionsAsync: mockRequestBackgroundPermissions,
-    getBackgroundPermissionsAsync: mockGetBackgroundPermissions,
-    watchPositionAsync: mockWatchPositionAsync,
-    startLocationUpdatesAsync: mockStartLocationUpdatesAsync,
-    stopLocationUpdatesAsync: mockStopLocationUpdatesAsync,
-    Accuracy: {
-      Balanced: 'balanced',
-    },
-  };
-});
-
-// TaskManager mocks are now handled in the jest.mock() call
-
-jest.mock('expo-task-manager', () => ({
-  defineTask: jest.fn(),
-  isTaskRegisteredAsync: jest.fn(),
+jest.mock('expo-location', () => ({
+  requestForegroundPermissionsAsync: jest.fn(),
+  watchPositionAsync: jest.fn(),
+  Accuracy: {
+    Balanced: 'balanced',
+  },
 }));
 
 jest.mock('react-native', () => ({
@@ -80,28 +39,17 @@ jest.mock('react-native', () => ({
 }));
 
 import * as Location from 'expo-location';
-import * as TaskManager from 'expo-task-manager';
 import { AppState } from 'react-native';
 
-import { setUnitLocation } from '@/api/units/unitLocation';
-import { registerLocationServiceUpdater } from '@/lib/hooks/use-background-geolocation';
 import { logger } from '@/lib/logging';
-import { loadBackgroundGeolocationState } from '@/lib/storage/background-geolocation';
-import { SaveUnitLocationInput } from '@/models/v4/unitLocation/saveUnitLocationInput';
 
 // Import the service after mocks are set up
 let locationService: any;
 
-// Mock types
-const mockSetUnitLocation = setUnitLocation as jest.MockedFunction<typeof setUnitLocation>;
-const mockRegisterLocationServiceUpdater = registerLocationServiceUpdater as jest.MockedFunction<typeof registerLocationServiceUpdater>;
 const mockLogger = logger as jest.Mocked<typeof logger>;
-const mockLoadBackgroundGeolocationState = loadBackgroundGeolocationState as jest.MockedFunction<typeof loadBackgroundGeolocationState>;
-const mockTaskManager = TaskManager as jest.Mocked<typeof TaskManager>;
 const mockAppState = AppState as jest.Mocked<typeof AppState>;
 const mockLocation = Location as jest.Mocked<typeof Location>;
 
-// Mock location data
 const mockLocationObject: Location.LocationObject = {
   coords: {
     latitude: 37.7749,
@@ -112,46 +60,26 @@ const mockLocationObject: Location.LocationObject = {
     heading: 90.0,
     speed: 15.5,
   },
-  timestamp: Date.now(),
-};
-
-// Mock API response
-const mockApiResponse = {
-  Id: 'location-12345',
-  PageSize: 0,
-  Timestamp: '',
-  Version: '',
-  Node: '',
-  RequestId: '',
-  Status: '',
-  Environment: '',
+  timestamp: 1700000000000,
 };
 
 describe('LocationService', () => {
   let mockLocationSubscription: jest.Mocked<Location.LocationSubscription>;
 
   beforeAll(() => {
-    // Import the service after all mocks are set up
     const { locationService: service } = require('../location');
     locationService = service;
   });
 
   beforeEach(() => {
-    // Clear all mock call history
     jest.clearAllMocks();
 
-    // Reset mock functions in store states - recreate the mock functions
     mockLocationStoreState.setLocation = jest.fn();
-    mockLocationStoreState.setBackgroundEnabled = jest.fn();
 
-    // Clear the mock subscription - handled in the mock itself
-
-    // Setup mock location subscription
     mockLocationSubscription = {
       remove: jest.fn(),
     } as jest.Mocked<Location.LocationSubscription>;
 
-    // Setup Location API mocks
     mockLocation.requestForegroundPermissionsAsync.mockResolvedValue({
       status: 'granted' as any,
       expires: 'never',
@@ -159,40 +87,13 @@ describe('LocationService', () => {
       canAskAgain: true,
     });
 
-    mockLocation.requestBackgroundPermissionsAsync.mockResolvedValue({
-      status: 'granted' as any,
-      expires: 'never',
-      granted: true,
-      canAskAgain: true,
-    });
-
-    mockLocation.getBackgroundPermissionsAsync.mockResolvedValue({
-      status: 'granted' as any,
-      expires: 'never',
-      granted: true,
-      canAskAgain: true,
-    });
-
     mockLocation.watchPositionAsync.mockResolvedValue(mockLocationSubscription);
-    mockLocation.startLocationUpdatesAsync.mockResolvedValue();
-    mockLocation.stopLocationUpdatesAsync.mockResolvedValue();
 
-    // Setup TaskManager mocks
-    mockTaskManager.isTaskRegisteredAsync.mockResolvedValue(false);
-
-    // Setup storage mock
-    mockLoadBackgroundGeolocationState.mockResolvedValue(false);
-
-    // Setup API mock
-    mockSetUnitLocation.mockResolvedValue(mockApiResponse);
-
-    // Reset core store state
-    mockCoreStoreState.activeUnitId = 'unit-123';
+    (AppState as any).currentState = 'active';
 
     // Reset internal state of the service
     (locationService as any).locationSubscription = null;
-    (locationService as any).backgroundSubscription = null;
-    (locationService as any).isBackgroundGeolocationEnabled = false;
+    (locationService as any).isTrackingRequested = false;
   });
 
   describe('Singleton Pattern', () => {
@@ -205,20 +106,13 @@ describe('LocationService', () => {
   });
 
   describe('Permission Requests', () => {
-    it('should only request foreground permissions by default', async () => {
+    it('should only request foreground permissions', async () => {
       const result = await locationService.requestPermissions();
 
       expect(mockLocation.requestForegroundPermissionsAsync).toHaveBeenCalled();
-      expect(mockLocation.requestBackgroundPermissionsAsync).not.toHaveBeenCalled();
       expect(result).toBe(true);
-    });
-
-    it('should request background permissions when explicitly requested', async () => {
-      const result = await locationService.requestPermissions(true);
-
-      expect(mockLocation.requestForegroundPermissionsAsync).toHaveBeenCalled();
-      expect(mockLocation.requestBackgroundPermissionsAsync).toHaveBeenCalled();
-      expect(result).toBe(true);
+      // Background location was removed from the app — the service must not reach for the API at all
+      expect((mockLocation as any).requestBackgroundPermissionsAsync).toBeUndefined();
     });
 
     it('should return false if foreground permission is denied', async () => {
@@ -233,48 +127,12 @@ describe('LocationService', () => {
       expect(result).toBe(false);
     });
 
-    it('should return true if foreground is granted but background is denied', async () => {
-      mockLocation.requestBackgroundPermissionsAsync.mockResolvedValue({
-        status: 'denied' as any,
-        expires: 'never',
-        granted: false,
-        canAskAgain: true,
-      });
-
-      const result = await locationService.requestPermissions();
-      expect(result).toBe(true); // Should still work with just foreground permissions
-    });
-
-    it('should log permission status for foreground-only requests', async () => {
+    it('should log the foreground permission status', async () => {
       await locationService.requestPermissions();
 
       expect(mockLogger.info).toHaveBeenCalledWith({
         message: 'Location permissions requested',
-        context: {
-          foregroundStatus: 'granted',
-          backgroundStatus: 'not requested',
-          backgroundRequested: false,
-        },
-      });
-    });
-
-    it('should log permission status when background is requested and denied', async () => {
-      mockLocation.requestBackgroundPermissionsAsync.mockResolvedValue({
-        status: 'denied' as any,
-        expires: 'never',
-        granted: false,
-        canAskAgain: true,
-      });
-
-      await locationService.requestPermissions(true);
-
-      expect(mockLogger.info).toHaveBeenCalledWith({
-        message: 'Location permissions requested',
-        context: {
-          foregroundStatus: 'granted',
-          backgroundStatus: 'denied',
-          backgroundRequested: true,
-        },
+        context: { foregroundStatus: 'granted' },
       });
     });
   });
@@ -294,52 +152,6 @@ describe('LocationService', () => {
 
       expect(mockLogger.info).toHaveBeenCalledWith({
         message: 'Foreground location updates started',
-        context: {
-          backgroundEnabled: false,
-          backgroundPermissions: true,
-          backgroundSetting: false,
-        },
-      });
-    });
-
-    it('should start foreground updates even when background permissions are denied', async () => {
-      mockLocation.getBackgroundPermissionsAsync.mockResolvedValue({
-        status: 'denied' as any,
-        expires: 'never',
-        granted: false,
-        canAskAgain: true,
-      });
-
-      await locationService.startLocationUpdates();
-
-      expect(mockLocation.watchPositionAsync).toHaveBeenCalled();
-      expect(mockLogger.info).toHaveBeenCalledWith({
-        message: 'Foreground location updates started',
-        context: {
-          backgroundEnabled: false,
-          backgroundPermissions: false,
-          backgroundSetting: false,
-        },
-      });
-    });
-
-    it('should warn when background geolocation is enabled but permissions denied', async () => {
-      mockLoadBackgroundGeolocationState.mockResolvedValue(true);
-      mockLocation.getBackgroundPermissionsAsync.mockResolvedValue({
-        status: 'denied' as any,
-        expires: 'never',
-        granted: false,
-        canAskAgain: true,
-      });
-
-      await locationService.startLocationUpdates();
-
-      expect(mockLogger.warn).toHaveBeenCalledWith({
-        message: 'Background geolocation enabled but permissions denied, running in foreground-only mode',
-        context: {
-          backgroundStatus: 'denied',
-          settingEnabled: true,
-        },
       });
     });
 
@@ -354,63 +166,23 @@ describe('LocationService', () => {
       await expect(locationService.startLocationUpdates()).rejects.toThrow('Location permissions not granted');
     });
 
-    it('should register background task if background geolocation is enabled and permissions granted', async () => {
-      mockLoadBackgroundGeolocationState.mockResolvedValue(true);
-
+    it('should not create a duplicate subscription when already watching', async () => {
+      await locationService.startLocationUpdates();
       await locationService.startLocationUpdates();
 
-      expect(mockLocation.startLocationUpdatesAsync).toHaveBeenCalledWith('location-updates', {
-        accuracy: Location.Accuracy.Balanced,
-        timeInterval: 15000,
-        distanceInterval: 10,
-        foregroundService: {
-          notificationTitle: 'Location Tracking',
-          notificationBody: 'Tracking your location in the background',
-        },
-      });
-
+      expect(mockLocation.watchPositionAsync).toHaveBeenCalledTimes(1);
       expect(mockLogger.info).toHaveBeenCalledWith({
-        message: 'Foreground location updates started',
-        context: {
-          backgroundEnabled: true,
-          backgroundPermissions: true,
-          backgroundSetting: true,
-        },
+        message: 'Foreground location subscription already active, skipping duplicate subscription',
       });
     });
 
-    it('should not register background task if background permissions are denied', async () => {
-      mockLoadBackgroundGeolocationState.mockResolvedValue(true);
-      mockLocation.getBackgroundPermissionsAsync.mockResolvedValue({
-        status: 'denied' as any,
-        expires: 'never',
-        granted: false,
-        canAskAgain: true,
-      });
-
+    it('should store location updates locally', async () => {
       await locationService.startLocationUpdates();
 
-      expect(mockLocation.startLocationUpdatesAsync).not.toHaveBeenCalled();
-    });
-
-    it('should not register background task if already registered', async () => {
-      mockLoadBackgroundGeolocationState.mockResolvedValue(true);
-      mockTaskManager.isTaskRegisteredAsync.mockResolvedValue(true);
-
-      await locationService.startLocationUpdates();
-
-      expect(mockLocation.startLocationUpdatesAsync).not.toHaveBeenCalled();
-    });
-
-    it('should handle location updates and store them locally without calling the unit AVL API', async () => {
-      await locationService.startLocationUpdates();
-
-      // Get the callback function passed to watchPositionAsync
       const locationCallback = mockLocation.watchPositionAsync.mock.calls[0][1] as Function;
       await locationCallback(mockLocationObject);
 
       expect(mockLocationStoreState.setLocation).toHaveBeenCalledWith(mockLocationObject);
-      expect(mockSetUnitLocation).not.toHaveBeenCalled();
       expect(mockLogger.info).toHaveBeenCalledWith({
         message: 'Foreground location update received',
         context: {
@@ -422,180 +194,69 @@ describe('LocationService', () => {
     });
   });
 
-  describe('Background Location Updates', () => {
-    beforeEach(() => {
-      // Set background geolocation enabled for these tests
-      (locationService as any).isBackgroundGeolocationEnabled = true;
-    });
+  describe('App State Handling', () => {
+    const emitAppState = async (state: string) => {
+      const handler = (locationService as any).handleAppStateChange;
+      await handler(state);
+    };
 
-    it('should start background updates when not already active', async () => {
-      await locationService.startBackgroundUpdates();
+    it('should drop the subscription when the app is backgrounded', async () => {
+      await locationService.startLocationUpdates();
 
-      expect(mockLocation.watchPositionAsync).toHaveBeenCalledWith(
-        {
-          accuracy: Location.Accuracy.Balanced,
-          timeInterval: 60000,
-          distanceInterval: 20,
-        },
-        expect.any(Function)
-      );
-
-      expect(mockLocationStoreState.setBackgroundEnabled).toHaveBeenCalledWith(true);
-      expect(mockLogger.info).toHaveBeenCalledWith({
-        message: 'Starting background location updates',
-      });
-    });
-
-    it('should not start background updates if already active', async () => {
-      (locationService as any).backgroundSubscription = mockLocationSubscription;
-
-      await locationService.startBackgroundUpdates();
-
-      expect(mockLocation.watchPositionAsync).not.toHaveBeenCalled();
-    });
-
-    it('should not start background updates if disabled', async () => {
-      (locationService as any).isBackgroundGeolocationEnabled = false;
-
-      await locationService.startBackgroundUpdates();
-
-      expect(mockLocation.watchPositionAsync).not.toHaveBeenCalled();
-    });
-
-    it('should stop background updates correctly', async () => {
-      (locationService as any).backgroundSubscription = mockLocationSubscription;
-
-      await locationService.stopBackgroundUpdates();
+      await emitAppState('background');
 
       expect(mockLocationSubscription.remove).toHaveBeenCalled();
-      expect(mockLocationStoreState.setBackgroundEnabled).toHaveBeenCalledWith(false);
-      expect(mockLogger.info).toHaveBeenCalledWith({
-        message: 'Stopping background location updates',
-      });
+      expect((locationService as any).locationSubscription).toBeNull();
     });
 
-    it('should handle background location updates and store them locally without calling the unit AVL API', async () => {
-      await locationService.startBackgroundUpdates();
+    it('should resume foreground tracking when the app becomes active again', async () => {
+      await locationService.startLocationUpdates();
+      await emitAppState('background');
 
-      // Get the callback function
-      const locationCallback = mockLocation.watchPositionAsync.mock.calls[0][1] as Function;
-      await locationCallback(mockLocationObject);
+      await emitAppState('active');
 
-      expect(mockLocationStoreState.setLocation).toHaveBeenCalledWith(mockLocationObject);
-      expect(mockSetUnitLocation).not.toHaveBeenCalled();
+      expect(mockLocation.watchPositionAsync).toHaveBeenCalledTimes(2);
     });
 
-    it('should catch and log rejected background location API sends', async () => {
-      await locationService.startBackgroundUpdates();
+    it('should not start tracking on activation when tracking was never requested', async () => {
+      await emitAppState('active');
 
-      const locationCallback = mockLocation.watchPositionAsync.mock.calls[0][1];
-      const catchSpy = jest.spyOn(Promise.prototype, 'catch');
+      expect(mockLocation.watchPositionAsync).not.toHaveBeenCalled();
+    });
 
-      locationCallback(mockLocationObject);
+    it('should log and swallow errors raised while handling app state changes', async () => {
+      const error = new Error('Location subscription failed');
+      (locationService as any).isTrackingRequested = true;
+      mockLocation.watchPositionAsync.mockRejectedValue(error);
 
-      const rejectionHandler = catchSpy.mock.calls[0]?.[0];
-      catchSpy.mockRestore();
-
-      const networkError = new Error('Location API request failed');
-      expect(rejectionHandler).toEqual(expect.any(Function));
-      rejectionHandler?.(networkError);
+      await expect(emitAppState('active')).resolves.toBeUndefined();
 
       expect(mockLogger.error).toHaveBeenCalledWith({
-        message: 'Failed to send background location update to API',
-        context: { error: networkError },
-      });
-    });
-  });
-
-  describe('API Integration', () => {
-    it('should never send location to the unit AVL API (IC app has no unit context)', async () => {
-      await locationService.startLocationUpdates();
-      const locationCallback = mockLocation.watchPositionAsync.mock.calls[0][1] as Function;
-      await locationCallback(mockLocationObject);
-
-      expect(mockSetUnitLocation).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('Background Geolocation Setting Updates', () => {
-    it('should enable background tracking and register task when permissions are granted', async () => {
-      await locationService.updateBackgroundGeolocationSetting(true);
-
-      expect(mockLocation.startLocationUpdatesAsync).toHaveBeenCalledWith(
-        'location-updates',
-        expect.objectContaining({
-          accuracy: Location.Accuracy.Balanced,
-          timeInterval: 15000,
-          distanceInterval: 10,
-        })
-      );
-    });
-
-    it('should warn and not register task when background permissions are denied', async () => {
-      mockLocation.requestBackgroundPermissionsAsync.mockResolvedValue({
-        status: 'denied' as any,
-        expires: 'never',
-        granted: false,
-        canAskAgain: true,
-      });
-
-      await locationService.updateBackgroundGeolocationSetting(true);
-
-      expect(mockLocation.startLocationUpdatesAsync).not.toHaveBeenCalled();
-      expect(mockLogger.warn).toHaveBeenCalledWith({
-        message: 'Cannot enable background geolocation: background permissions not granted',
-        context: { backgroundStatus: 'denied' },
+        message: 'Location service failed to handle app state change',
+        context: { error, nextAppState: 'active' },
       });
     });
 
-    it('should disable background tracking and unregister task', async () => {
-      mockTaskManager.isTaskRegisteredAsync.mockResolvedValue(true);
-
-      await locationService.updateBackgroundGeolocationSetting(false);
-
-      expect(mockLocation.stopLocationUpdatesAsync).toHaveBeenCalledWith('location-updates');
-    });
-
-    it('should start background updates if app is backgrounded when enabled', async () => {
-      (AppState as any).currentState = 'background';
-      const startBackgroundUpdatesSpy = jest.spyOn(locationService, 'startBackgroundUpdates');
-
-      await locationService.updateBackgroundGeolocationSetting(true);
-
-      expect(startBackgroundUpdatesSpy).toHaveBeenCalled();
-    });
-
-    it('should not start background updates if app is active when enabled', async () => {
-      (AppState as any).currentState = 'active';
-      const startBackgroundUpdatesSpy = jest.spyOn(locationService, 'startBackgroundUpdates');
-
-      await locationService.updateBackgroundGeolocationSetting(true);
-
-      expect(startBackgroundUpdatesSpy).not.toHaveBeenCalled();
+    it('should register an app state listener on construction', () => {
+      expect(mockAppState.addEventListener).toBeDefined();
     });
   });
 
   describe('Cleanup', () => {
-    it('should stop all location updates', async () => {
-      (locationService as any).locationSubscription = mockLocationSubscription;
-      (locationService as any).backgroundSubscription = mockLocationSubscription;
-      mockTaskManager.isTaskRegisteredAsync.mockResolvedValue(true);
+    it('should stop location updates and clear the tracking flag', async () => {
+      await locationService.startLocationUpdates();
 
       await locationService.stopLocationUpdates();
 
-      expect(mockLocationSubscription.remove).toHaveBeenCalledTimes(2);
-      expect(mockLocation.stopLocationUpdatesAsync).toHaveBeenCalledWith('location-updates');
+      expect(mockLocationSubscription.remove).toHaveBeenCalledTimes(1);
+      expect((locationService as any).isTrackingRequested).toBe(false);
       expect(mockLogger.info).toHaveBeenCalledWith({
         message: 'All location updates stopped',
       });
     });
 
-    it('should cleanup app state subscription', () => {
-      locationService.cleanup();
-
-      // Note: The subscription's remove method is called, but we can't easily test it
-      // since the subscription is created dynamically inside the mock
-      expect(true).toBe(true); // This test passes if cleanup doesn't throw
+    it('should handle stop when no subscription exists', async () => {
+      await expect(locationService.stopLocationUpdates()).resolves.not.toThrow();
     });
 
     it('should handle cleanup when no subscription exists', () => {
@@ -605,95 +266,12 @@ describe('LocationService', () => {
     });
   });
 
-  describe('Foreground-only Mode (Background Permissions Denied)', () => {
-    beforeEach(() => {
-      // Mock background permissions as denied for these tests
-      mockLocation.getBackgroundPermissionsAsync.mockResolvedValue({
-        status: 'denied' as any,
-        expires: 'never',
-        granted: false,
-        canAskAgain: true,
-      });
-      mockLocation.requestBackgroundPermissionsAsync.mockResolvedValue({
-        status: 'denied' as any,
-        expires: 'never',
-        granted: false,
-        canAskAgain: true,
-      });
-    });
-
-    it('should allow location tracking with only foreground permissions', async () => {
-      const result = await locationService.requestPermissions();
-      expect(result).toBe(true);
-
-      await expect(locationService.startLocationUpdates()).resolves.not.toThrow();
-      expect(mockLocation.watchPositionAsync).toHaveBeenCalled();
-    });
-
-    it('should log correct permission status for foreground-only requests', async () => {
-      await locationService.requestPermissions();
-
-      expect(mockLogger.info).toHaveBeenCalledWith({
-        message: 'Location permissions requested',
-        context: {
-          foregroundStatus: 'granted',
-          backgroundStatus: 'not requested',
-          backgroundRequested: false,
-        },
-      });
-    });
-
-    it('should start foreground updates and warn about background limitations', async () => {
-      mockLoadBackgroundGeolocationState.mockResolvedValue(true); // User wants background but can't have it
-
-      await locationService.startLocationUpdates();
-
-      expect(mockLocation.watchPositionAsync).toHaveBeenCalled();
-      expect(mockLogger.warn).toHaveBeenCalledWith({
-        message: 'Background geolocation enabled but permissions denied, running in foreground-only mode',
-        context: {
-          backgroundStatus: 'denied',
-          settingEnabled: true,
-        },
-      });
-      expect(mockLocation.startLocationUpdatesAsync).not.toHaveBeenCalled();
-    });
-
-    it('should handle location updates in foreground-only mode', async () => {
-      await locationService.startLocationUpdates();
-
-      const locationCallback = mockLocation.watchPositionAsync.mock.calls[0][1] as Function;
-      await locationCallback(mockLocationObject);
-
-      expect(mockLocationStoreState.setLocation).toHaveBeenCalledWith(mockLocationObject);
-      expect(mockSetUnitLocation).not.toHaveBeenCalled();
-    });
-
-    it('should not enable background geolocation when permissions are denied', async () => {
-      await locationService.updateBackgroundGeolocationSetting(true);
-
-      expect(mockLogger.warn).toHaveBeenCalledWith({
-        message: 'Cannot enable background geolocation: background permissions not granted',
-        context: { backgroundStatus: 'denied' },
-      });
-      expect(mockLocation.startLocationUpdatesAsync).not.toHaveBeenCalled();
-    });
-  });
-
   describe('Error Handling', () => {
     it('should handle location subscription errors', async () => {
       const error = new Error('Location subscription failed');
       mockLocation.watchPositionAsync.mockRejectedValue(error);
 
       await expect(locationService.startLocationUpdates()).rejects.toThrow('Location subscription failed');
-    });
-
-    it('should handle background task registration errors', async () => {
-      const error = new Error('Task registration failed');
-      mockLocation.startLocationUpdatesAsync.mockRejectedValue(error);
-      mockLoadBackgroundGeolocationState.mockResolvedValue(true);
-
-      await expect(locationService.startLocationUpdates()).rejects.toThrow('Task registration failed');
     });
   });
 });

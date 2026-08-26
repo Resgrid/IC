@@ -107,6 +107,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // and legacy storage permissions even when a transitive native dependency
     // contributes them during manifest merging.
     blockedPermissions: [
+      // Background location was removed from the app (Play policy: no declarable
+      // background-location feature). Block the permissions outright so a transitive
+      // native dependency cannot reintroduce them during manifest merging.
+      'android.permission.ACCESS_BACKGROUND_LOCATION',
+      'android.permission.FOREGROUND_SERVICE_LOCATION',
       // Contributed by expo-notifications. withRestrictedBootReceivers strips every
       // BOOT_COMPLETED intent-filter (Android 15 crashes apps that launch restricted
       // foreground service types from boot), so nothing here listens for boot and the
@@ -158,28 +163,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-location',
       {
+        // Foreground-only. The IC app centers the map and computes distances while the
+        // user has it open; it has no background-location feature, so the background /
+        // foreground-service flags and the task manager block stay off. Turning any of
+        // them back on re-adds ACCESS_BACKGROUND_LOCATION and gets the Play listing
+        // rejected for an undeclared background-location feature.
         locationWhenInUsePermission: 'Allow Resgrid IC to show current location on map.',
-        locationAlwaysAndWhenInUsePermission: 'Allow Resgrid IC to use your location for department updates.',
-        locationAlwaysPermission: 'Resgrid IC needs to track your location for department AVL.',
-        isIosBackgroundLocationEnabled: true,
-        isAndroidBackgroundLocationEnabled: true,
-        isAndroidForegroundServiceEnabled: true,
-        taskManager: {
-          locationTaskName: 'location-updates',
-          locationTaskOptions: {
-            accuracy: 'balanced',
-            distanceInterval: 10,
-            timeInterval: 5000,
-          },
-        },
-      },
-    ],
-    [
-      'expo-task-manager',
-      {
-        taskManager: {
-          taskName: 'location-updates',
-        },
+        // `false` deletes the key from Info.plist entirely (the plugin otherwise fills in
+        // its own default text). The "Always" strings advertise background location on
+        // iOS, and nothing here uses Core Motion.
+        locationAlwaysAndWhenInUsePermission: false,
+        locationAlwaysPermission: false,
+        motionUsagePermission: false,
       },
     ],
     [
@@ -263,6 +258,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     './customManifest.plugin.js',
     // Must run after customManifest.plugin.js: both edit the merged application node.
     './plugins/withRestrictedBootReceivers.js',
+    // Strips expo-location's location-typed foreground service: this app tracks location
+    // only in the foreground, so nothing may ship a background-location surface.
+    './plugins/withoutBackgroundLocation.js',
     './plugins/withNotificationSounds.js',
     './plugins/withMediaButtonModule.js',
     './plugins/withInCallAudioModule.js',

@@ -1573,8 +1573,6 @@
       "unavailable": "Ej tillgänglig",
       "wired_device": "Kabelbunden enhet"
     },
-    "background_geolocation": "Bakgrundsgeolokalisering",
-    "background_geolocation_warning": "Den här funktionen gör att appen kan spåra din plats i bakgrunden. Det hjälper till med koordinering av akutinsatser men kan påverka batteritiden.",
     "background_location": "Bakgrundsplats",
     "contact_us": "Kontakta oss",
     "current_unit": "Aktuell enhet",

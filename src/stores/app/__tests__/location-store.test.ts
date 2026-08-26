@@ -32,7 +32,6 @@ describe('useLocationStore', () => {
       speed: null,
       altitude: null,
       timestamp: null,
-      isBackgroundEnabled: false,
       isMapLocked: false,
     });
   });
@@ -47,7 +46,6 @@ describe('useLocationStore', () => {
     expect(result.current.speed).toBeNull();
     expect(result.current.altitude).toBeNull();
     expect(result.current.timestamp).toBeNull();
-    expect(result.current.isBackgroundEnabled).toBe(false);
     expect(result.current.isMapLocked).toBe(false);
   });
 
@@ -78,22 +76,6 @@ describe('useLocationStore', () => {
     expect(result.current.speed).toBe(0);
     expect(result.current.altitude).toBe(10);
     expect(result.current.timestamp).toBe(1640995200000);
-  });
-
-  it('should set background enabled', () => {
-    const { result } = renderHook(() => useLocationStore());
-
-    act(() => {
-      result.current.setBackgroundEnabled(true);
-    });
-
-    expect(result.current.isBackgroundEnabled).toBe(true);
-
-    act(() => {
-      result.current.setBackgroundEnabled(false);
-    });
-
-    expect(result.current.isBackgroundEnabled).toBe(false);
   });
 
   describe('Map Lock Functionality', () => {
@@ -157,11 +139,37 @@ describe('useLocationStore', () => {
     });
   });
 
+  // Background location was removed from the app; v0 blobs still carry its flag and
+  // persist's shallow merge would graft it back onto the store on every startup.
+  describe('persist migration', () => {
+    const migrate = (state: unknown, version: number) => useLocationStore.persist.getOptions().migrate?.(state, version);
+
+    it('should strip the legacy background flag from a v0 blob', () => {
+      const migrated = migrate({ isBackgroundEnabled: true, isMapLocked: true }, 0) as Record<string, unknown>;
+
+      expect(migrated).not.toHaveProperty('isBackgroundEnabled');
+      expect(migrated.isMapLocked).toBe(true);
+    });
+
+    it('should leave a current blob untouched', () => {
+      const state = { isMapLocked: true };
+
+      expect(migrate(state, 1)).toBe(state);
+    });
+
+    it('should handle a missing persisted state', () => {
+      expect(migrate(undefined, 0)).toEqual({});
+    });
+
+    it('should declare the migration version', () => {
+      expect(useLocationStore.persist.getOptions().version).toBe(1);
+    });
+  });
+
   it('should have all required methods', () => {
     const { result } = renderHook(() => useLocationStore());
 
     expect(typeof result.current.setLocation).toBe('function');
-    expect(typeof result.current.setBackgroundEnabled).toBe('function');
     expect(typeof result.current.setMapLocked).toBe('function');
   });
 

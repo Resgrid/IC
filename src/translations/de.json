@@ -1573,8 +1573,6 @@
       "unavailable": "Nicht verfügbar",
       "wired_device": "Kabelgebundenes Gerät"
     },
-    "background_geolocation": "Hintergrund-Geolokalisierung",
-    "background_geolocation_warning": "Diese Funktion ermöglicht es der App, Ihren Standort im Hintergrund zu verfolgen. Sie hilft bei der Koordination von Notfalleinsätzen, kann jedoch die Akkulaufzeit beeinträchtigen.",
     "background_location": "Hintergrundstandort",
     "contact_us": "Kontaktieren Sie uns",
     "current_unit": "Aktuelle Einheit",
