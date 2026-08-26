@@ -1573,8 +1573,6 @@
       "unavailable": "غير متوفر",
       "wired_device": "جهاز سلكي"
     },
-    "background_geolocation": "تحديد الموقع الجغرافي في الخلفية",
-    "background_geolocation_warning": "تسمح هذه الميزة للتطبيق بتتبع موقعك في الخلفية. تساعد في تنسيق الاستجابة للطوارئ ولكن قد تؤثر على عمر البطارية.",
     "background_location": "الموقع في الخلفية",
     "contact_us": "اتصل بنا",
     "current_unit": "الوحدة الحالية",

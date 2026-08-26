@@ -5,7 +5,6 @@ import { useColorScheme } from 'nativewind';
 import React, { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { BackgroundGeolocationItem } from '@/components/settings/background-geolocation-item';
 import { BluetoothDeviceItem } from '@/components/settings/bluetooth-device-item';
 import { Item } from '@/components/settings/item';
 import { KeepAliveItem } from '@/components/settings/keep-alive-item';
@@ -140,7 +139,6 @@ export default function Settings() {
               <ThemeItem />
               <LanguageItem />
               <KeepAliveItem />
-              <BackgroundGeolocationItem />
               <BluetoothDeviceItem />
             </VStack>
           </Card>

@@ -16,7 +16,7 @@ type Manifest = {
   };
 };
 
-// Mirrors what expo-task-manager and expo-notifications contribute during manifest merging.
+// Mirrors what expo-notifications contributes during manifest merging.
 const createManifest = (): Manifest => ({
   manifest: {
     $: { 'xmlns:android': 'http://schemas.android.com/apk/res/android' },
@@ -25,11 +25,11 @@ const createManifest = (): Manifest => ({
         $: { 'android:name': '.MainApplication' },
         receiver: [
           {
-            $: { 'android:name': 'expo.modules.taskManager.TaskBroadcastReceiver', 'android:exported': 'false' },
+            $: { 'android:name': 'expo.modules.notifications.service.NotificationsService', 'android:enabled': 'true', 'android:exported': 'false' },
             'intent-filter': [
               {
                 action: [
-                  { $: { 'android:name': 'expo.modules.taskManager.TaskBroadcastReceiver.INTENT_ACTION' } },
+                  { $: { 'android:name': 'expo.modules.notifications.NOTIFICATION_EVENT' } },
                   { $: { 'android:name': 'android.intent.action.BOOT_COMPLETED' } },
                   { $: { 'android:name': 'android.intent.action.MY_PACKAGE_REPLACED' } },
                 ],
@@ -47,14 +47,18 @@ const findReceiver = (manifest: Manifest, name: string) => manifest.manifest.app
 const actionsOf = (manifest: Manifest, name: string) => (findReceiver(manifest, name)?.['intent-filter'] ?? []).flatMap((filter) => (filter.action ?? []).map((action) => action.$['android:name']));
 
 describe('Android 15 boot receivers', () => {
-  it('drops BOOT_COMPLETED from the task manager receiver while keeping its explicit-intent registration', () => {
+  it('keeps MY_PACKAGE_REPLACED on the notifications receiver', () => {
     const manifest = applyBootReceiverOverrides(createManifest()) as Manifest;
-    const actions = actionsOf(manifest, 'expo.modules.taskManager.TaskBroadcastReceiver');
+    const actions = actionsOf(manifest, 'expo.modules.notifications.service.NotificationsService');
 
-    expect(findReceiver(manifest, 'expo.modules.taskManager.TaskBroadcastReceiver')).toBeDefined();
-    expect(actions).not.toContain('android.intent.action.BOOT_COMPLETED');
-    expect(actions).toContain('expo.modules.taskManager.TaskBroadcastReceiver.INTENT_ACTION');
+    expect(findReceiver(manifest, 'expo.modules.notifications.service.NotificationsService')).toBeDefined();
     expect(actions).toContain('android.intent.action.MY_PACKAGE_REPLACED');
+  });
+
+  it('does not declare the expo-task-manager boot receiver (background location removed)', () => {
+    const manifest = applyBootReceiverOverrides(createManifest()) as Manifest;
+
+    expect(findReceiver(manifest, 'expo.modules.taskManager.TaskBroadcastReceiver')).toBeUndefined();
   });
 
   it('keeps the notifications receiver resolvable by action so push delivery still works', () => {
@@ -68,21 +72,19 @@ describe('Android 15 boot receivers', () => {
     expect(actions).not.toContain('com.htc.intent.action.QUICKBOOT_POWERON');
   });
 
-  it('marks both receivers as merger replacements and declares the tools namespace', () => {
+  it('marks the receiver as a merger replacement and declares the tools namespace', () => {
     const manifest = applyBootReceiverOverrides(createManifest()) as Manifest;
 
     expect(manifest.manifest.$['xmlns:tools']).toBe('http://schemas.android.com/tools');
-    ['expo.modules.taskManager.TaskBroadcastReceiver', 'expo.modules.notifications.service.NotificationsService'].forEach((name) => {
-      expect(findReceiver(manifest, name)?.$['tools:node']).toBe('replace');
-    });
+    expect(findReceiver(manifest, 'expo.modules.notifications.service.NotificationsService')?.$['tools:node']).toBe('replace');
   });
 
   it('is idempotent across repeated prebuilds', () => {
     const once = applyBootReceiverOverrides(createManifest()) as Manifest;
     const twice = applyBootReceiverOverrides(once) as Manifest;
 
-    expect(twice.manifest.application[0].receiver).toHaveLength(2);
-    expect(actionsOf(twice, 'expo.modules.taskManager.TaskBroadcastReceiver')).not.toContain('android.intent.action.BOOT_COMPLETED');
+    expect(twice.manifest.application[0].receiver).toHaveLength(1);
+    expect(actionsOf(twice, 'expo.modules.notifications.service.NotificationsService')).not.toContain('android.intent.action.BOOT_COMPLETED');
   });
 
   it('blocks RECEIVE_BOOT_COMPLETED and registers the plugin', () => {
@@ -96,5 +98,7 @@ describe('Android 15 boot receivers', () => {
     expect(config.android?.blockedPermissions).toContain('android.permission.RECEIVE_BOOT_COMPLETED');
     expect(config.android?.permissions).not.toContain('android.permission.RECEIVE_BOOT_COMPLETED');
     expect(config.plugins).toContain('./plugins/withRestrictedBootReceivers.js');
+    expect(config.android?.blockedPermissions).toContain('android.permission.ACCESS_BACKGROUND_LOCATION');
+    expect(config.android?.blockedPermissions).toContain('android.permission.FOREGROUND_SERVICE_LOCATION');
   });
 });

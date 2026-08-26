@@ -9,46 +9,28 @@ const TOOLS_NAMESPACE = 'http://schemas.android.com/tools';
  * throws ForegroundServiceStartNotAllowedException and crashes the app.
  *
  * This app declares several of those types (notifee's ForegroundService is
- * microphone|mediaPlayback|connectedDevice, CallKeep's VoiceConnectionService is
- * phoneCall, expo-audio's AudioControlsService is mediaPlayback, react-native-webrtc
- * contributes mediaProjection), and two dependency manifests register receivers for
+ * microphone|connectedDevice, CallKeep's VoiceConnectionService is phoneCall,
+ * react-native-webrtc contributes mediaProjection), and expo-notifications registers a receiver for
  * BOOT_COMPLETED that can reach `startForegroundService`:
  *
- *   - expo.modules.taskManager.TaskBroadcastReceiver — on boot it restarts every
- *     registered task; the expo-location consumer calls startForegroundService.
  *   - expo.modules.notifications.service.NotificationsService — on boot it re-arms
  *     scheduled local notifications.
  *
- * Neither boot path is needed here: background location is opt-in and started from
- * inside the app (src/services/location.ts), and the app never schedules local
- * notifications — all notifications are push-delivered.
+ * That boot path is not needed here: the app never schedules local notifications — all
+ * notifications are push-delivered.
  *
  * Library manifests are merged in by Gradle, so the boot actions cannot be edited
- * directly. Instead we re-declare each receiver in the app manifest with
+ * directly. Instead we re-declare the receiver in the app manifest with
  * tools:node="replace", which makes the manifest merger take OUR element — attributes
  * and intent-filters — verbatim in place of the library's.
  *
- * Both receivers MUST stay declared:
- *   - TaskBroadcastReceiver is targeted by explicit intents (TaskManagerUtils#createTaskIntent).
- *   - NotificationsService is resolved with queryBroadcastReceivers() on the
- *     expo.modules.notifications.NOTIFICATION_EVENT action — dropping that filter would
- *     kill ALL notification delivery, so it is preserved here.
+ * NotificationsService MUST stay declared: it is resolved with queryBroadcastReceivers()
+ * on the expo.modules.notifications.NOTIFICATION_EVENT action — dropping that filter
+ * would kill ALL notification delivery, so it is preserved here.
  *
  * MY_PACKAGE_REPLACED is kept: the Android 15 restriction is specific to BOOT_COMPLETED.
  */
 const RECEIVER_OVERRIDES = [
-  {
-    name: 'expo.modules.taskManager.TaskBroadcastReceiver',
-    attributes: {
-      'android:exported': 'false',
-    },
-    intentFilters: [
-      {
-        attributes: {},
-        actions: ['expo.modules.taskManager.TaskBroadcastReceiver.INTENT_ACTION', 'android.intent.action.MY_PACKAGE_REPLACED'],
-      },
-    ],
-  },
   {
     name: 'expo.modules.notifications.service.NotificationsService',
     attributes: {

@@ -1573,8 +1573,6 @@
       "unavailable": "Unavailable",
       "wired_device": "Wired Device"
     },
-    "background_geolocation": "Background Geolocation",
-    "background_geolocation_warning": "This feature allows the app to track your location in the background. It helps with emergency response coordination but may impact battery life.",
     "background_location": "Background Location",
     "contact_us": "Contact Us",
     "current_unit": "Current Unit",
