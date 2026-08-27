@@ -47,7 +47,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       UIBackgroundModes: ['remote-notification', 'audio', 'bluetooth-central', 'voip'],
       ITSAppUsesNonExemptEncryption: false,
       UIViewControllerBasedStatusBarAppearance: false,
-      NSBluetoothAlwaysUsageDescription: 'Allow Resgrid IC to connect to bluetooth devices for PTT.',
+      NSBluetoothAlwaysUsageDescription:
+        'Resgrid IC uses Bluetooth to connect to wireless headsets and speaker-microphone accessories for Push-to-Talk audio. For example, when you pair a Bluetooth speaker-mic, pressing its talk button transmits your voice to your department audio channel.',
       // Allow the app to open its own custom-scheme deep links (needed for SSO callbacks)
       LSApplicationQueriesSchemes: ['resgridic'],
     },
@@ -147,7 +148,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     'expo-router',
     ['react-native-edge-to-edge'],
     'expo-web-browser',
-    'expo-secure-store',
+    [
+      'expo-secure-store',
+      {
+        // Biometric-gated secure storage is not used (no requireAuthentication /
+        // expo-local-authentication anywhere in src); omit NSFaceIDUsageDescription.
+        faceIDPermission: false,
+      },
+    ],
     'expo-image',
     'expo-sharing',
     'expo-status-bar',
@@ -168,7 +176,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         // foreground-service flags and the task manager block stay off. Turning any of
         // them back on re-adds ACCESS_BACKGROUND_LOCATION and gets the Play listing
         // rejected for an undeclared background-location feature.
-        locationWhenInUsePermission: 'Allow Resgrid IC to show current location on map.',
+        locationWhenInUsePermission:
+          'Resgrid IC uses your location while you use the app to show your position on the incident map, to center the map when you set a call location, and to share your location in chat. For example, when you create a new call, the map starts at your current position so you can pinpoint the incident scene for responding units.',
         // `false` deletes the key from Info.plist entirely (the plugin otherwise fills in
         // its own default text). The "Always" strings advertise background location on
         // iOS, and nothing here uses Core Motion.
@@ -217,6 +226,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     [
+      // Listed explicitly so the plugin's vague "Allow $(PRODUCT_NAME) to access your X"
+      // defaults (auto-applied during prebuild) never reach Info.plist — App Store
+      // Guideline 5.1.1(ii) requires purpose strings with a concrete example.
+      'expo-image-picker',
+      {
+        photosPermission:
+          'Resgrid IC uses your photo library so you can attach existing photos to calls and chat messages. For example, you can select a saved photo of an incident scene and share it with dispatch and other responders on the call.',
+        cameraPermission:
+          'Resgrid IC uses the camera to take photos that you attach to calls. For example, you can photograph an incident scene and attach the image to the active call for other responders to see.',
+      },
+    ],
+    [
       '@sentry/react-native/expo',
       {
         organization: 'sentry',
@@ -235,13 +256,23 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-audio',
       {
-        microphonePermission: 'Allow Resgrid IC to access the microphone for audio input used in PTT and calls.',
+        microphonePermission:
+          'Resgrid IC uses the microphone to capture your voice for Push-to-Talk and voice communications with your department. For example, when you press and hold the talk button on the command screen, your voice is transmitted live to other responders on the channel.',
       },
     ],
     'expo-video',
     'react-native-ble-manager',
     '@livekit/react-native-expo-plugin',
-    '@config-plugins/react-native-webrtc',
+    [
+      // Explicit string so the WebRTC plugin can never fill in its vague camera default.
+      // LiveKit sessions in this app are audio-only (camera is disabled on join), so the
+      // only camera feature is photographing scenes to attach to calls.
+      '@config-plugins/react-native-webrtc',
+      {
+        cameraPermission:
+          'Resgrid IC uses the camera to take photos that you attach to calls. For example, you can photograph an incident scene and attach the image to the active call for other responders to see.',
+      },
+    ],
     './plugins/withWebRTCFrameworkFix.js',
     '@config-plugins/react-native-callkeep',
     [
