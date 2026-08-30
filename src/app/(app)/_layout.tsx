@@ -34,6 +34,8 @@ import { audioService } from '@/services/audio.service';
 import { bluetoothAudioService } from '@/services/bluetooth-audio.service';
 import { usePushNotifications } from '@/services/push-notification';
 import { useCoreStore } from '@/stores/app/core-store';
+import { StepUpPromptHost } from '@/components/data-protection/step-up-prompt-host';
+import { dataProtectionStore } from '@/stores/data-protection/store';
 import { useCallsStore } from '@/stores/calls/store';
 import { useCommandStore } from '@/stores/command/store';
 import { FeatureFlagKeys, featureFlagsStore } from '@/stores/feature-flags/store';
@@ -184,7 +186,7 @@ export default function TabLayout() {
         return;
       }
 
-      await featureFlagsStore.getState().fetchFlags();
+      await featureFlagsStore.getState().fetchFlags(), dataProtectionStore.getState().fetchCapabilities();
 
       if (!isCurrentRun()) return;
 
@@ -563,6 +565,13 @@ export default function TabLayout() {
 
   const content = (
     <View style={styles.container} pointerEvents="box-none">
+      {/*
+        The app's single Advanced Data Protection prompt. Mounted here so any screen can trigger it
+        through the store without carrying a modal of its own, and so two screens can never stack
+        two prompts over each other.
+      */}
+      <StepUpPromptHost />
+
       {/* Loading overlay during initialization — shown on top of Tabs so the navigator stays mounted */}
       {!isInitComplete ? (
         <View style={styles.loadingOverlay}>
