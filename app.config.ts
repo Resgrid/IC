@@ -99,7 +99,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'android.permission.FOREGROUND_SERVICE',
       'android.permission.FOREGROUND_SERVICE_MICROPHONE',
       'android.permission.FOREGROUND_SERVICE_PHONE_CALL',
-      'android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE',
       'android.permission.READ_PHONE_STATE',
       'android.permission.READ_PHONE_NUMBERS',
       'android.permission.MANAGE_OWN_CALLS',
@@ -108,6 +107,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // and legacy storage permissions even when a transitive native dependency
     // contributes them during manifest merging.
     blockedPermissions: [
+      // Bluetooth PTT handsets route through the microphone FGS session, so the type is
+      // unused; Play rejects declared foreground-service types that cannot be demonstrated.
+      'android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE',
       // Background location was removed from the app (Play policy: no declarable
       // background-location feature). Block the permissions outright so a transitive
       // native dependency cannot reintroduce them during manifest merging.
@@ -151,9 +153,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-secure-store',
       {
-        // Biometric-gated secure storage is not used (no requireAuthentication /
-        // expo-local-authentication anywhere in src); omit NSFaceIDUsageDescription.
-        faceIDPermission: false,
+        // Required even though biometric-gated storage is not used: expo-secure-store
+        // instantiates LAContext() unconditionally (SecureStoreModule.swift), so App Store
+        // static analysis flags a missing NSFaceIDUsageDescription with ITMS-90683.
+        faceIDPermission:
+          'Resgrid IC uses Face ID to unlock the securely stored credentials that keep you signed in to your department. For example, after your device locks, Face ID confirms it is you before the app restores your session.',
       },
     ],
     'expo-image',
@@ -171,19 +175,36 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-location',
       {
-        // Foreground-only. The IC app centers the map and computes distances while the
-        // user has it open; it has no background-location feature, so the background /
-        // foreground-service flags and the task manager block stay off. Turning any of
-        // them back on re-adds ACCESS_BACKGROUND_LOCATION and gets the Play listing
-        // rejected for an undeclared background-location feature.
         locationWhenInUsePermission:
-          'Resgrid IC uses your location while you use the app to show your position on the incident map, to center the map when you set a call location, and to share your location in chat. For example, when you create a new call, the map starts at your current position so you can pinpoint the incident scene for responding units.',
-        // `false` deletes the key from Info.plist entirely (the plugin otherwise fills in
-        // its own default text). The "Always" strings advertise background location on
-        // iOS, and nothing here uses Core Motion.
-        locationAlwaysAndWhenInUsePermission: false,
-        locationAlwaysPermission: false,
-        motionUsagePermission: false,
+          'Resgrid IC uses your location while you use the app to show your position on the incident map and to attach your coordinates to incident actions you take. For example, when you assign a resource, your location helps place command on the scene map.',
+        locationAlwaysAndWhenInUsePermission:
+          'Resgrid IC uses your location, including in the background, to keep the incident and department maps updated with your position. For example, while you move around an incident scene, your location is periodically sent so other responders and dispatchers can see where command is, even when the app is not on screen.',
+        locationAlwaysPermission:
+          'Resgrid IC uses your location in the background to keep the incident and department maps updated with your position. For example, while you move around an incident scene, your location is periodically sent so other responders and dispatchers can see where command is, even when the app is not on screen.',
+        // Required even though getMotionActivityAsync() is never called: expo-location links
+        // CoreMotion (MotionActivityPermissionRequester), and App Store static analysis rejects
+        // the binary with ITMS-90683 whenever the framework is referenced and the string is absent.
+        motionUsagePermission:
+          'Resgrid IC uses motion data to improve the accuracy of the location shown on the department map. For example, while you are driving to a call, motion data helps distinguish travel from a stop so dispatchers see an accurate position and heading.',
+        isIosBackgroundLocationEnabled: true,
+        isAndroidBackgroundLocationEnabled: true,
+        isAndroidForegroundServiceEnabled: true,
+        taskManager: {
+          locationTaskName: 'location-updates',
+          locationTaskOptions: {
+            accuracy: 'balanced',
+            distanceInterval: 10,
+            timeInterval: 5000,
+          },
+        },
+      },
+    ],
+    [
+      'expo-task-manager',
+      {
+        taskManager: {
+          taskName: 'location-updates',
+        },
       },
     ],
     [
