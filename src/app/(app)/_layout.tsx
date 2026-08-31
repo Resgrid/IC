@@ -11,6 +11,7 @@ import { ActivityIndicator, type ColorValue, Platform, StyleSheet, useWindowDime
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OfflineStatusToast } from '@/components/common/offline-status-toast';
+import { StepUpPromptHost } from '@/components/data-protection/step-up-prompt-host';
 import { NotificationButton } from '@/components/notifications/NotificationButton';
 import { NotificationInbox } from '@/components/notifications/NotificationInbox';
 import Sidebar from '@/components/sidebar/sidebar';
@@ -34,10 +35,9 @@ import { audioService } from '@/services/audio.service';
 import { bluetoothAudioService } from '@/services/bluetooth-audio.service';
 import { usePushNotifications } from '@/services/push-notification';
 import { useCoreStore } from '@/stores/app/core-store';
-import { StepUpPromptHost } from '@/components/data-protection/step-up-prompt-host';
-import { dataProtectionStore } from '@/stores/data-protection/store';
 import { useCallsStore } from '@/stores/calls/store';
 import { useCommandStore } from '@/stores/command/store';
+import { dataProtectionStore } from '@/stores/data-protection/store';
 import { FeatureFlagKeys, featureFlagsStore } from '@/stores/feature-flags/store';
 import { useRolesStore } from '@/stores/roles/store';
 import { securityStore } from '@/stores/security/store';

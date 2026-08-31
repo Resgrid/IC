@@ -27,6 +27,7 @@ const useAuthStore = create<AuthState>()(
       userId: null,
       isFirstTime: true,
       refreshTimeoutId: null,
+      isSsoMfaPending: false,
       login: async (credentials: LoginCredentials) => {
         try {
           set({ status: 'loading' });
@@ -138,12 +139,18 @@ const useAuthStore = create<AuthState>()(
               clearTimeout(existingTimeoutId);
             }
             const timeoutId = setTimeout(() => get().refreshAccessToken(), refreshDelayMs);
-            set({ refreshTimeoutId: timeoutId });
+            set({ refreshTimeoutId: timeoutId, isSsoMfaPending: false });
             pendingSsoMfaCredentials = null;
           } else if (response.mfaRequired) {
             // 2FA challenge: retain the exchange in module memory (never the persisted store)
             // so retrySsoWithOtp can replay it with the authenticator code.
-            pendingSsoMfaCredentials = credentials;
+            //
+            // The code itself is deliberately dropped. On an invalid_totp retry `credentials`
+            // still carries the rejected otpCode, and keeping it would hold a known-bad secret in
+            // module state until the next successful SSO login. retrySsoWithOtp supplies the new
+            // code on every attempt, so nothing needs it here.
+            const { otpCode: _rejectedOtpCode, ...ssoExchange } = credentials;
+            pendingSsoMfaCredentials = ssoExchange;
             logger.info({
               message: 'SSO login requires two-factor verification',
               context: { provider: credentials.provider, invalidOtp: !!response.invalidOtp },
@@ -151,14 +158,18 @@ const useAuthStore = create<AuthState>()(
             set({
               status: 'mfaRequired',
               error: response.invalidOtp ? 'invalid_totp' : null,
+              isSsoMfaPending: true,
             });
           } else {
-            set({ status: 'error', error: response.message });
+            pendingSsoMfaCredentials = null;
+            set({ status: 'error', error: response.message, isSsoMfaPending: false });
           }
         } catch (error) {
+          pendingSsoMfaCredentials = null;
           set({
             status: 'error',
             error: error instanceof Error ? error.message : 'SSO login failed',
+            isSsoMfaPending: false,
           });
         }
       },
@@ -178,6 +189,8 @@ const useAuthStore = create<AuthState>()(
         if (existingTimeoutId !== null) {
           clearTimeout(existingTimeoutId);
         }
+        // The retained IdP exchange is a credential; it must not outlive the session.
+        pendingSsoMfaCredentials = null;
         set({
           accessToken: null,
           refreshToken: null,
@@ -186,6 +199,7 @@ const useAuthStore = create<AuthState>()(
           profile: null,
           isFirstTime: true,
           refreshTimeoutId: null,
+          isSsoMfaPending: false,
         });
         Sentry.setUser(null);
       },
@@ -337,6 +351,9 @@ const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => zustandStorage),
+      // The pending SSO exchange lives in module memory and dies with the process, so a rehydrated
+      // `true` here would open the OTP prompt with nothing to retry. Force it back to false.
+      merge: (persisted, current) => ({ ...current, ...(persisted as Partial<AuthState>), isSsoMfaPending: false }),
       onRehydrateStorage: () => {
         return (state, error) => {
           if (error) {

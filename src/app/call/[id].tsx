@@ -11,12 +11,11 @@ import { CheckInTabContent } from '@/components/check-in-timers/check-in-tab-con
 import { MessageCommanderSheet } from '@/components/command/message-commander-sheet';
 import { ReopenCommandSheet } from '@/components/command/reopen-command-sheet';
 import { StartCommandSheet } from '@/components/command/start-command-sheet';
-import { ProtectedRevealBar } from '@/components/data-protection/protected-reveal-bar';
-import { ProtectedText } from '@/components/data-protection/protected-text';
-import { isFieldRedacted, ProtectedFieldIds } from '@/lib/data-protection/redacted';
 import { HeaderBackButton } from '@/components/common/header-back-button';
 import { Loading } from '@/components/common/loading';
 import ZeroState from '@/components/common/zero-state';
+import { ProtectedRevealBar } from '@/components/data-protection/protected-reveal-bar';
+import { ProtectedText } from '@/components/data-protection/protected-text';
 // Import a static map component instead of react-native-maps
 import StaticMap from '@/components/maps/static-map';
 import { FocusAwareStatusBar, SafeAreaView } from '@/components/ui';
@@ -29,6 +28,7 @@ import { SharedTabs, type TabItem } from '@/components/ui/shared-tabs';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { useAnalytics } from '@/hooks/use-analytics';
+import { isFieldRedacted, ProtectedFieldIds } from '@/lib/data-protection/redacted';
 import { logger } from '@/lib/logging';
 import { openMapsWithDirections } from '@/lib/navigation';
 import { type IncidentCommand, IncidentRoleType } from '@/models/v4/incidentCommand/incidentCommandModels';
@@ -604,7 +604,14 @@ export default function CallDetail() {
         {/* Map - only show when valid coordinates exist */}
         {coordinates.latitude !== null && coordinates.longitude !== null ? (
           <Box className="mx-4 mt-3 overflow-hidden rounded-xl shadow-xs">
-            <StaticMap latitude={coordinates.latitude} longitude={coordinates.longitude} address={call.Address} zoom={15} height={200} showUserLocation={true} />
+            <StaticMap
+              latitude={coordinates.latitude}
+              longitude={coordinates.longitude}
+              address={isFieldRedacted(call.RedactedFields, ProtectedFieldIds.callAddress, call.Address) ? undefined : call.Address}
+              zoom={15}
+              height={200}
+              showUserLocation={true}
+            />
           </Box>
         ) : null}
 
