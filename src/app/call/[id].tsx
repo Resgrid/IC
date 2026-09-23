@@ -1,12 +1,14 @@
 import { format, isValid } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { ClockIcon, FileTextIcon, ImageIcon, InfoIcon, LoaderIcon, MessageSquareIcon, PaperclipIcon, RouteIcon, TimerIcon, UserIcon, UsersIcon, VideoIcon } from 'lucide-react-native';
+import { BuildingIcon, ClockIcon, FileTextIcon, ImageIcon, InfoIcon, LoaderIcon, MessageSquareIcon, PaperclipIcon, RouteIcon, ShieldCheckIcon, TimerIcon, UserIcon, UsersIcon, VideoIcon } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { getCommandForCall } from '@/api/incidentCommand/incidentCommand';
 import { VideoFeedTabContent } from '@/components/call-video-feeds/video-feed-tab-content';
+import { CallSiteInfoTabPanel } from '@/components/calls/call-site-info-tab-panel';
+import { UnitReadinessPanel } from '@/components/calls/unit-readiness-panel';
 import { CheckInTabContent } from '@/components/check-in-timers/check-in-tab-content';
 import { MessageCommanderSheet } from '@/components/command/message-commander-sheet';
 import { ReopenCommandSheet } from '@/components/command/reopen-command-sheet';
@@ -18,6 +20,7 @@ import { ProtectedRevealBar } from '@/components/data-protection/protected-revea
 import { ProtectedText } from '@/components/data-protection/protected-text';
 // Import a static map component instead of react-native-maps
 import StaticMap from '@/components/maps/static-map';
+import { RecordsQuickCreate } from '@/components/records/records-quick-create';
 import { FocusAwareStatusBar, SafeAreaView } from '@/components/ui';
 import { Box } from '@/components/ui/box';
 import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
@@ -36,6 +39,7 @@ import { useLocationStore } from '@/stores/app/location-store';
 import { useCallDetailStore } from '@/stores/calls/detail-store';
 import { useCheckInTimerStore } from '@/stores/check-in-timers/store';
 import { useCommandStore } from '@/stores/command/store';
+import { useIsChecklistsEnabled } from '@/stores/feature-flags/store';
 import { securityStore } from '@/stores/security/store';
 import { useToastStore } from '@/stores/toast/store';
 
@@ -50,6 +54,7 @@ export default function CallDetail() {
   const callId = Array.isArray(id) ? id[0] : id;
   const router = useRouter();
   const { t } = useTranslation();
+  const isChecklistsEnabled = useIsChecklistsEnabled();
   const { trackEvent } = useAnalytics();
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
@@ -382,6 +387,8 @@ export default function CallDetail() {
                   {call.DestinationTypeName || call.DestinationAddress ? <Text className="text-sm text-gray-500">{[call.DestinationTypeName, call.DestinationAddress].filter(Boolean).join(' - ')}</Text> : null}
                 </Box>
               ) : null}
+              {/* Contextual create: the button hides itself unless the server offers something here. */}
+              <RecordsQuickCreate context={{ CallId: Number.parseInt(call.CallId, 10) }} className="self-start" />
               <Box className="border-b border-outline-100 pb-2">
                 <Text className="text-sm text-gray-500">{t('call_detail.note')}</Text>
                 <Box>
@@ -517,6 +524,24 @@ export default function CallDetail() {
       icon: <VideoIcon size={16} />,
       content: <VideoFeedTabContent callId={parseInt(call.CallId, 10)} />,
     });
+
+    // Site Info tab: pre-plans, hazards, alert notes and files of the contacts linked to the call.
+    tabs.push({
+      key: 'site',
+      title: t('call_detail.tabs.site'),
+      icon: <BuildingIcon size={16} />,
+      content: <CallSiteInfoTabPanel callId={call.CallId} />,
+    });
+
+    // Unit readiness: the committed units' recent apparatus checks and open work orders (Checklists).
+    if (isChecklistsEnabled) {
+      tabs.push({
+        key: 'readiness',
+        title: t('readiness.tab'),
+        icon: <ShieldCheckIcon size={16} />,
+        content: <UnitReadinessPanel callId={parseInt(call.CallId, 10)} />,
+      });
+    }
 
     // Conditionally add check-in tab
     if (call?.CheckInTimersEnabled) {

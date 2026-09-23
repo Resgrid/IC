@@ -99,6 +99,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'android.permission.FOREGROUND_SERVICE',
       'android.permission.FOREGROUND_SERVICE_MICROPHONE',
       'android.permission.FOREGROUND_SERVICE_PHONE_CALL',
+      // Department audio (scanner) streams keep playing while backgrounded through
+      // expo-audio's AudioControlsService. The expo-audio config plugin adds this permission
+      // too, but it is declared here so the FGS types the app actually uses are all visible
+      // in one place next to the Play declarations.
+      'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
       'android.permission.READ_PHONE_STATE',
       'android.permission.READ_PHONE_NUMBERS',
       'android.permission.MANAGE_OWN_CALLS',
@@ -196,14 +201,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             distanceInterval: 10,
             timeInterval: 5000,
           },
-        },
-      },
-    ],
-    [
-      'expo-task-manager',
-      {
-        taskManager: {
-          taskName: 'location-updates',
         },
       },
     ],

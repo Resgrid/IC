@@ -148,9 +148,9 @@ export const NotificationDetail = ({ notification, onClose, onDelete, onNavigate
             ) : null}
 
             {notification.referenceType && notification.referenceId ? (
-              <Pressable onPress={handleNavigateToReference} style={[styles.referenceButton, themed.referenceButton]}>
+              <Pressable onPress={handleNavigateToReference} style={[styles.referenceButton, themed.referenceButton]} testID="notification-detail-reference">
                 <ExternalLink size={18} color={referenceIconColor} style={styles.referenceButtonIcon} />
-                <Text style={[styles.buttonText, themed.buttonText]}>{t('notifications.view_reference', { type: notification.referenceType })}</Text>
+                <Text style={[styles.buttonText, themed.buttonText]}>{notification.referenceType === 'chat' ? t('notifications.view_chat') : t('notifications.view_reference', { type: notification.referenceType })}</Text>
               </Pressable>
             ) : null}
           </View>

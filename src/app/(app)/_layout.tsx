@@ -512,6 +512,30 @@ export default function TabLayout() {
     [t, headerLeftBack, headerRightNotification]
   );
 
+  // Contacts (with pre-plans, hazards, site files and notes) and Records are sidebar destinations: hidden
+  // from the tab bar, but in the tab shell with the drawer menu so the commander keeps the app header.
+  const contactsOptions = useMemo(
+    () => ({
+      href: null,
+      title: t('tabs.contacts'),
+      headerShown: true as const,
+      headerLeft: headerLeftMap,
+      headerRight: headerRightNotification,
+    }),
+    [t, headerLeftMap, headerRightNotification]
+  );
+
+  const recordsOptions = useMemo(
+    () => ({
+      href: null,
+      title: t('tabs.records'),
+      headerShown: true as const,
+      headerLeft: headerLeftMap,
+      headerRight: headerRightNotification,
+    }),
+    [t, headerLeftMap, headerRightNotification]
+  );
+
   // chat + chatbot are routable (sidebar menu links) but hidden from the tab bar (href: null).
   // They keep the app header: it is the only way back out, since neither is on the tab bar and
   // their in-screen toolbars carry actions rather than navigation.
@@ -616,6 +640,9 @@ export default function TabLayout() {
             <Tabs.Screen name="chatbot" options={chatbotOptions} />
 
             <Tabs.Screen name="poi/[id]" options={poiDetailOptions} />
+            <Tabs.Screen name="operations" options={{ href: null, headerShown: false }} />
+            <Tabs.Screen name="records" options={recordsOptions} />
+            <Tabs.Screen name="contacts" options={contactsOptions} />
           </Tabs>
 
           {/* NotificationInbox positioned within the tab content area — only after init and Novu is ready */}
