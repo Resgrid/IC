@@ -25,6 +25,13 @@ const FileFieldIds = {
   fileName: 'contactattachments.filename',
 } as const;
 
+/**
+ * Folder name for one file id. It must never map two ids to one folder, and never be a path: GUIDs and
+ * numbers pass unchanged, and every other character (`_` included) becomes `_<hex>_`, so `a/b` and `b` or
+ * `..` cannot collide or escape. Percent-encoding would not do, since file URIs are decoded natively.
+ */
+const directoryKey = (id: string): string => id.replace(/[^A-Za-z0-9-]/g, (char) => `_${char.charCodeAt(0).toString(16)}_`) || '_';
+
 const formatSize = (bytes: number): string => {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -60,7 +67,7 @@ export const ContactFilesList: React.FC<ContactFilesListProps> = ({ files, isLoa
         // two files with the same name never share, or overwrite, one path while the recipient still sees
         // the real name.
         const fileName = sanitizeFileName(isFieldRedacted(file.RedactedFields, FileFieldIds.fileName, file.FileName) ? null : file.FileName, `contact_file_${file.Id}`);
-        const directory = `${FileSystem.documentDirectory}contact-files/${sanitizeFileName(file.Id, 'file')}/`;
+        const directory = `${FileSystem.documentDirectory}contact-files/${directoryKey(file.Id)}/`;
         await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
         const fileUri = `${directory}${fileName}`;
         await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });

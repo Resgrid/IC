@@ -132,6 +132,20 @@ describe('ContactFilesList', () => {
     unmount();
   });
 
+  it('keeps ids that would reduce to the same name, or to a path, in folders of their own', async () => {
+    const files = [contactFile('a/b', 'report.pdf'), contactFile('b', 'report.pdf'), contactFile('..', 'report.pdf')];
+
+    const { unmount } = render(<ContactFilesList files={files} />);
+    for (const file of files) {
+      fireEvent.press(screen.getByTestId(`contact-file-download-${file.Id}`));
+    }
+
+    await waitFor(() => expect(mockShare).toHaveBeenCalledTimes(3));
+    const written = mockWrite.mock.calls.map((call) => call[0]);
+    expect(written).toEqual(['file:///docs/contact-files/a_2f_b/report.pdf', 'file:///docs/contact-files/b/report.pdf', 'file:///docs/contact-files/_2e__2e_/report.pdf']);
+    unmount();
+  });
+
   it('keeps a server file name that carries a path inside the file folder', async () => {
     const { unmount } = render(<ContactFilesList files={[contactFile('f3', '../../escape/plan.pdf')]} />);
     fireEvent.press(screen.getByTestId('contact-file-download-f3'));

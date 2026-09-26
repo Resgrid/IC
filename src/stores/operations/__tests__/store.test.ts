@@ -195,6 +195,41 @@ it('does not file one deployment expenses under another that opened while they l
   expect(useOperationsStore.getState().expenses).toEqual([]);
 });
 
+it('drops a load from an earlier open of the same deployment once it has been opened again', async () => {
+  await useOperationsStore.getState().open('dep-1');
+  let answerExpenses: (value: unknown) => void = () => undefined;
+  server.getExpenses.mockReturnValueOnce(new Promise((resolve) => (answerExpenses = resolve)) as never).mockResolvedValueOnce([{ Id: 'x-2', DeploymentId: 'dep-1' }] as never);
+
+  const stale = useOperationsStore.getState().loadExpenses();
+  useOperationsStore.getState().close();
+  await useOperationsStore.getState().open('dep-1');
+  await useOperationsStore.getState().loadExpenses();
+  answerExpenses([{ Id: 'x-1', DeploymentId: 'dep-1' }]);
+  await stale;
+
+  expect(useOperationsStore.getState().expenses).toEqual([{ Id: 'x-2', DeploymentId: 'dep-1' }]);
+});
+
+it('does not show a failure from an open or a load that ended before it failed', async () => {
+  let failOpen: (reason: unknown) => void = () => undefined;
+  server.getDeployment.mockReturnValueOnce(new Promise((_, reject) => (failOpen = reject)) as never);
+  const opening = useOperationsStore.getState().open('dep-1');
+  useOperationsStore.getState().close();
+  failOpen(new Error('offline'));
+  await opening;
+  expect(useOperationsStore.getState().error).toBeNull();
+
+  await useOperationsStore.getState().open('dep-1');
+  let failUsage: (reason: unknown) => void = () => undefined;
+  useOperationsStore.setState({ costAccess: { Enabled: true, CanViewInternalCosts: false, CanRecordUsage: true } as never });
+  server.getResourceUsage.mockReturnValueOnce(new Promise((_, reject) => (failUsage = reject)) as never);
+  const loading = useOperationsStore.getState().loadUsage();
+  useOperationsStore.getState().close();
+  failUsage(new Error('offline'));
+  await loading;
+  expect(useOperationsStore.getState().error).toBeNull();
+});
+
 it('files expenses against the open deployment and removes only by id', async () => {
   await useOperationsStore.getState().open('dep-1');
   server.saveExpense.mockResolvedValue({ Id: 'x-1', DeploymentId: 'dep-1', ExpenseDate: '2026-09-19T00:00:00', ExpenseType: 4, Amount: 88.4, PreApproved: false, Billable: true } as never);

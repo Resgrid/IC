@@ -360,9 +360,10 @@ export const useRecordsStore = create<RecordsState>()(
       },
 
       pushDraft: async (clientRecordId, supplied) => {
-        // Whether it is on the device is decided once, when it is staged; a send never adds it.
-        const staged = !!get().pendingDrafts[clientRecordId];
-        const draft = supplied ?? get().pendingDrafts[clientRecordId];
+        // What is on the device was decided when it was staged; a send never adds to it. The copy held
+        // there is not proof the supplied values passed staging: an older copy can share the id.
+        const kept = get().pendingDrafts[clientRecordId];
+        const draft = supplied ?? kept;
         if (!draft) {
           return { ok: false, error: 'not_found' };
         }
@@ -395,13 +396,14 @@ export const useRecordsStore = create<RecordsState>()(
           return { ok: true, recordId };
         } catch (error) {
           const conflict = conflictFrom(error);
-          // Never replayed silently: a staged draft stays flagged so a person decides what happens. One
-          // that was never staged (its values may be sealed) is not written to the device by a failure.
-          if (staged) {
+          // Never replayed silently: the copy on the device is flagged so a person decides what happens.
+          // Only the failure is recorded on it; values handed in directly (never staged, perhaps sealed)
+          // are not written to the device by a failure.
+          if (kept) {
             set({
               pendingDrafts: {
                 ...get().pendingDrafts,
-                [clientRecordId]: { ...draft, lastError: messageFrom(error), conflict: conflict ?? null },
+                [clientRecordId]: { ...kept, lastError: messageFrom(error), conflict: conflict ?? null },
               },
             });
           }
