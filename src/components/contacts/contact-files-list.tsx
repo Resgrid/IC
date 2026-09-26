@@ -16,6 +16,7 @@ import { VStack } from '@/components/ui/vstack';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { isFieldRedacted } from '@/lib/data-protection/redacted';
 import { logger } from '@/lib/logging';
+import { sanitizeFileName } from '@/lib/utils';
 import { type ContactFileResultData } from '@/models/v4/contactFiles/contactFilesResult';
 
 /** ADP catalog v12 field ids for a contact file's cataloged text. */
@@ -55,7 +56,8 @@ export const ContactFilesList: React.FC<ContactFilesListProps> = ({ files, isLoa
 
       try {
         const base64 = await getContactFileBase64(file);
-        const fileName = (!isFieldRedacted(file.RedactedFields, FileFieldIds.fileName, file.FileName) && file.FileName) || `contact_file_${file.Id}`;
+        // The name comes from the server, so only its basename is used under the documents directory.
+        const fileName = sanitizeFileName(isFieldRedacted(file.RedactedFields, FileFieldIds.fileName, file.FileName) ? null : file.FileName, `contact_file_${file.Id}`);
         const fileUri = `${FileSystem.documentDirectory}${fileName}`;
         await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
 

@@ -144,6 +144,12 @@ export const TimeReportEditor = ({
             <ButtonText>{isCrew ? t('operations.time.startCrew') : t('operations.time.start')}</ButtonText>
           </Button>
         ) : null}
+        {/* A refused start comes back as issues with no report to hang them on. */}
+        {issues.map((issue, i) => (
+          <Text key={`${issue.Code}-${i}`} accessibilityRole="alert" className="text-error-600">
+            {issueText(issue)}
+          </Text>
+        ))}
       </VStack>
     );
   }

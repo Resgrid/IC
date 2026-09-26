@@ -13,6 +13,7 @@ import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { logger } from '@/lib/logging';
 import { connectorStateAction, formatWhen } from '@/lib/records/deployments';
 import { useDeploymentsStore } from '@/stores/records/deployments-store';
 import { securityStore } from '@/stores/security/store';
@@ -55,8 +56,13 @@ export default function ConnectorScreen() {
       return;
     }
     setRefreshing(true);
-    await Promise.all([fetchConnector(id), fetchRuns(id), fetchReconciliation(id)]);
-    setRefreshing(false);
+    try {
+      await Promise.all([fetchConnector(id), fetchRuns(id), fetchReconciliation(id)]);
+    } catch (error) {
+      logger.error({ message: 'Failed to load records connector', context: { error, connectorId: id } });
+    } finally {
+      setRefreshing(false);
+    }
   }, [id, fetchConnector, fetchRuns, fetchReconciliation]);
 
   useFocusEffect(

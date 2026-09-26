@@ -252,7 +252,7 @@ describe('AudioStreamStore', () => {
         allowsRecording: false,
         shouldPlayInBackground: true,
         playsInSilentMode: true,
-        interruptionMode: 'duckOthers',
+        interruptionMode: 'doNotMix',
         shouldRouteThroughEarpiece: false,
       });
       

@@ -15,6 +15,7 @@ import { Pressable } from '@/components/ui/pressable';
 import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { logger } from '@/lib/logging';
 import { operationsCapabilities } from '@/lib/operations/capabilities';
 import {
   availableScopes,
@@ -60,16 +61,24 @@ export default function OperationsDeploymentScreen() {
   useFocusEffect(
     useCallback(() => {
       if (flagStatus !== 'enabled' || !id) return undefined;
+      // Cleared on blur so a load still in flight does not carry on into a screen that has closed.
+      let active = true;
       void (async () => {
         const store = useOperationsStore.getState();
         if (!store.access) await store.loadAccess();
-        if (!useOperationsStore.getState().access?.Enabled) return;
+        if (!active || !useOperationsStore.getState().access?.Enabled) return;
         await useOperationsStore.getState().open(id);
+        if (!active) return;
         const opened = useOperationsStore.getState().deployment;
         if (opened) useOperationsStore.getState().setScope(defaultScope(opened, activeUnitRef.current), dateRef.current);
         await Promise.all([useOperationsStore.getState().loadExpenses(), useOperationsStore.getState().loadUsage(), useOperationsStore.getState().loadMars()]);
-      })();
-      return () => useOperationsStore.getState().close();
+      })().catch((error: unknown) => {
+        logger.error({ message: 'Failed to load operations deployment', context: { error, deploymentId: id } });
+      });
+      return () => {
+        active = false;
+        useOperationsStore.getState().close();
+      };
     }, [flagStatus, id])
   );
 

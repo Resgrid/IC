@@ -54,6 +54,13 @@ const messageOf = (error: unknown, fallback: string): string => {
   return error instanceof Error && error.message ? error.message : fallback;
 };
 
+// Fetches can overlap (a screen's focus refresh and a connector run's re-read), and each answer would
+// otherwise land in the order it arrives. Only the latest request of a kind writes; an older answer
+// that arrives late is returned to its caller but never replaces what a newer one stored. The list and
+// the single-deployment read share one counter because they write the same list and loading flag.
+let deploymentsSeq = 0;
+let reconciliationSeq = 0;
+
 export const useDeploymentsStore = create<DeploymentsState>()(
   persist(
     (set, get) => ({
@@ -69,25 +76,34 @@ export const useDeploymentsStore = create<DeploymentsState>()(
       lastFetchedOn: null,
 
       fetchDeployments: async (options) => {
+        const seq = ++deploymentsSeq;
         const includeClosed = options?.includeClosed ?? get().includeClosed;
         set({ isLoading: true, error: null, includeClosed });
         try {
           const response = await getRecordDeployments(includeClosed);
           const deployments = sortDeployments(response?.Data ?? []);
-          set({ deployments, isLoading: false, lastFetchedOn: new Date().toISOString() });
+          if (seq === deploymentsSeq) {
+            set({ deployments, isLoading: false, lastFetchedOn: new Date().toISOString() });
+          }
           return deployments;
         } catch (error) {
           logger.error({ message: 'Deployments fetch failed', context: { error } });
-          set({ isLoading: false, error: messageOf(error, 'load_failed') });
+          if (seq === deploymentsSeq) {
+            set({ isLoading: false, error: messageOf(error, 'load_failed') });
+          }
           return get().deployments;
         }
       },
 
       fetchDeployment: async (orderId) => {
+        const seq = ++deploymentsSeq;
         set({ isLoading: true, error: null });
         try {
           const response = await getRecordDeployment(orderId);
           const deployment = response?.Data ?? null;
+          if (seq !== deploymentsSeq) {
+            return deployment;
+          }
           if (deployment) {
             set({ deployments: upsertDeployment(get().deployments, deployment), isLoading: false });
           } else {
@@ -97,22 +113,30 @@ export const useDeploymentsStore = create<DeploymentsState>()(
           return deployment;
         } catch (error) {
           logger.error({ message: 'Deployment fetch failed', context: { error, orderId } });
-          set({ isLoading: false, error: messageOf(error, 'load_failed') });
+          if (seq === deploymentsSeq) {
+            set({ isLoading: false, error: messageOf(error, 'load_failed') });
+          }
           return get().deployments.find((existing) => existing.OrderId === orderId) ?? null;
         }
       },
 
       fetchReconciliation: async (connectorId) => {
+        const seq = ++reconciliationSeq;
         try {
           const response = await getRecordDeploymentReconciliation(connectorId);
           const items = response?.Data ?? [];
+          if (seq !== reconciliationSeq) {
+            return items;
+          }
           // One connector's items replace only that connector's slice; the rest stays as last seen.
           const kept = connectorId ? get().reconciliation.filter((item) => item.ConnectorId !== connectorId) : [];
           set({ reconciliation: [...kept, ...items], connectorsError: null });
           return items;
         } catch (error) {
           logger.error({ message: 'Reconciliation fetch failed', context: { error, connectorId } });
-          set({ connectorsError: messageOf(error, 'load_failed') });
+          if (seq === reconciliationSeq) {
+            set({ connectorsError: messageOf(error, 'load_failed') });
+          }
           return [];
         }
       },

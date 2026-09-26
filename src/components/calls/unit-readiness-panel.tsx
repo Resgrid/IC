@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView } from 'react-native';
 
@@ -23,20 +23,35 @@ export const UnitReadinessPanel: React.FC<UnitReadinessPanelProps> = ({ callId }
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
+  // Only the latest request may write: a slower answer for a previous call must not replace this one's.
+  const requestRef = useRef(0);
+
   const load = useCallback(async () => {
+    const request = ++requestRef.current;
     setLoading(true);
     setFailed(false);
     try {
-      setPacket(await getReadinessPacket(callId));
+      const next = await getReadinessPacket(callId);
+      if (request === requestRef.current) {
+        setPacket(next);
+      }
     } catch {
-      setFailed(true);
+      if (request === requestRef.current) {
+        setFailed(true);
+      }
     } finally {
-      setLoading(false);
+      if (request === requestRef.current) {
+        setLoading(false);
+      }
     }
   }, [callId]);
 
   useEffect(() => {
     void load();
+    return () => {
+      // Unmounting or switching calls retires the request in flight.
+      requestRef.current += 1;
+    };
   }, [load]);
 
   const units = useMemo(() => (packet ? summarizeReadiness(packet, t('readiness.unnamedUnit')) : []), [packet, t]);

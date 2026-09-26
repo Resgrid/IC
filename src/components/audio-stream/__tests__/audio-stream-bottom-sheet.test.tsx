@@ -5,8 +5,25 @@ import { useAudioStreamStore } from '@/stores/app/audio-stream-store';
 
 import { AudioStreamBottomSheet } from '../audio-stream-bottom-sheet';
 
+// Prefixed with "mock" so the hoisted jest.mock factories below may refer to them.
+interface MockChildrenProps {
+  children?: React.ReactNode;
+}
+
+interface MockActionsheetProps extends MockChildrenProps {
+  isOpen?: boolean;
+}
+
+interface MockButtonProps extends MockChildrenProps {
+  onPress?: () => void;
+}
+
+interface MockSelectProps extends MockChildrenProps {
+  [prop: string]: unknown;
+}
+
 jest.mock('nativewind', () => ({
-  styled: jest.fn((Component: any) => Component),
+  styled: jest.fn(<T,>(Component: T) => Component),
   useColorScheme: () => ({ colorScheme: 'light' }),
   cssInterop: jest.fn(),
 }));
@@ -29,30 +46,30 @@ jest.mock('@/components/ui/text', () => {
 jest.mock('../../ui/actionsheet', () => {
   const { View } = require('react-native');
   return {
-    Actionsheet: ({ isOpen, children }: any) => (isOpen ? <View testID="actionsheet">{children}</View> : null),
+    Actionsheet: ({ isOpen, children }: MockActionsheetProps) => (isOpen ? <View testID="actionsheet">{children}</View> : null),
     ActionsheetBackdrop: () => null,
-    ActionsheetContent: ({ children }: any) => <View>{children}</View>,
+    ActionsheetContent: ({ children }: MockChildrenProps) => <View>{children}</View>,
     ActionsheetDragIndicator: () => null,
-    ActionsheetDragIndicatorWrapper: ({ children }: any) => <View>{children}</View>,
+    ActionsheetDragIndicatorWrapper: ({ children }: MockChildrenProps) => <View>{children}</View>,
   };
 });
 
 jest.mock('../../ui/button', () => {
   const { Text, TouchableOpacity } = require('react-native');
   return {
-    Button: ({ children, onPress }: any) => <TouchableOpacity onPress={onPress}>{children}</TouchableOpacity>,
-    ButtonText: ({ children }: any) => <Text>{children}</Text>,
+    Button: ({ children, onPress }: MockButtonProps) => <TouchableOpacity onPress={onPress}>{children}</TouchableOpacity>,
+    ButtonText: ({ children }: MockChildrenProps) => <Text>{children}</Text>,
   };
 });
 
 jest.mock('../../ui/hstack', () => {
   const { View } = require('react-native');
-  return { HStack: ({ children }: any) => <View>{children}</View> };
+  return { HStack: ({ children }: MockChildrenProps) => <View>{children}</View> };
 });
 
 jest.mock('../../ui/vstack', () => {
   const { View } = require('react-native');
-  return { VStack: ({ children }: any) => <View>{children}</View> };
+  return { VStack: ({ children }: MockChildrenProps) => <View>{children}</View> };
 });
 
 const selectProps: Record<string, unknown>[] = [];
@@ -61,22 +78,22 @@ const selectInputProps: Record<string, unknown>[] = [];
 jest.mock('../../ui/select', () => {
   const { View } = require('react-native');
   return {
-    Select: ({ children, ...props }: any) => {
+    Select: ({ children, ...props }: MockSelectProps) => {
       selectProps.push(props);
       return <View testID="select">{children}</View>;
     },
     SelectBackdrop: () => null,
-    SelectContent: ({ children }: any) => <View>{children}</View>,
+    SelectContent: ({ children }: MockChildrenProps) => <View>{children}</View>,
     SelectDragIndicator: () => null,
-    SelectDragIndicatorWrapper: ({ children }: any) => <View>{children}</View>,
+    SelectDragIndicatorWrapper: ({ children }: MockChildrenProps) => <View>{children}</View>,
     SelectIcon: () => null,
-    SelectInput: (props: any) => {
+    SelectInput: (props: Record<string, unknown>) => {
       selectInputProps.push(props);
       return null;
     },
     SelectItem: () => null,
-    SelectPortal: ({ children }: any) => <View>{children}</View>,
-    SelectTrigger: ({ children }: any) => <View>{children}</View>,
+    SelectPortal: ({ children }: MockChildrenProps) => <View>{children}</View>,
+    SelectTrigger: ({ children }: MockChildrenProps) => <View>{children}</View>,
   };
 });
 

@@ -93,18 +93,27 @@ export function ServerUrlBottomSheet({ isOpen, onClose, onUrlChanged }: ServerUr
           setSelectedServer(matchingLocation?.Name ?? CUSTOM_SERVER_VALUE);
         }
       } catch (error) {
-        const currentUrl = await getUrl();
+        logger.error({
+          message: 'Failed to load system config for server URLs',
+          context: { error },
+        });
+
+        // The fallback read can fail the same way; it must not escape the effect as an unhandled rejection.
+        let currentUrl = '';
+        try {
+          currentUrl = await getUrl();
+        } catch (urlError) {
+          logger.error({
+            message: 'Failed to read the stored server URL',
+            context: { error: urlError },
+          });
+        }
 
         if (isMounted) {
           setLocations([]);
           setValue('url', normalizeBaseUrl(currentUrl));
           setSelectedServer(CUSTOM_SERVER_VALUE);
         }
-
-        logger.error({
-          message: 'Failed to load system config for server URLs',
-          context: { error },
-        });
       } finally {
         if (isMounted) {
           setIsLoadingServerOptions(false);

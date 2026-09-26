@@ -49,16 +49,17 @@ describe('inbox chat references', () => {
     (useNotifications as jest.Mock).mockReturnValue({ notifications: [item({ eventCode: 'g:7f1c' }, 'chat-1')], isLoading: false, fetchMore: jest.fn(), hasMore: false, refetch: jest.fn() });
     const onClose = jest.fn();
 
-    render(<NotificationInbox isOpen onClose={onClose} />);
+    const { unmount } = render(<NotificationInbox isOpen onClose={onClose} />);
     fireEvent.press(screen.getByTestId('notification-reference-chat-1'));
 
     expect(onClose).toHaveBeenCalled();
     expect(router.push).toHaveBeenCalledWith({ pathname: '/chat/[channelId]', params: { channelId: '7f1c' } });
+    unmount();
   });
 
   it('labels the detail button for a chat reference', () => {
     const onNavigateToReference = jest.fn();
-    render(
+    const { unmount } = render(
       <NotificationDetail
         notification={{ id: 'n-1', title: 'Jane', body: 'On scene', createdAt: '2026-09-22T10:00:00Z', referenceType: 'chat', referenceId: '7f1c' }}
         onClose={jest.fn()}
@@ -67,8 +68,8 @@ describe('inbox chat references', () => {
       />
     );
 
-    expect(screen.getByText('View Chat')).toBeTruthy();
-    fireEvent.press(screen.getByTestId('notification-detail-reference'));
+    fireEvent.press(screen.getByText('View Chat'));
     expect(onNavigateToReference).toHaveBeenCalledWith('chat', '7f1c');
+    unmount();
   });
 });

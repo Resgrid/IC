@@ -146,6 +146,21 @@ it('keeps validation refusals from the server on the report and switches scope w
   expect(useOperationsStore.getState().issues).toEqual([]);
 });
 
+it('shows why the server refused to start a report instead of listing a report that does not exist', async () => {
+  await useOperationsStore.getState().loadAccess();
+  await useOperationsStore.getState().open('dep-1');
+  useOperationsStore.getState().setScope({ kind: 'crew', unitId: 'du-1' }, '2026-09-19');
+  server.newTimeReport.mockResolvedValue(answer(null, [{ Code: 'subject_on_other_report', SubjectId: 'du-1' }], [{ Code: 'late_entry' }]));
+
+  await useOperationsStore.getState().openReport('2026-09-19', true);
+
+  const state = useOperationsStore.getState();
+  expect(state.reports).toEqual([]);
+  expect(state.report).toBeNull();
+  expect(state.issues).toEqual([{ Code: 'subject_on_other_report', SubjectId: 'du-1' }]);
+  expect(state.warnings).toEqual([{ Code: 'late_entry' }]);
+});
+
 it('files expenses against the open deployment and removes only by id', async () => {
   await useOperationsStore.getState().open('dep-1');
   server.saveExpense.mockResolvedValue({ Id: 'x-1', DeploymentId: 'dep-1', ExpenseDate: '2026-09-19T00:00:00', ExpenseType: 4, Amount: 88.4, PreApproved: false, Billable: true } as never);

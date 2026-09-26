@@ -9,6 +9,7 @@ import { Divider } from '@/components/ui/divider';
 import { FocusAwareStatusBar } from '@/components/ui/focus-aware-status-bar';
 import { Heading } from '@/components/ui/heading';
 import { Text } from '@/components/ui/text';
+import { logger } from '@/lib/logging';
 import { useDeploymentsStore } from '@/stores/records/deployments-store';
 import { securityStore } from '@/stores/security/store';
 
@@ -30,8 +31,13 @@ export default function ConnectorsScreen() {
 
   const load = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchConnectors(), fetchReconciliation()]);
-    setRefreshing(false);
+    try {
+      await Promise.all([fetchConnectors(), fetchReconciliation()]);
+    } catch (error) {
+      logger.error({ message: 'Failed to load records connectors', context: { error } });
+    } finally {
+      setRefreshing(false);
+    }
   }, [fetchConnectors, fetchReconciliation]);
 
   useFocusEffect(

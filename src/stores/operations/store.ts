@@ -197,14 +197,22 @@ export const useOperationsStore = create<OperationsState>()((set, get) => {
       if (!deployment) return;
       let report = reportForScope(get().reports, dateKey, scope);
       if (!report && create && scope && operationsCapabilities.editTime) {
-        await settle(async () => {
+        const created = await settle(async () => {
           const response = await newTimeReport(deployment.Id, dateKey, {
             deploymentUnitId: scope.kind === 'crew' ? scope.unitId : null,
             deploymentPersonnelId: scope.kind === 'individual' ? scope.personnelId : null,
           });
-          report = response.Data;
-          set({ reports: [...get().reports, report] });
+          const errors = response.Errors ?? [];
+          if (errors.length > 0 || !response.Data) {
+            // A refused create carries no report to open or list; the person is shown why instead.
+            set({ issues: errors, warnings: response.Warnings ?? [] });
+            return null;
+          }
+          set({ reports: [...get().reports, response.Data] });
+          return response.Data;
         });
+        if (!created) return;
+        report = created;
       }
       // The scope can change while the create is in flight; only the report that still matches it opens.
       if (scopeKey(get().scope) !== scopeKey(scope)) return;

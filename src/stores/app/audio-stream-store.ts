@@ -155,12 +155,13 @@ export const useAudioStreamStore = create<AudioStreamState>((set, get) => ({
         context: { streamName: stream.Name, streamUrl },
       });
 
-      // Configure audio mode for streaming
+      // Configure audio mode for streaming. The lock-screen / notification controls registered below
+      // are only associated with this player when the session does not mix with other apps.
       await setAudioModeAsync({
         allowsRecording: false,
         shouldPlayInBackground: true,
         playsInSilentMode: true,
-        interruptionMode: 'duckOthers',
+        interruptionMode: 'doNotMix',
         shouldRouteThroughEarpiece: false,
       });
 

@@ -143,6 +143,31 @@ describe('Deployments store conformance', () => {
     expect(useDeploymentsStore.getState().reconciliation).toEqual([]);
   });
 
+  it('never lets an older read that answers late replace what a newer one stored', async () => {
+    let answerList: (value: unknown) => void = () => undefined;
+    api.getRecordDeployments.mockReturnValueOnce(new Promise((resolve) => (answerList = resolve)));
+    api.getRecordDeployment.mockResolvedValueOnce({ Data: deployment('o1', '2026-09-05T00:00:00Z', 'Mobilized') });
+
+    const list = useDeploymentsStore.getState().fetchDeployments();
+    await useDeploymentsStore.getState().fetchDeployment('o1');
+    expect(useDeploymentsStore.getState().isLoading).toBe(false);
+    answerList({ Data: [deployment('o1', '2026-09-01T00:00:00Z')] });
+    await list;
+
+    expect(useDeploymentsStore.getState().deployments.map((d) => d.Status)).toEqual(['Mobilized']);
+
+    let answerAll: (value: unknown) => void = () => undefined;
+    api.getRecordDeploymentReconciliation.mockReturnValueOnce(new Promise((resolve) => (answerAll = resolve))).mockResolvedValueOnce({ Data: [] });
+
+    const all = useDeploymentsStore.getState().fetchReconciliation();
+    await useDeploymentsStore.getState().fetchReconciliation('c1');
+    answerAll({ Data: [{ ConnectorId: 'c1', OrderId: 'o1', OrderNumber: 'O1', Kind: 'source_status_ahead' }] });
+    await all;
+
+    // The run's own re-read resolved the item; the full list read before it must not bring it back.
+    expect(useDeploymentsStore.getState().reconciliation).toEqual([]);
+  });
+
   it('shows a refusal as a refusal rather than retrying or hiding it', async () => {
     api.getRecordDeploymentConnectors.mockRejectedValue(forbidden());
 
