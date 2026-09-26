@@ -114,7 +114,8 @@ interface RecordsState {
   fetchSchema: (definitionKey: string, version: number) => Promise<RecordDefinitionSchema | null>;
   prefill: (definitionKey: string, version: number) => Promise<FieldRecordPrefillData | null>;
 
-  stageDraft: (draft: PendingRecordDraft) => void;
+  /** Keeps the draft on the device; false when its definition may not be kept there (sealed, or not known to be safe). */
+  stageDraft: (draft: PendingRecordDraft) => boolean;
   discardDraft: (clientRecordId: string) => void;
   /** Sends a staged draft, or `draft` itself when it was not staged (a definition that seals values never is). */
   pushDraft: (clientRecordId: string, draft?: PendingRecordDraft) => Promise<{ ok: boolean; recordId?: string; conflict?: FieldRecordConflictKind; error?: string }>;
@@ -174,8 +175,12 @@ const messageFrom = (error: unknown): string => {
   return response?.data?.title ?? (error instanceof Error ? error.message : 'Request failed');
 };
 
-/** An unknown definition (catalog not loaded) is kept; only one known to seal values is refused. */
-const mayKeepOnDevice = (entry: FieldRecordCatalogEntry | null): boolean => !entry || canAuthorOffline(entry);
+/**
+ * Fails closed: only a definition the current catalog lists as offline-capable is kept. The catalog is not
+ * persisted, is cleared with the context and lists exact versions, so "unknown" is common, and an unknown
+ * definition may be one that seals values.
+ */
+const mayKeepOnDevice = (entry: FieldRecordCatalogEntry | null): boolean => !!entry && canAuthorOffline(entry);
 
 export const useRecordsStore = create<RecordsState>()(
   persist(
@@ -341,10 +346,11 @@ export const useRecordsStore = create<RecordsState>()(
       stageDraft: (draft) => {
         if (!mayKeepOnDevice(get().entryFor(draft.definitionKey, draft.definitionVersion))) {
           // A definition that seals values never leaves plaintext on the device, so it is not staged.
-          logger.info({ message: 'Draft not staged offline: definition requires a live protected-data grant', context: { definitionKey: draft.definitionKey } });
-          return;
+          logger.info({ message: 'Draft not staged offline: definition is not known to allow offline authoring', context: { definitionKey: draft.definitionKey } });
+          return false;
         }
         set({ pendingDrafts: { ...get().pendingDrafts, [draft.clientRecordId]: { ...draft, updatedOn: new Date().toISOString() } } });
+        return true;
       },
 
       discardDraft: (clientRecordId) => {
@@ -354,6 +360,8 @@ export const useRecordsStore = create<RecordsState>()(
       },
 
       pushDraft: async (clientRecordId, supplied) => {
+        // Whether it is on the device is decided once, when it is staged; a send never adds it.
+        const staged = !!get().pendingDrafts[clientRecordId];
         const draft = supplied ?? get().pendingDrafts[clientRecordId];
         if (!draft) {
           return { ok: false, error: 'not_found' };
@@ -387,9 +395,9 @@ export const useRecordsStore = create<RecordsState>()(
           return { ok: true, recordId };
         } catch (error) {
           const conflict = conflictFrom(error);
-          // Never replayed silently: the draft is kept and flagged so a person decides what happens —
-          // unless its definition seals values, which are never left on the device.
-          if (mayKeepOnDevice(get().entryFor(draft.definitionKey, draft.definitionVersion))) {
+          // Never replayed silently: a staged draft stays flagged so a person decides what happens. One
+          // that was never staged (its values may be sealed) is not written to the device by a failure.
+          if (staged) {
             set({
               pendingDrafts: {
                 ...get().pendingDrafts,

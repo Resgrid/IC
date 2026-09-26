@@ -1670,6 +1670,7 @@
     "assigned": "المُسنَد إليك",
     "attachment_failed": "تعذّر إرسال المرفق.",
     "attachment_file_missing": "لم يعد الملف موجودًا على هذا الجهاز.",
+    "attachment_too_large": "هذا الملف أكبر من {{size}} ميغابايت، وهو الحد الأقصى لحجم المرفق.",
     "attachment_unreadable": "تعذّرت قراءة الملف.",
     "attachment_will_resume": "متوقّف مؤقتًا. سيستأنف من حيث توقف.",
     "attachments": "المرفقات",

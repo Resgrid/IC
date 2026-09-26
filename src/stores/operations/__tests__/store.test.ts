@@ -161,6 +161,40 @@ it('shows why the server refused to start a report instead of listing a report t
   expect(state.warnings).toEqual([{ Code: 'late_entry' }]);
 });
 
+it('drops a deployment that answers after the screen closed or another deployment opened', async () => {
+  let answerFirst: (value: unknown) => void = () => undefined;
+  server.getDeployment.mockReturnValueOnce(new Promise((resolve) => (answerFirst = resolve)) as never);
+
+  const stale = useOperationsStore.getState().open('dep-1');
+  useOperationsStore.getState().close();
+  answerFirst(deployment);
+  await stale;
+  expect(useOperationsStore.getState().deployment).toBeNull();
+
+  let answerSecond: (value: unknown) => void = () => undefined;
+  server.getDeployment.mockReturnValueOnce(new Promise((resolve) => (answerSecond = resolve)) as never).mockResolvedValueOnce({ ...deployment, Id: 'dep-2', Name: 'CZU' } as never);
+  const older = useOperationsStore.getState().open('dep-1');
+  await useOperationsStore.getState().open('dep-2');
+  answerSecond(deployment);
+  await older;
+  expect(useOperationsStore.getState().deployment?.Id).toBe('dep-2');
+});
+
+it('does not file one deployment expenses under another that opened while they loaded', async () => {
+  await useOperationsStore.getState().open('dep-1');
+  let answerExpenses: (value: unknown) => void = () => undefined;
+  server.getExpenses.mockReturnValueOnce(new Promise((resolve) => (answerExpenses = resolve)) as never);
+
+  const loading = useOperationsStore.getState().loadExpenses();
+  server.getDeployment.mockResolvedValueOnce({ ...deployment, Id: 'dep-2', Name: 'CZU' } as never);
+  await useOperationsStore.getState().open('dep-2');
+  answerExpenses([{ Id: 'x-1', DeploymentId: 'dep-1' }]);
+  await loading;
+
+  expect(useOperationsStore.getState().deployment?.Id).toBe('dep-2');
+  expect(useOperationsStore.getState().expenses).toEqual([]);
+});
+
 it('files expenses against the open deployment and removes only by id', async () => {
   await useOperationsStore.getState().open('dep-1');
   server.saveExpense.mockResolvedValue({ Id: 'x-1', DeploymentId: 'dep-1', ExpenseDate: '2026-09-19T00:00:00', ExpenseType: 4, Amount: 88.4, PreApproved: false, Billable: true } as never);

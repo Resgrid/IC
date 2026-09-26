@@ -1670,6 +1670,7 @@
     "assigned": "Przypisane do Ciebie",
     "attachment_failed": "Nie udało się wysłać załącznika.",
     "attachment_file_missing": "Pliku już nie ma na tym urządzeniu.",
+    "attachment_too_large": "Ten plik jest większy niż {{size}} MB, czyli maksymalny rozmiar załącznika.",
     "attachment_unreadable": "Nie udało się odczytać pliku.",
     "attachment_will_resume": "Wstrzymano. Wznowi się w miejscu przerwania.",
     "attachments": "Załączniki",

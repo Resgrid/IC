@@ -137,6 +137,33 @@ describe('Field Records store conformance', () => {
     expect(useRecordsStore.getState().pendingDrafts).toEqual({});
   });
 
+  it('fails closed: a definition the catalog does not list is neither staged nor kept after a failed send', async () => {
+    useRecordsStore.setState({ catalog: null });
+    const draft = { clientRecordId: 'draft-u', recordId: null, definitionKey: 'shift-log', definitionVersion: 3, name: 'Shift log', values: [], updatedOn: '2026-09-06T00:00:00Z' };
+    recordsApi.createRecordDraft.mockRejectedValueOnce({ response: { status: 500, data: { title: 'Unavailable' } } });
+
+    expect(useRecordsStore.getState().stageDraft(draft)).toBe(false);
+    const failed = await useRecordsStore.getState().pushDraft('draft-u', draft);
+
+    expect(failed).toMatchObject({ ok: false, error: 'Unavailable' });
+    expect(useRecordsStore.getState().pendingDrafts).toEqual({});
+  });
+
+  it('keeps the conflict on a staged draft even when the catalog is gone by the time it fails', async () => {
+    useRecordsStore.setState({ catalog: { ContractVersion: 'field-catalog.v1', OriginClient: 'IncidentCommand', Ok: true, Reasons: [], ContextVerified: true, Definitions: [goldenCatalogEntry()], Exclusions: [], ServerTimestampMs: 0 } });
+    const draft = { clientRecordId: 'draft-c', recordId: null, definitionKey: 'shift-log', definitionVersion: 3, name: 'Shift log', values: [], updatedOn: '2026-09-06T00:00:00Z' };
+    recordsApi.createRecordDraft.mockRejectedValue({ response: { status: 409, data: { type: 'record_concurrency', title: 'Changed' } } });
+
+    expect(useRecordsStore.getState().stageDraft(draft)).toBe(true);
+    useRecordsStore.setState({ catalog: null });
+    await useRecordsStore.getState().pushDraft('draft-c');
+
+    expect(useRecordsStore.getState().pendingDrafts['draft-c'].conflict).toBe('etag');
+    recordsApi.createRecordDraft.mockClear();
+    await useRecordsStore.getState().pushAllDrafts();
+    expect(recordsApi.createRecordDraft).not.toHaveBeenCalled();
+  });
+
   it('sends a protected definition online without ever keeping it on the device', async () => {
     useRecordsStore.setState({ catalog: { ContractVersion: 'field-catalog.v1', OriginClient: 'IncidentCommand', Ok: true, Reasons: [], ContextVerified: true, Definitions: [goldenCatalogEntry({ RequiresProtectedGrant: true })], Exclusions: [], ServerTimestampMs: 0 } });
     const draft = { clientRecordId: 'draft-p', recordId: null, definitionKey: 'shift-log', definitionVersion: 3, name: 'Shift log', values: [], updatedOn: '2026-09-06T00:00:00Z' };

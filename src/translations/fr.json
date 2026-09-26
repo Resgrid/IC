@@ -1670,6 +1670,7 @@
     "assigned": "Qui vous sont attribués",
     "attachment_failed": "Cette pièce jointe n'a pas pu être envoyée.",
     "attachment_file_missing": "Le fichier n'est plus sur cet appareil.",
+    "attachment_too_large": "Ce fichier dépasse {{size}} Mo, la taille maximale d'une pièce jointe.",
     "attachment_unreadable": "Ce fichier n'a pas pu être lu.",
     "attachment_will_resume": "En pause. La reprise se fera où elle s'est arrêtée.",
     "attachments": "Pièces jointes",

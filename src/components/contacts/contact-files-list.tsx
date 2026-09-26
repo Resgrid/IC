@@ -56,9 +56,13 @@ export const ContactFilesList: React.FC<ContactFilesListProps> = ({ files, isLoa
 
       try {
         const base64 = await getContactFileBase64(file);
-        // The name comes from the server, so only its basename is used under the documents directory.
+        // The name comes from the server, so only its basename is used. Each file gets its own folder so
+        // two files with the same name never share, or overwrite, one path while the recipient still sees
+        // the real name.
         const fileName = sanitizeFileName(isFieldRedacted(file.RedactedFields, FileFieldIds.fileName, file.FileName) ? null : file.FileName, `contact_file_${file.Id}`);
-        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+        const directory = `${FileSystem.documentDirectory}contact-files/${sanitizeFileName(file.Id, 'file')}/`;
+        await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
+        const fileUri = `${directory}${fileName}`;
         await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
 
         if (await Sharing.isAvailableAsync()) {

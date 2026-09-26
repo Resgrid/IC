@@ -139,10 +139,9 @@ export default function NewRecordScreen() {
       };
 
       if (!send) {
-        // Explicit local save. A definition that seals values is never written to the device, so the
-        // store refuses to stage it and the person is told to stay online for it.
-        stageDraft(draft);
-        setMessage(offlineCapable ? t('records.saved_locally') : t('records.online_only'));
+        // Explicit local save. A definition that seals values (or one the store cannot confirm is safe to
+        // keep) is never written to the device, so the store refuses it and the person is told to stay online.
+        setMessage(stageDraft(draft) ? t('records.saved_locally') : t('records.online_only'));
         return;
       }
 
@@ -162,7 +161,7 @@ export default function NewRecordScreen() {
         setIsBusy(false);
       }
     },
-    [entry, schema, values, resumed, context, stageDraft, offlineCapable, pushDraft, discardDraft, router, t]
+    [entry, schema, values, resumed, context, stageDraft, pushDraft, discardDraft, router, t]
   );
 
   if (!entry) {

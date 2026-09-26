@@ -10,6 +10,12 @@ import { logger } from '@/lib/logging';
 // dead battery, a lost signal or a killed app resumes from the server's own count rather than
 // starting again. Nothing is retried silently — a failure comes back for a person to act on.
 
+/**
+ * The server's attachment ceiling (RecordAttachmentHygiene.MaxBytes). Checked before a file is read: the
+ * hash and the upload each hold the whole file in memory, and anything larger is refused at BeginUpload.
+ */
+export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
 /** RecordUploadSessionState on the server. */
 export const RecordUploadState = {
   Open: 1,
