@@ -8,7 +8,7 @@
 
 import { logger } from '@/lib/logging';
 import { storage } from '@/lib/storage';
-import { removeActiveCallId, removeDeviceUuid } from '@/lib/storage/app';
+import { BASE_API_URL_STORAGE_KEY, removeActiveCallId, removeDeviceUuid } from '@/lib/storage/app';
 import { useAudioStreamStore } from '@/stores/app/audio-stream-store';
 import { INITIAL_STATE as BLUETOOTH_INITIAL_STATE, useBluetoothAudioStore } from '@/stores/app/bluetooth-audio-store';
 import { useCoreStore } from '@/stores/app/core-store';
@@ -25,6 +25,7 @@ import { useProtocolsStore } from '@/stores/protocols/store';
 import { usePushNotificationModalStore } from '@/stores/push-notification/store';
 import { useRolesStore } from '@/stores/roles/store';
 import { securityStore } from '@/stores/security/store';
+import { useSignalRStore } from '@/stores/signalr/signalr-store';
 import { useUnitsStore } from '@/stores/units/store';
 
 // ============================================================================
@@ -164,8 +165,9 @@ export const INITIAL_PUSH_NOTIFICATION_MODAL_STATE = {
   notification: null,
 };
 
-// Keys to preserve during storage clear (e.g., first-time flags)
-const STORAGE_KEYS_TO_PRESERVE = ['IS_FIRST_TIME'];
+// Keys to preserve during storage clear. The selected server URL is an install-level
+// preference: wiping it on logout would silently send the next sign-in to the default server.
+const STORAGE_KEYS_TO_PRESERVE = ['IS_FIRST_TIME', BASE_API_URL_STORAGE_KEY];
 
 /**
  * Clears all persisted storage items except those in the preserve list
@@ -203,6 +205,9 @@ export const resetAllStores = async (): Promise<void> => {
   useDispatchStore.setState(INITIAL_DISPATCH_STATE);
   securityStore.setState(INITIAL_SECURITY_STATE);
   featureFlagsStore.setState(INITIAL_FEATURE_FLAGS_STATE);
+
+  // Realtime map positions belong to the previous session's department.
+  useSignalRStore.getState().clearLiveLocations();
 
   // Stores with existing reset/clear methods
   useOfflineQueueStore.getState().clearAllEvents();

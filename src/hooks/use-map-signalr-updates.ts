@@ -5,10 +5,18 @@ import { logger } from '@/lib/logging';
 import { type MapMakerInfoData } from '@/models/v4/mapping/getMapDataAndMarkersData';
 import { useSignalRStore } from '@/stores/signalr/signalr-store';
 
+import { withLiveLocationsSince } from './use-map-geolocation-updates';
+
 // Debounce delay in milliseconds to prevent rapid consecutive API calls
 const DEBOUNCE_DELAY = 1000;
 
-export const useMapSignalRUpdates = (onMarkersUpdate: (markers: MapMakerInfoData[]) => void) => {
+/**
+ * Refetches the map markers when the eventing hub reports a change.
+ *
+ * @returns a function that asks for one background refetch through the same serialized path (used
+ * when a realtime position arrives for a pin the current snapshot does not contain).
+ */
+export const useMapSignalRUpdates = (onMarkersUpdate: (markers: MapMakerInfoData[]) => void): (() => void) => {
   const lastProcessedTimestamp = useRef<number>(0);
   const isUpdating = useRef<boolean>(false);
   const pendingTimestamp = useRef<number | null>(null);
@@ -50,6 +58,8 @@ export const useMapSignalRUpdates = (onMarkersUpdate: (markers: MapMakerInfoData
           context: { timestamp: timestampToProcess },
         });
 
+        // Live positions received from here on are newer than this snapshot can be.
+        const fetchStartedAt = Date.now();
         const mapDataAndMarkers = await getMapDataAndMarkers(abortController.current.signal);
 
         // Check if request was aborted
@@ -71,7 +81,8 @@ export const useMapSignalRUpdates = (onMarkersUpdate: (markers: MapMakerInfoData
             },
           });
 
-          onMarkersUpdate(markers);
+          // Keep pins that moved while the request was in flight where the hub put them.
+          onMarkersUpdate(withLiveLocationsSince(markers, fetchStartedAt));
         }
 
         // Update the last processed timestamp after successful API call
@@ -166,4 +177,9 @@ export const useMapSignalRUpdates = (onMarkersUpdate: (markers: MapMakerInfoData
       }
     };
   }, []);
+
+  // A fetch already in flight queues exactly one follow-up, so repeated requests coalesce.
+  return useCallback(() => {
+    void fetchAndUpdateMarkers();
+  }, [fetchAndUpdateMarkers]);
 };

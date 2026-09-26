@@ -492,6 +492,43 @@ describe('SignalRService', () => {
     });
   });
 
+  describe('message logging', () => {
+    it('does not log location pushes or any message payload', async () => {
+      const unitListener = jest.fn();
+      signalRService.on('onUnitLocationUpdated', unitListener);
+
+      try {
+        await signalRService.connectToHubWithEventingUrl({
+          name: 'loggingHub',
+          eventingUrl: 'https://api.example.com/',
+          hubName: 'eventingHub',
+          methods: ['onUnitLocationUpdated', 'onPersonnelLocationUpdated', 'callsUpdated'],
+        });
+
+        const handlerFor = (method: string) => mockConnection.on.mock.calls.find((call) => call[0] === method)?.[1] as (...args: unknown[]) => void;
+        const unitPush = { departmentId: 7, unitId: '12', latitude: 47.6062123, longitude: -122.3321456, recordId: 'r1', timestamp: '2026-09-25T14:03:11Z' };
+        const personPush = { departmentId: 7, userId: 'user-1', latitude: 47.6062123, longitude: -122.3321456, recordId: 'r2', timestamp: '2026-09-25T14:03:12Z' };
+
+        handlerFor('onUnitLocationUpdated')(unitPush);
+        handlerFor('onPersonnelLocationUpdated')(personPush);
+        handlerFor('callsUpdated')({ body: 'private call notes' });
+
+        const logged = JSON.stringify([mockLogger.debug, mockLogger.info, mockLogger.warn, mockLogger.error].flatMap((log) => log.mock.calls));
+        expect(logged).not.toContain('47.6062123');
+        expect(logged).not.toContain('-122.3321456');
+        expect(logged).not.toContain('private call notes');
+        expect(logged).not.toMatch(/Received on(Unit|Personnel)LocationUpdated/);
+        expect(mockLogger.debug).toHaveBeenCalledWith({ message: 'Received callsUpdated message from hub: loggingHub', context: { method: 'callsUpdated' } });
+
+        // Logging less must not deliver less.
+        expect(unitListener).toHaveBeenCalledWith(unitPush);
+      } finally {
+        signalRService.off('onUnitLocationUpdated', unitListener);
+        await signalRService.disconnectFromHub('loggingHub');
+      }
+    });
+  });
+
   describe('hub availability and reconnecting state', () => {
     const mockConfig: SignalRHubConnectConfig = {
       name: 'testHub',
@@ -919,9 +956,105 @@ describe('SignalRService', () => {
       
       // Should NOT have called connectToHubWithEventingUrl due to token refresh failure
       expect(connectSpy).not.toHaveBeenCalled();
-      
+
       jest.useRealTimers();
       connectSpy.mockRestore();
+    });
+  });
+
+  /**
+   * The geolocation hub carries its token in the URL and the server closes the socket when that
+   * token expires. Every new connection must also rejoin the department group, so subscribers have
+   * to hear about each one — including the service's own rebuild after a close.
+   */
+  describe('reconnect lifecycle', () => {
+    const geoConfig: SignalRHubConnectConfig = {
+      name: 'geolocationHub',
+      eventingUrl: 'https://api.example.com/',
+      hubName: 'geolocationHub',
+      methods: ['onUnitLocationUpdated'],
+    };
+
+    const listeners: [string, jest.Mock][] = [];
+    const listen = (event: string) => {
+      const listener = jest.fn();
+      listeners.push([event, listener]);
+      signalRService.on(event, listener);
+      return listener;
+    };
+
+    afterEach(() => {
+      listeners.splice(0).forEach(([event, listener]) => signalRService.off(event, listener));
+      jest.useRealTimers();
+    });
+
+    it('re-signs the geolocation URL with the current token when an automatic reconnect starts', async () => {
+      await signalRService.connectToHubWithEventingUrl(geoConfig);
+      const onReconnecting = mockConnection.onreconnecting.mock.calls[0][0];
+      const reconnecting = listen('__hubReconnecting:geolocationHub');
+
+      // The auth store refreshed ahead of expiry; the URL still holds the old token.
+      mockGetState.mockReturnValue({ accessToken: 'fresh-token', refreshAccessToken: mockRefreshAccessToken });
+      onReconnecting(new Error('socket closed'));
+
+      expect((mockConnection as unknown as { baseUrl?: string }).baseUrl).toBe('https://api.example.com/geolocationHub?access_token=fresh-token');
+      expect(reconnecting).toHaveBeenCalledWith('geolocationHub');
+    });
+
+    it('leaves header-authenticated hubs to their token factory on reconnect', async () => {
+      await signalRService.connectToHubWithEventingUrl({ name: 'eventingHub', eventingUrl: 'https://api.example.com/', hubName: 'eventingHub', methods: ['method1'] });
+      const onReconnecting = mockConnection.onreconnecting.mock.calls[0][0];
+      const reconnecting = listen('__hubReconnecting:eventingHub');
+
+      onReconnecting(new Error('socket closed'));
+
+      expect((mockConnection as unknown as { baseUrl?: string }).baseUrl).toBeUndefined();
+      expect(reconnecting).toHaveBeenCalledWith('eventingHub');
+    });
+
+    it('announces the connection rebuilt after a close so subscribers rejoin', async () => {
+      jest.useFakeTimers();
+      await signalRService.connectToHubWithEventingUrl(geoConfig);
+      const onClose = mockConnection.onclose.mock.calls[0][0];
+      const disconnected = listen('__hubDisconnected:geolocationHub');
+      const reconnected = listen('__hubReconnected:geolocationHub');
+      mockGetState.mockReturnValue({ accessToken: 'fresh-token', refreshAccessToken: mockRefreshAccessToken });
+
+      onClose();
+      expect(disconnected).toHaveBeenCalledWith('geolocationHub');
+      expect(reconnected).not.toHaveBeenCalled();
+
+      await jest.advanceTimersByTimeAsync(5000);
+
+      expect(mockRefreshAccessToken).toHaveBeenCalled();
+      expect(mockBuilderInstance.withUrl).toHaveBeenLastCalledWith('https://api.example.com/geolocationHub?access_token=fresh-token', {});
+      expect(reconnected).toHaveBeenCalledWith('geolocationHub');
+    });
+
+    it('does not resurrect a hub that was disconnected while the token was refreshing', async () => {
+      jest.useFakeTimers();
+      await signalRService.connectToHubWithEventingUrl(geoConfig);
+      const onClose = mockConnection.onclose.mock.calls[0][0];
+      const reconnected = listen('__hubReconnected:geolocationHub');
+      let finishRefresh: () => void = () => {};
+      mockRefreshAccessToken.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            finishRefresh = resolve;
+          })
+      );
+
+      onClose();
+      await jest.advanceTimersByTimeAsync(5000);
+      mockHubConnectionBuilder.mockClear();
+
+      // The app goes to the background mid-refresh.
+      await signalRService.disconnectFromHub('geolocationHub');
+      finishRefresh();
+      await jest.advanceTimersByTimeAsync(0);
+
+      expect(mockHubConnectionBuilder).not.toHaveBeenCalled();
+      expect(reconnected).not.toHaveBeenCalled();
     });
   });
 });

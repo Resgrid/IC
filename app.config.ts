@@ -221,6 +221,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         ios: {
           deploymentTarget: '18.1',
           useFrameworks: 'static',
+          // Apps built with the iOS 27 SDK must adopt the UIKit scene life cycle or they are
+          // killed at launch. Remove once on SDK 58, whose template adopts it by default.
+          enableSceneSupport: true,
         },
       },
     ],
@@ -267,7 +270,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'expo-navigation-bar',
       {
         position: 'relative',
-        visibility: 'hidden',
+        hidden: true,
         behavior: 'inset-touch',
       },
     ],
@@ -313,6 +316,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     './plugins/withNotificationSounds.js',
     './plugins/withMediaButtonModule.js',
     './plugins/withInCallAudioModule.js',
+    './plugins/withResourceBundleDeploymentTarget.js',
     ['./plugins/with-app-icon-badge.js', appIconBadgeConfig],
   ],
   extra: {

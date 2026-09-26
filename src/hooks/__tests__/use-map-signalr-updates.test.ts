@@ -16,6 +16,8 @@ jest.mock('@/stores/signalr/signalr-store');
 const mockGetMapDataAndMarkers = getMapDataAndMarkers as jest.MockedFunction<typeof getMapDataAndMarkers>;
 const mockLogger = logger as jest.Mocked<typeof logger>;
 const mockUseSignalRStore = useSignalRStore as jest.MockedFunction<typeof useSignalRStore>;
+// The refetch reads the live positions straight from the store when its response lands.
+const mockGetSignalRState = useSignalRStore.getState as unknown as jest.Mock;
 
 describe('useMapSignalRUpdates', () => {
   beforeEach(() => {
@@ -61,6 +63,7 @@ describe('useMapSignalRUpdates', () => {
     
     // Reset store state
     mockUseSignalRStore.mockImplementation((selector: any) => typeof selector === 'function' ? selector({ lastUpdateTimestamp: 0 }) : { lastUpdateTimestamp: 0});
+    mockGetSignalRState.mockReturnValue({ liveLocations: {} });
     // Mock successful API response by default
     mockGetMapDataAndMarkers.mockResolvedValue(mockMapData);
   });
@@ -518,6 +521,46 @@ describe('useMapSignalRUpdates', () => {
           timestamp,
         },
       });
+    });
+  });
+
+  describe('live positions', () => {
+    const unitPin = { Id: 'u12', Latitude: 40, Longitude: -74, Title: 'Engine 12', Type: 1 } as MapMakerInfoData;
+    const personPin = { Id: 'pABC', Latitude: 41, Longitude: -75, Title: 'Jane', Type: 3 } as MapMakerInfoData;
+    const snapshot = { ...mockMapData, Data: { ...mockMapData.Data, MapMakerInfos: [unitPin, personPin] } } as GetMapDataAndMarkersResult;
+
+    it('keeps a pin that moved while the refetch was in flight instead of rolling it back', async () => {
+      const timestamp = Date.now();
+      mockUseSignalRStore.mockImplementation((selector: any) => (typeof selector === 'function' ? selector({ lastUpdateTimestamp: timestamp }) : { lastUpdateTimestamp: timestamp }));
+      mockGetMapDataAndMarkers.mockImplementation(async () => {
+        // u12 is pushed while the request is in flight; pabc's position predates the request.
+        const requestStartedAt = Date.now();
+        mockGetSignalRState.mockReturnValue({
+          liveLocations: {
+            u12: { pinId: 'u12', latitude: 40.5, longitude: -74.5, timestamp: null, receivedAt: requestStartedAt },
+            pabc: { pinId: 'pabc', latitude: 1, longitude: 1, timestamp: null, receivedAt: requestStartedAt - 1000 },
+          },
+        });
+        return snapshot;
+      });
+
+      renderHook(() => useMapSignalRUpdates(mockOnMarkersUpdate));
+      jest.runAllTimers();
+
+      await waitFor(() => expect(mockOnMarkersUpdate).toHaveBeenCalledTimes(1));
+      const [pins] = mockOnMarkersUpdate.mock.calls[0] as [MapMakerInfoData[]];
+      expect(pins[0]).toEqual({ ...unitPin, Latitude: 40.5, Longitude: -74.5 });
+      // Older than the snapshot: the REST position stands.
+      expect(pins[1]).toBe(personPin);
+    });
+
+    it('returns a refresh request that refetches through the same serialized path', async () => {
+      const { result } = renderHook(() => useMapSignalRUpdates(mockOnMarkersUpdate));
+
+      result.current();
+
+      await waitFor(() => expect(mockGetMapDataAndMarkers).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(mockOnMarkersUpdate).toHaveBeenCalledWith(mockMapData.Data.MapMakerInfos));
     });
   });
 });

@@ -905,6 +905,7 @@
     "address": "العنوان",
     "bluesky": "Bluesky",
     "cancel": "إلغاء",
+    "categoryLabel": "الفئة: {{name}}",
     "cellPhone": "الهاتف الخلوي",
     "city": "المدينة",
     "cityState": "المدينة والولاية",
@@ -918,6 +919,7 @@
     "contactNotesLoading": "جاري تحميل ملاحظات جهة الاتصال...",
     "contactType": "نوع جهة الاتصال",
     "countryId": "معرف البلد",
+    "customFields": "حقول مخصصة",
     "delete": "حذف",
     "deleteConfirm": "هل أنت متأكد أنك تريد حذف جهة الاتصال هذه؟",
     "deleteSuccess": "تم حذف جهة الاتصال بنجاح",
@@ -942,6 +944,7 @@
       "share_unavailable": "المشاركة غير متاحة على هذا الجهاز."
     },
     "formError": "يرجى إصلاح الأخطاء في النموذج",
+    "hasGeofence": "لهذا الموقع سياج جغرافي مرسوم على الخريطة.",
     "homePhone": "هاتف المنزل",
     "identification": "التعريف",
     "important": "وضع علامة كمهم",
@@ -951,6 +954,7 @@
     "linkedin": "لينكد إن",
     "locationCoordinates": "إحداثيات الموقع",
     "locationInformation": "معلومات الموقع",
+    "mailingAddress": "العنوان البريدي",
     "mastodon": "ماستودون",
     "mobile": "جوال",
     "name": "الاسم",
@@ -962,6 +966,7 @@
     "otherInfo": "معلومات أخرى",
     "person": "شخص",
     "phone": "هاتف",
+    "physicalAddress": "العنوان الفعلي",
     "preplan": {
       "access": "الوصول",
       "access_notes": "ملاحظات الوصول",
@@ -1025,13 +1030,8 @@
     "twitter": "تويتر",
     "visibility": "الرؤية",
     "website": "الموقع الإلكتروني",
-    "zip": "الرمز البريدي",
     "withheld": "تم إخفاء {{count}} من التفاصيل المحمية.",
-    "categoryLabel": "الفئة: {{name}}",
-    "physicalAddress": "العنوان الفعلي",
-    "mailingAddress": "العنوان البريدي",
-    "hasGeofence": "لهذا الموقع سياج جغرافي مرسوم على الخريطة.",
-    "customFields": "حقول مخصصة"
+    "zip": "الرمز البريدي"
   },
   "data_protection": {
     "conceal": "إخفاؤها مجددًا",
@@ -1368,8 +1368,8 @@
     "select_all": "تحديد الكل",
     "selected_count": "{{count}} محدد",
     "title": "الإشعارات",
-    "view_reference": "عرض {{type}}",
-    "view_chat": "عرض المحادثة"
+    "view_chat": "عرض المحادثة",
+    "view_reference": "عرض {{type}}"
   },
   "offline": {
     "offline_message": "غير متصل — يتم عرض آخر البيانات المتزامنة",
@@ -1445,6 +1445,7 @@
   "operations": {
     "all": "الكل",
     "back": "رجوع",
+    "crewOf": "طاقم {{names}}",
     "disabled": "عمليات النشر غير مفعّلة لهذا القسم.",
     "entryType": {
       "0": "نشر",
@@ -1453,18 +1454,49 @@
     },
     "errors": {
       "denied": "ليس لديك صلاحية الوصول إلى هذا النشر.",
+      "deployments_attachment_too_large": "الإيصال كبير جدًا.",
+      "deployments_closed": "عملية النشر هذه مغلقة.",
       "disabled": "هذه الميزة معطّلة لقسمك.",
+      "expenses_receipt_invalid": "تعذرت قراءة الإيصال.",
       "locked": "افتح البيانات المحمية للمتابعة.",
       "retry": "تعذر الوصول إلى الخادم. حاول مرة أخرى.",
-      "validation": "رفض الخادم التغيير.",
-      "timereports_subject_covered": "لهذا الطاقم أو الشخص وقت مسجل بالفعل في تقرير آخر لهذا اليوم.",
       "timereports_date_exists": "يوجد بالفعل تقرير لهذا الطاقم أو الشخص في ذلك اليوم.",
-      "timereports_scope_invalid": "هذا الطاقم أو الشخص غير نشط في عملية النشر هذه.",
       "timereports_locked": "لم يعد بالإمكان تغيير هذا التقرير.",
+      "timereports_scope_invalid": "هذا الطاقم أو الشخص غير نشط في عملية النشر هذه.",
+      "timereports_subject_covered": "لهذا الطاقم أو الشخص وقت مسجل بالفعل في تقرير آخر لهذا اليوم.",
       "timereports_time_invalid": "أدخل الأوقات بصيغة HH:mm.",
-      "deployments_closed": "عملية النشر هذه مغلقة.",
-      "expenses_receipt_invalid": "تعذرت قراءة الإيصال.",
-      "deployments_attachment_too_large": "الإيصال كبير جدًا."
+      "validation": "رفض الخادم التغيير."
+    },
+    "expenses": {
+      "add": "مصروف جديد",
+      "amount": "المبلغ ({{currency}})",
+      "amountInvalid": "أدخل مبلغًا مثل 42.50.",
+      "cancel": "إلغاء",
+      "choosePhoto": "اختيار صورة",
+      "city": "المدينة",
+      "description": "الوصف",
+      "hasReceipt": "إيصال",
+      "noneToday": "لا توجد مصروفات لهذا اليوم.",
+      "otherDays": "أيام أخرى",
+      "photoDenied": "اسمح بالوصول إلى الكاميرا أو الصور لإرفاق إيصال.",
+      "receiptAttached": "تم إرفاق صورة الإيصال.",
+      "remove": "إزالة",
+      "removeBody": "سيؤدي هذا إلى إزالة المصروف وإيصاله من عملية النشر.",
+      "removeTitle": "إزالة المصروف؟",
+      "save": "إضافة مصروف",
+      "saved": "تم حفظ المصروف.",
+      "takePhoto": "التقاط صورة",
+      "title": "المصروفات",
+      "type": {
+        "0": "بدل الوجبات اليومي",
+        "1": "السكن",
+        "2": "سكن خاص",
+        "3": "العبّارة",
+        "4": "الوقود",
+        "5": "إعادة تزويد المستلزمات",
+        "6": "أخرى"
+      },
+      "typeLabel": "نوع المصروف"
     },
     "financeMode": {
       "0": "تشغيلي",
@@ -1472,18 +1504,18 @@
       "2": "قابل للفوترة"
     },
     "issues": {
+      "break_rule": "لا توجد استراحة مسجلة لمناوبة طويلة.",
       "end_before_start": "يجب أن يكون وقت الانتهاء بعد وقت البدء.",
+      "entries_overlap": "يتداخل قيدان للشخص أو الوحدة نفسها.",
+      "long_travel": "وقت السفر أكثر من المسموح في يوم واحد ويحتاج إلى اعتماد.",
       "missing_subject": "اختر لمن أو لماذا هذا الإدخال.",
       "missing_time": "أدخل وقت البدء والانتهاء.",
-      "overlap": "يتداخل هذا الإدخال مع إدخال آخر لنفس الشخص أو الوحدة.",
-      "subject_outside_report_scope": "هذا القيد يخص شخصًا خارج طاقم هذا التقرير أو الشخص المعني.",
-      "subject_on_other_report": "لهذا الشخص أو الوحدة وقت مسجل بالفعل في تقرير آخر لنفس اليوم.",
-      "subject_not_on_roster": "هذا القيد يخص شخصًا غير موجود في القائمة.",
-      "entries_overlap": "يتداخل قيدان للشخص أو الوحدة نفسها.",
       "no_entries": "أضف قيدًا واحدًا على الأقل.",
-      "break_rule": "لا توجد استراحة مسجلة لمناوبة طويلة.",
-      "long_travel": "وقت السفر أكثر من المسموح في يوم واحد ويحتاج إلى اعتماد.",
-      "outside_report_date": "هذا القيد يقع خارج تاريخ التقرير."
+      "outside_report_date": "هذا القيد يقع خارج تاريخ التقرير.",
+      "overlap": "يتداخل هذا الإدخال مع إدخال آخر لنفس الشخص أو الوحدة.",
+      "subject_not_on_roster": "هذا القيد يخص شخصًا غير موجود في القائمة.",
+      "subject_on_other_report": "لهذا الشخص أو الوحدة وقت مسجل بالفعل في تقرير آخر لنفس اليوم.",
+      "subject_outside_report_scope": "هذا القيد يخص شخصًا خارج طاقم هذا التقرير أو الشخص المعني."
     },
     "mars": {
       "counts": "{{errors}} أخطاء · {{warnings}} تحذيرات",
@@ -1497,6 +1529,7 @@
       "title": "F-42",
       "validate": "تحقق"
     },
+    "nextDay": "اليوم التالي",
     "noNumbers": "لا توجد أرقام حادث أو طلب",
     "none": "لا توجد عمليات نشر.",
     "open": "مفتوحة",
@@ -1506,6 +1539,7 @@
       "2": "حادث",
       "3": "عودة"
     },
+    "previousDay": "اليوم السابق",
     "reportStatus": {
       "0": "مسودة",
       "1": "مُقدَّم",
@@ -1514,6 +1548,22 @@
       "4": "ملغى"
     },
     "roster": "{{units}} وحدات · {{personnel}} أفراد",
+    "scope": {
+      "crew": "الطاقم: {{name}}",
+      "deployment": "عملية النشر بالكامل",
+      "individual": "{{name}}",
+      "mine": "وقتي"
+    },
+    "sign": {
+      "asCrewBoss": "التوقيع كقائد للطاقم",
+      "crewBossPending": "لم يوقّع قائد الطاقم بعد.",
+      "crewBossSigned": "وقّع قائد الطاقم {{when}}",
+      "customerName": "اسم موقّع الجهة",
+      "customerPending": "لم يُسجل توقيع الجهة.",
+      "customerSigned": "موقّع الجهة: {{name}}",
+      "recordCustomer": "تسجيل توقيع الجهة",
+      "title": "التوقيعات"
+    },
     "status": {
       "0": "مخطط",
       "1": "استعداد",
@@ -1525,35 +1575,35 @@
     "time": {
       "accommodation": "الإقامة مقدمة من الجهة",
       "addEntry": "إضافة إدخال",
+      "applyToCrew": "تطبيق على الطاقم",
+      "approve": "اعتماد التقرير",
+      "awaitingApproval": "بانتظار الاعتماد ({{count}})",
+      "coveredBy": "هذا الوقت مسجل بالفعل في التقرير #{{number}} لهذا اليوم.",
+      "crewReport": "تقرير وقت الطاقم #{{number}} · {{name}}",
+      "dayReports": "تقارير هذا اليوم",
       "from": "من",
       "hours": "{{hours}} س",
+      "individualReport": "تقرير الوقت #{{number}} · {{name}}",
       "meals": "الوجبات مقدمة من الجهة",
+      "nextDay": "ينتهي في اليوم التالي",
+      "noCrewReport": "لا يوجد تقرير وقت طاقم لـ {{name}} في هذا اليوم.",
       "noEntries": "لا توجد إدخالات بعد.",
       "noReport": "لا يوجد تقرير وقت لهذا اليوم.",
+      "notOnRoster": "أنت لست ضمن قائمة أفراد أو طاقم عملية النشر هذه.",
       "notes": "ملاحظات",
+      "readOnly": "يمكنك عرض هذا التقرير لكن لا يمكنك تغييره.",
       "remove": "إزالة",
       "report": "التقرير #{{number}}",
       "save": "حفظ الإدخالات",
       "start": "بدء تقرير الوقت",
+      "startCrew": "بدء تقرير وقت الطاقم",
       "subject": "من أو ماذا",
       "submit": "تقديم التقرير",
       "title": "الوقت",
       "to": "إلى",
       "total": "الإجمالي {{hours}} س",
       "type": "نوع الإدخال",
-      "unpaidBreak": "استراحة غير مدفوعة (دقيقة)",
-      "crewReport": "تقرير وقت الطاقم #{{number}} · {{name}}",
-      "individualReport": "تقرير الوقت #{{number}} · {{name}}",
-      "noCrewReport": "لا يوجد تقرير وقت طاقم لـ {{name}} في هذا اليوم.",
-      "coveredBy": "هذا الوقت مسجل بالفعل في التقرير #{{number}} لهذا اليوم.",
-      "startCrew": "بدء تقرير وقت الطاقم",
-      "readOnly": "يمكنك عرض هذا التقرير لكن لا يمكنك تغييره.",
-      "nextDay": "ينتهي في اليوم التالي",
-      "applyToCrew": "تطبيق على الطاقم",
-      "approve": "اعتماد التقرير",
-      "dayReports": "تقارير هذا اليوم",
-      "awaitingApproval": "بانتظار الاعتماد ({{count}})",
-      "notOnRoster": "أنت لست ضمن قائمة أفراد أو طاقم عملية النشر هذه."
+      "unpaidBreak": "استراحة غير مدفوعة (دقيقة)"
     },
     "title": "عمليات النشر",
     "usage": {
@@ -1567,56 +1617,6 @@
       "startOdometer": "عداد المسافة الابتدائي",
       "title": "الاستخدام",
       "unit": "الوحدة"
-    },
-    "crewOf": "طاقم {{names}}",
-    "previousDay": "اليوم السابق",
-    "nextDay": "اليوم التالي",
-    "scope": {
-      "deployment": "عملية النشر بالكامل",
-      "mine": "وقتي",
-      "crew": "الطاقم: {{name}}",
-      "individual": "{{name}}"
-    },
-    "sign": {
-      "title": "التوقيعات",
-      "crewBossSigned": "وقّع قائد الطاقم {{when}}",
-      "crewBossPending": "لم يوقّع قائد الطاقم بعد.",
-      "customerSigned": "موقّع الجهة: {{name}}",
-      "customerPending": "لم يُسجل توقيع الجهة.",
-      "asCrewBoss": "التوقيع كقائد للطاقم",
-      "customerName": "اسم موقّع الجهة",
-      "recordCustomer": "تسجيل توقيع الجهة"
-    },
-    "expenses": {
-      "title": "المصروفات",
-      "type": {
-        "0": "بدل الوجبات اليومي",
-        "1": "السكن",
-        "2": "سكن خاص",
-        "3": "العبّارة",
-        "4": "الوقود",
-        "5": "إعادة تزويد المستلزمات",
-        "6": "أخرى"
-      },
-      "typeLabel": "نوع المصروف",
-      "amount": "المبلغ ({{currency}})",
-      "description": "الوصف",
-      "city": "المدينة",
-      "takePhoto": "التقاط صورة",
-      "choosePhoto": "اختيار صورة",
-      "receiptAttached": "تم إرفاق صورة الإيصال.",
-      "save": "إضافة مصروف",
-      "add": "مصروف جديد",
-      "noneToday": "لا توجد مصروفات لهذا اليوم.",
-      "otherDays": "أيام أخرى",
-      "hasReceipt": "إيصال",
-      "remove": "إزالة",
-      "removeTitle": "إزالة المصروف؟",
-      "removeBody": "سيؤدي هذا إلى إزالة المصروف وإيصاله من عملية النشر.",
-      "cancel": "إلغاء",
-      "saved": "تم حفظ المصروف.",
-      "amountInvalid": "أدخل مبلغًا مثل 42.50.",
-      "photoDenied": "اسمح بالوصول إلى الكاميرا أو الصور لإرفاق إيصال."
     }
   },
   "protocols": {
@@ -1646,6 +1646,22 @@
     },
     "unknown_type_warning": "نوع هذا الإشعار غير معروف. يرجى الاتصال بالدعم إذا استمر ظهور هذه الرسالة.",
     "view_call": "عرض المكالمة"
+  },
+  "readiness": {
+    "attention": "تحقق",
+    "latestFailed": "فشل آخر فحص: {{name}} ({{when}})",
+    "latestPassed": "نجح آخر فحص: {{name}} ({{when}})",
+    "noChecks": "لا توجد فحوصات مكتملة في هذه الفترة.",
+    "noUnits": "لم تُرسل أي وحدات إلى هذا البلاغ بعد.",
+    "openWorkOrder": "أمر عمل مفتوح: {{title}}",
+    "problems": "{{failed}} فاشلة · {{missed}} فائتة",
+    "ready": "جاهزة",
+    "restricted": "بعض الوحدات غير مرئية لك.",
+    "retry": "حاول مرة أخرى",
+    "tab": "الجاهزية",
+    "unavailable": "جاهزية الوحدات غير متاحة لهذا البلاغ.",
+    "unnamedUnit": "وحدة",
+    "window": "الفحوصات وأوامر العمل من {{from}} إلى {{to}}"
   },
   "records": {
     "add_row": "إضافة صف",
@@ -1996,6 +2012,7 @@
     "background_location": "الموقع في الخلفية",
     "contact_us": "اتصل بنا",
     "current_unit": "الوحدة الحالية",
+    "custom": "مخصص",
     "english": "إنجليزي",
     "enter_password": "أدخل كلمة المرور الخاصة بك",
     "enter_server_url": "أدخل عنوان URL لواجهة برمجة تطبيقات Resgrid (مثال: https://api.resgrid.com)",
@@ -2236,21 +2253,5 @@
       "unknown": "غير معروف"
     }
   },
-  "welcome": "مرحبًا بك في موقع تطبيق obytes",
-  "readiness": {
-    "tab": "الجاهزية",
-    "unnamedUnit": "وحدة",
-    "unavailable": "جاهزية الوحدات غير متاحة لهذا البلاغ.",
-    "retry": "حاول مرة أخرى",
-    "noUnits": "لم تُرسل أي وحدات إلى هذا البلاغ بعد.",
-    "window": "الفحوصات وأوامر العمل من {{from}} إلى {{to}}",
-    "attention": "تحقق",
-    "ready": "جاهزة",
-    "latestPassed": "نجح آخر فحص: {{name}} ({{when}})",
-    "latestFailed": "فشل آخر فحص: {{name}} ({{when}})",
-    "noChecks": "لا توجد فحوصات مكتملة في هذه الفترة.",
-    "problems": "{{failed}} فاشلة · {{missed}} فائتة",
-    "openWorkOrder": "أمر عمل مفتوح: {{title}}",
-    "restricted": "بعض الوحدات غير مرئية لك."
-  }
+  "welcome": "مرحبًا بك في موقع تطبيق obytes"
 }

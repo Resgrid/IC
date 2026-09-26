@@ -5,6 +5,12 @@ import { Env } from '@/lib/env';
 import { logger } from '@/lib/logging';
 import useAuthStore from '@/stores/auth/store';
 
+// Location pushes arrive every few seconds for every unit and person, so they are not logged at all:
+// a per-message line would flood the console and push useful breadcrumbs out of error reports.
+const UNLOGGED_HUB_METHODS = new Set(['onunitlocationupdated', 'onpersonnellocationupdated']);
+
+export const isUnloggedHubMethod = (method: string): boolean => UNLOGGED_HUB_METHODS.has(method.toLowerCase());
+
 export interface SignalRHubConfig {
   name: string;
   url: string;
@@ -39,6 +45,9 @@ class SignalRService {
    * reconnect — these are how it learns that happened.
    */
   public static readonly HUB_DISCONNECTED_EVENT = '__hubDisconnected';
+  /** The transport dropped and SignalR's automatic reconnect started; the connection id is gone. */
+  public static readonly HUB_RECONNECTING_EVENT = '__hubReconnecting';
+  /** A new connection is up — SignalR's automatic reconnect, or this service's rebuild after a close. */
   public static readonly HUB_RECONNECTED_EVENT = '__hubReconnected';
 
   private connections: Map<string, HubConnection> = new Map();
@@ -166,28 +175,9 @@ class SignalRService {
         throw new Error('EventingUrl is required for SignalR connection');
       }
 
-      // Parse the incoming eventingUrl into path and query components
-      const url = new URL(config.eventingUrl);
-
-      // Append the hub name to the path (ensuring a single slash)
-      const pathWithHub = url.pathname.endsWith('/') ? `${url.pathname}${config.hubName}` : `${url.pathname}/${config.hubName}`;
-
-      // Reassemble the URL with the hub in the path
-      let fullUrl = `${url.protocol}//${url.host}${pathWithHub}`;
-
       // For geolocation hub, add token as URL parameter instead of header
-      const isGeolocationHub = config.hubName === Env.REALTIME_GEO_HUB_NAME;
-
-      // Merge existing query parameters with access_token if needed
-      const queryParams = new URLSearchParams(url.search);
-      if (isGeolocationHub) {
-        queryParams.set('access_token', token);
-      }
-
-      // Add query string if there are any parameters
-      if (queryParams.toString()) {
-        fullUrl = `${fullUrl}?${queryParams.toString()}`;
-      }
+      const isGeolocationHub = this.isGeolocationHub(config);
+      const fullUrl = this.buildEventingHubUrl(config, token);
 
       logger.info({
         message: `Connecting to hub: ${config.name}`,
@@ -226,6 +216,10 @@ class SignalRService {
           message: `Reconnecting to hub: ${config.name}`,
           context: { error },
         });
+        if (isGeolocationHub) {
+          this.refreshHubUrlToken(connection, config);
+        }
+        this.emitHubLifecycle(SignalRService.HUB_RECONNECTING_EVENT, config.name);
       });
 
       connection.onreconnected((connectionId) => {
@@ -247,10 +241,13 @@ class SignalRService {
         });
 
         connection.on(method, (...args: unknown[]) => {
-          logger.debug({
-            message: `Received ${method} message from hub: ${config.name}`,
-            context: { method, args },
-          });
+          // Never log payloads: they carry personal data (chat, call details, precise coordinates).
+          if (!isUnloggedHubMethod(method)) {
+            logger.debug({
+              message: `Received ${method} message from hub: ${config.name}`,
+              context: { method },
+            });
+          }
           this.handleMessage(config.name, method, args);
         });
       });
@@ -360,6 +357,7 @@ class SignalRService {
           message: `Reconnecting to hub: ${config.name}`,
           context: { error },
         });
+        this.emitHubLifecycle(SignalRService.HUB_RECONNECTING_EVENT, config.name);
       });
 
       connection.onreconnected((connectionId) => {
@@ -381,10 +379,13 @@ class SignalRService {
         });
 
         connection.on(method, (...args: unknown[]) => {
-          logger.debug({
-            message: `Received ${method} message from hub: ${config.name}`,
-            context: { method, args },
-          });
+          // Never log payloads: they carry personal data (chat, call details, precise coordinates).
+          if (!isUnloggedHubMethod(method)) {
+            logger.debug({
+              message: `Received ${method} message from hub: ${config.name}`,
+              context: { method },
+            });
+          }
           this.handleMessage(config.name, method, args);
         });
       });
@@ -408,6 +409,60 @@ class SignalRService {
         context: { error },
       });
       throw error;
+    }
+  }
+
+  private isGeolocationHub(config: SignalRHubConnectConfig): boolean {
+    return config.hubName === Env.REALTIME_GEO_HUB_NAME;
+  }
+
+  /**
+   * `{EventingUrl}/{hubName}`, keeping any query string on the EventingUrl. The geolocation hub
+   * authenticates with the token as an `access_token` query parameter rather than a header.
+   */
+  private buildEventingHubUrl(config: SignalRHubConnectConfig, token: string): string {
+    // Parse the incoming eventingUrl into path and query components
+    const url = new URL(config.eventingUrl);
+
+    // Append the hub name to the path (ensuring a single slash)
+    const pathWithHub = url.pathname.endsWith('/') ? `${url.pathname}${config.hubName}` : `${url.pathname}/${config.hubName}`;
+
+    // Reassemble the URL with the hub in the path
+    let fullUrl = `${url.protocol}//${url.host}${pathWithHub}`;
+
+    // Merge existing query parameters with access_token if needed
+    const queryParams = new URLSearchParams(url.search);
+    if (this.isGeolocationHub(config)) {
+      queryParams.set('access_token', token);
+    }
+
+    // Add query string if there are any parameters
+    if (queryParams.toString()) {
+      fullUrl = `${fullUrl}?${queryParams.toString()}`;
+    }
+
+    return fullUrl;
+  }
+
+  /**
+   * The geolocation hub carries its token in the URL, and SignalR's automatic reconnect reuses the
+   * URL it was built with. The server closes the socket when that token expires, so without this
+   * every reconnect attempt would present the expired token and fail until the rebuild after
+   * `onclose`. The auth store refreshes the token ahead of expiry, so the current one is used.
+   */
+  private refreshHubUrlToken(connection: HubConnection, config: SignalRHubConnectConfig): void {
+    const token = useAuthStore.getState().accessToken;
+    if (!token) {
+      return;
+    }
+    try {
+      // Allowed while the connection is Reconnecting; the next attempt negotiates with this URL.
+      connection.baseUrl = this.buildEventingHubUrl(config, token);
+    } catch (error) {
+      logger.warn({
+        message: `Could not refresh the access token for reconnecting hub: ${config.name}`,
+        context: { error },
+      });
     }
   }
 
@@ -471,6 +526,18 @@ class SignalRService {
                 throw new Error('No valid authentication token available after refresh');
               }
 
+              // The token refresh can take a while. An explicit disconnect in the meantime removes the
+              // config — do not resurrect a hub the app deliberately closed — and a direct connect in
+              // the meantime already built a fresh connection that must not be orphaned by another.
+              const connectedMeanwhile = this.connections.get(hubName)?.state === HubConnectionState.Connected;
+              if (!this.hubConfigs.has(hubName) || connectedMeanwhile) {
+                this.setHubState(hubName, HubConnectingState.IDLE);
+                logger.debug({
+                  message: `Hub ${hubName} was disconnected or reconnected during token refresh, skipping reconnection attempt`,
+                });
+                return;
+              }
+
               logger.info({
                 message: `Token refreshed successfully, attempting to reconnect to hub: ${hubName} (attempt ${currentAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`,
               });
@@ -487,6 +554,12 @@ class SignalRService {
               logger.info({
                 message: `Successfully reconnected to hub: ${hubName} after ${currentAttempts} attempts`,
               });
+
+              // The rebuilt connection has a new connection id that belongs to no server-side
+              // group, exactly like an automatic reconnect — subscribers must re-announce.
+              if (this.connections.has(hubName)) {
+                this.emitHubLifecycle(SignalRService.HUB_RECONNECTED_EVENT, hubName);
+              }
             } catch (reconnectionError) {
               // Clear reconnecting state on failed reconnection
               this.setHubState(hubName, HubConnectingState.IDLE);

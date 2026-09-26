@@ -16,7 +16,7 @@ import { Icon } from '@/components/ui/icon';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { useCommandMapOverlay } from '@/hooks/use-command-map-overlay';
-import { useMapGeolocationUpdates } from '@/hooks/use-map-geolocation-updates';
+import { useMapGeolocationUpdates, withLiveLocationsSince } from '@/hooks/use-map-geolocation-updates';
 import { useMapSignalRUpdates } from '@/hooks/use-map-signalr-updates';
 import { logger } from '@/lib/logging';
 import { type IncidentCommand, type IncidentMapAnnotation } from '@/models/v4/incidentCommand/incidentCommandModels';
@@ -45,10 +45,11 @@ export const IncidentMapCard: React.FC<IncidentMapCardProps> = ({ callId, comman
   // Live snapshot + realtime updates (status changes re-fetch, geolocation deltas move markers in place)
   useEffect(() => {
     let cancelled = false;
+    const fetchStartedAt = Date.now();
     getMapDataAndMarkers()
       .then((result) => {
         if (!cancelled) {
-          setPins(result?.Data?.MapMakerInfos ?? []);
+          setPins(withLiveLocationsSince(result?.Data?.MapMakerInfos ?? [], fetchStartedAt));
         }
       })
       .catch((error) => {
@@ -58,8 +59,8 @@ export const IncidentMapCard: React.FC<IncidentMapCardProps> = ({ callId, comman
       cancelled = true;
     };
   }, []);
-  useMapSignalRUpdates(setPins);
-  useMapGeolocationUpdates(setPins);
+  const requestPinsRefresh = useMapSignalRUpdates(setPins);
+  useMapGeolocationUpdates(pins, setPins, requestPinsRefresh);
 
   // Only units/personnel that are ON this incident (assigned in lanes/staging or tracked resources)
   const incidentPins = useMemo(() => {

@@ -22,6 +22,8 @@ jest.mock('@/services/signalr.service', () => {
     disconnectFromHub: jest.fn().mockResolvedValue(undefined),
     invoke: jest.fn().mockResolvedValue(undefined),
     on: jest.fn(),
+    off: jest.fn(),
+    isHubAvailable: jest.fn(() => false),
     removeAllListeners: jest.fn(),
     connectToHub: jest.fn().mockResolvedValue(undefined),
     disconnectAll: jest.fn().mockResolvedValue(undefined),
@@ -131,9 +133,9 @@ describe('useSignalRStore', () => {
       expect(result.current.isUpdateHubConnected).toBe(false);
       expect(result.current.isGeolocationHubConnected).toBe(false);
       expect(result.current.lastUpdateMessage).toBeNull();
-      expect(result.current.lastGeolocationMessage).toBeNull();
+      expect(result.current.liveLocations).toEqual({});
       expect(result.current.lastUpdateTimestamp).toBe(0);
-      expect(result.current.lastGeolocationTimestamp).toBe(0);
+      expect(result.current.lastGeolocationJoinAt).toBe(0);
       expect(result.current.error).toBeNull();
     });
   });
@@ -262,7 +264,6 @@ describe('useSignalRStore', () => {
 
       expect(signalRService.disconnectFromHub).toHaveBeenCalledWith('geolocationHub');
       expect(result.current.isGeolocationHubConnected).toBe(false);
-      expect(result.current.lastGeolocationMessage).toBeNull();
     });
 
     it('should handle disconnect errors', async () => {

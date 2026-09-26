@@ -19,7 +19,7 @@ import { Input, InputField } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { useCommandMapOverlay } from '@/hooks/use-command-map-overlay';
-import { useMapGeolocationUpdates } from '@/hooks/use-map-geolocation-updates';
+import { useMapGeolocationUpdates, withLiveLocationsSince } from '@/hooks/use-map-geolocation-updates';
 import { useMapSignalRUpdates } from '@/hooks/use-map-signalr-updates';
 import { logger } from '@/lib/logging';
 import { useDepartmentMapCenter } from '@/lib/map-center';
@@ -78,10 +78,11 @@ export default function CommandMapScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    const fetchStartedAt = Date.now();
     getMapDataAndMarkers()
       .then((result) => {
         if (!cancelled) {
-          setPins(result?.Data?.MapMakerInfos ?? []);
+          setPins(withLiveLocationsSince(result?.Data?.MapMakerInfos ?? [], fetchStartedAt));
         }
       })
       .catch((error) => {
@@ -91,8 +92,9 @@ export default function CommandMapScreen() {
       cancelled = true;
     };
   }, []);
-  useMapSignalRUpdates(setPins);
-  useMapGeolocationUpdates(setPins);
+  const requestPinsRefresh = useMapSignalRUpdates(setPins);
+  // Moves every unit/personnel pin in place; incidentPins below narrows the result to this incident.
+  useMapGeolocationUpdates(pins, setPins, requestPinsRefresh);
 
   const incidentPins = useMemo(() => {
     const allowed = new Set(

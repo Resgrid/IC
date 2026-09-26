@@ -14,6 +14,7 @@ import { HStack } from '@/components/ui/hstack';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { getPinEntityId } from '@/lib/map-pin-ids';
 import { openMapsWithDirections } from '@/lib/navigation';
 import { type MapMakerInfoData } from '@/models/v4/mapping/getMapDataAndMarkersData';
 import { useLocationStore } from '@/stores/app/location-store';
@@ -56,8 +57,10 @@ export const PinDetailModal: React.FC<PinDetailModalProps> = ({ pin, isOpen, onC
   };
 
   const handleViewCallDetails = () => {
-    if (isCallPin && pin.Id) {
-      router.push(`/call/${pin.Id}`);
+    const callId = getPinEntityId(pin);
+
+    if (isCallPin && callId) {
+      router.push(`/call/${callId}`);
       onClose();
     }
   };
