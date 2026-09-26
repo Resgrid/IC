@@ -18,7 +18,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { logger } from '@/lib/logging';
-import { fileSize, hashFile } from '@/lib/records/uploads';
+import { fileSize, hashFile, MAX_ATTACHMENT_BYTES } from '@/lib/records/uploads';
 import { useRecordsStore } from '@/stores/records/store';
 
 // Attachment capture for a Record (RMS plan RMS-1D). Capture from the camera, the library or a file,
@@ -89,6 +89,11 @@ export const RecordAttachments: React.FC<RecordAttachmentsProps> = ({ recordId, 
         const size = await fileSize(uri);
         if (size <= 0) {
           setMessage(t('records.attachment_unreadable'));
+          return;
+        }
+        if (size > MAX_ATTACHMENT_BYTES) {
+          // Refused before it is read: hashing loads the whole file, and the server would refuse it anyway.
+          setMessage(t('records.attachment_too_large', { size: MAX_ATTACHMENT_BYTES / (1024 * 1024) }));
           return;
         }
         const sha256 = await hashFile(uri);

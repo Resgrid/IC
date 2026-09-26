@@ -1670,6 +1670,7 @@
     "assigned": "Assigned to you",
     "attachment_failed": "That attachment could not be sent.",
     "attachment_file_missing": "The file is no longer on this device.",
+    "attachment_too_large": "That file is larger than {{size}} MB, the most an attachment can be.",
     "attachment_unreadable": "That file could not be read.",
     "attachment_will_resume": "Paused. It picks up where it stopped.",
     "attachments": "Attachments",

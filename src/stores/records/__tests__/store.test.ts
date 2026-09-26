@@ -137,6 +137,51 @@ describe('Field Records store conformance', () => {
     expect(useRecordsStore.getState().pendingDrafts).toEqual({});
   });
 
+  it('fails closed: a definition the catalog does not list is neither staged nor kept after a failed send', async () => {
+    useRecordsStore.setState({ catalog: null });
+    const draft = { clientRecordId: 'draft-u', recordId: null, definitionKey: 'shift-log', definitionVersion: 3, name: 'Shift log', values: [], updatedOn: '2026-09-06T00:00:00Z' };
+    recordsApi.createRecordDraft.mockRejectedValueOnce({ response: { status: 500, data: { title: 'Unavailable' } } });
+
+    expect(useRecordsStore.getState().stageDraft(draft)).toBe(false);
+    const failed = await useRecordsStore.getState().pushDraft('draft-u', draft);
+
+    expect(failed).toMatchObject({ ok: false, error: 'Unavailable' });
+    expect(useRecordsStore.getState().pendingDrafts).toEqual({});
+  });
+
+  it('keeps the conflict on a staged draft even when the catalog is gone by the time it fails', async () => {
+    useRecordsStore.setState({ catalog: { ContractVersion: 'field-catalog.v1', OriginClient: 'IncidentCommand', Ok: true, Reasons: [], ContextVerified: true, Definitions: [goldenCatalogEntry()], Exclusions: [], ServerTimestampMs: 0 } });
+    const draft = { clientRecordId: 'draft-c', recordId: null, definitionKey: 'shift-log', definitionVersion: 3, name: 'Shift log', values: [], updatedOn: '2026-09-06T00:00:00Z' };
+    recordsApi.createRecordDraft.mockRejectedValue({ response: { status: 409, data: { type: 'record_concurrency', title: 'Changed' } } });
+
+    expect(useRecordsStore.getState().stageDraft(draft)).toBe(true);
+    useRecordsStore.setState({ catalog: null });
+    await useRecordsStore.getState().pushDraft('draft-c');
+
+    expect(useRecordsStore.getState().pendingDrafts['draft-c'].conflict).toBe('etag');
+    recordsApi.createRecordDraft.mockClear();
+    await useRecordsStore.getState().pushAllDrafts();
+    expect(recordsApi.createRecordDraft).not.toHaveBeenCalled();
+  });
+
+  it('never writes values that staging refused, even when an older copy with the same id is on the device', async () => {
+    useRecordsStore.setState({ catalog: { ContractVersion: 'field-catalog.v1', OriginClient: 'IncidentCommand', Ok: true, Reasons: [], ContextVerified: true, Definitions: [goldenCatalogEntry()], Exclusions: [], ServerTimestampMs: 0 } });
+    const older = { clientRecordId: 'edit-r1-4', recordId: 'r1', definitionKey: 'shift-log', definitionVersion: 3, name: 'Shift log', values: [{ SectionKey: 'main', FieldKey: 'notes', Value: 'older' }], rowVersion: 4, updatedOn: '2026-09-06T00:00:00Z' };
+    expect(useRecordsStore.getState().stageDraft(older)).toBe(true);
+
+    // The catalog is gone, so the newer values may not be kept; the send fails.
+    useRecordsStore.setState({ catalog: null });
+    const newer = { ...older, values: [{ SectionKey: 'main', FieldKey: 'notes', Value: 'newer' }] };
+    recordsApi.saveRecordDraft.mockRejectedValueOnce({ response: { status: 500, data: { title: 'Unavailable' } } });
+    expect(useRecordsStore.getState().stageDraft(newer)).toBe(false);
+    await useRecordsStore.getState().pushDraft('edit-r1-4', newer);
+
+    expect(recordsApi.saveRecordDraft).toHaveBeenCalledWith(expect.objectContaining({ Values: newer.values }));
+    const kept = useRecordsStore.getState().pendingDrafts['edit-r1-4'];
+    expect(kept?.values).toEqual(older.values);
+    expect(kept?.lastError).toBe('Unavailable');
+  });
+
   it('sends a protected definition online without ever keeping it on the device', async () => {
     useRecordsStore.setState({ catalog: { ContractVersion: 'field-catalog.v1', OriginClient: 'IncidentCommand', Ok: true, Reasons: [], ContextVerified: true, Definitions: [goldenCatalogEntry({ RequiresProtectedGrant: true })], Exclusions: [], ServerTimestampMs: 0 } });
     const draft = { clientRecordId: 'draft-p', recordId: null, definitionKey: 'shift-log', definitionVersion: 3, name: 'Shift log', values: [], updatedOn: '2026-09-06T00:00:00Z' };

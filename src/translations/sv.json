@@ -1670,6 +1670,7 @@
     "assigned": "Tilldelade dig",
     "attachment_failed": "Bilagan kunde inte skickas.",
     "attachment_file_missing": "Filen finns inte längre på enheten.",
+    "attachment_too_large": "Filen är större än {{size}} MB, som är den största tillåtna storleken för en bilaga.",
     "attachment_unreadable": "Filen kunde inte läsas.",
     "attachment_will_resume": "Pausad. Den fortsätter där den stannade.",
     "attachments": "Bilagor",

@@ -117,12 +117,20 @@ const initial = {
   error: null,
 };
 
-const settle = async <T>(work: () => Promise<T>): Promise<T | undefined> => {
+// Bumped by every open() and by close(): an answer for an open that is no longer current (the screen lost
+// focus, another deployment was opened, or the same one was opened again) is dropped rather than replacing
+// the current one.
+let openSeq = 0;
+
+/** `isCurrent` false means the request's open has ended, so its failure is not shown against the current one. */
+const settle = async <T>(work: () => Promise<T>, isCurrent: () => boolean = () => true): Promise<T | undefined> => {
   useOperationsStore.setState({ busy: true, error: null });
   try {
     return await work();
   } catch (error) {
-    useOperationsStore.setState({ error: operationsError(error) });
+    if (isCurrent()) {
+      useOperationsStore.setState({ error: operationsError(error) });
+    }
     return undefined;
   } finally {
     useOperationsStore.setState({ busy: false });
@@ -144,6 +152,15 @@ export const useOperationsStore = create<OperationsState>()((set, get) => {
    * Adopt a report the server just answered with: refresh it in the day list and, when it is open, in the editor.
    * A validation refusal comes back with the stored report; keep the person's unsaved edits and show the issues.
    */
+  /**
+   * Taken when a load starts: its answer, or its failure, only lands while the same open of the same
+   * deployment is current — not after close(), another open(), or a fresh open of the same deployment.
+   */
+  const currentOpen = (deploymentId: string) => {
+    const seq = openSeq;
+    return () => seq === openSeq && get().deployment?.Id === deploymentId;
+  };
+
   const adopt = (response: TimeReportResponse) => {
     const errors = response.Errors ?? [];
     if (errors.length > 0) {
@@ -183,10 +200,13 @@ export const useOperationsStore = create<OperationsState>()((set, get) => {
       });
     },
     open: async (id) => {
+      const seq = ++openSeq;
+      const isCurrent = () => seq === openSeq;
       await settle(async () => {
         const [deployment, reports] = await Promise.all([getDeployment(id), getTimeReports(id)]);
+        if (!isCurrent()) return;
         set({ ...closed, deployment, reports });
-      });
+      }, isCurrent);
     },
     setScope: (scope, dateKey) => {
       const report = reportForScope(get().reports, dateKey, scope);
@@ -253,7 +273,11 @@ export const useOperationsStore = create<OperationsState>()((set, get) => {
     loadExpenses: async () => {
       const deployment = get().deployment;
       if (!deployment || !operationsCapabilities.recordExpenses) return;
-      await settle(async () => set({ expenses: await getExpenses(deployment.Id) }));
+      const isCurrent = currentOpen(deployment.Id);
+      await settle(async () => {
+        const expenses = await getExpenses(deployment.Id);
+        if (isCurrent()) set({ expenses });
+      }, isCurrent);
     },
     addExpense: async (input) => {
       const deployment = get().deployment;
@@ -276,7 +300,11 @@ export const useOperationsStore = create<OperationsState>()((set, get) => {
     loadUsage: async () => {
       const deployment = get().deployment;
       if (!deployment || !get().costAccess?.Enabled) return;
-      await settle(async () => set({ usage: await getResourceUsage(deployment.Id) }));
+      const isCurrent = currentOpen(deployment.Id);
+      await settle(async () => {
+        const usage = await getResourceUsage(deployment.Id);
+        if (isCurrent()) set({ usage });
+      }, isCurrent);
     },
     addUsage: async (input) => {
       const deployment = get().deployment;
@@ -291,10 +319,11 @@ export const useOperationsStore = create<OperationsState>()((set, get) => {
     loadMars: async () => {
       const deployment = get().deployment;
       if (!deployment || !get().marsAccess?.Enabled) return;
+      const isCurrent = currentOpen(deployment.Id);
       await settle(async () => {
         const queue = await getCalOesMarsQueue();
-        set({ marsItems: queue.filter((item) => item.DeploymentId === deployment.Id) });
-      });
+        if (isCurrent()) set({ marsItems: queue.filter((item) => item.DeploymentId === deployment.Id) });
+      }, isCurrent);
     },
     draftF42: async () => {
       const deployment = get().deployment;
@@ -314,6 +343,9 @@ export const useOperationsStore = create<OperationsState>()((set, get) => {
       });
       return validated === true;
     },
-    close: () => set({ ...closed, error: null }),
+    close: () => {
+      openSeq += 1;
+      set({ ...closed, error: null });
+    },
   };
 });

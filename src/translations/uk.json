@@ -1670,6 +1670,7 @@
     "assigned": "Призначено вам",
     "attachment_failed": "Не вдалося надіслати вкладення.",
     "attachment_file_missing": "Файла більше немає на цьому пристрої.",
+    "attachment_too_large": "Файл перевищує {{size}} МБ — максимальний розмір вкладення.",
     "attachment_unreadable": "Не вдалося прочитати файл.",
     "attachment_will_resume": "Призупинено. Продовжиться з місця зупинки.",
     "attachments": "Вкладення",

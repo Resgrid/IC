@@ -161,6 +161,75 @@ it('shows why the server refused to start a report instead of listing a report t
   expect(state.warnings).toEqual([{ Code: 'late_entry' }]);
 });
 
+it('drops a deployment that answers after the screen closed or another deployment opened', async () => {
+  let answerFirst: (value: unknown) => void = () => undefined;
+  server.getDeployment.mockReturnValueOnce(new Promise((resolve) => (answerFirst = resolve)) as never);
+
+  const stale = useOperationsStore.getState().open('dep-1');
+  useOperationsStore.getState().close();
+  answerFirst(deployment);
+  await stale;
+  expect(useOperationsStore.getState().deployment).toBeNull();
+
+  let answerSecond: (value: unknown) => void = () => undefined;
+  server.getDeployment.mockReturnValueOnce(new Promise((resolve) => (answerSecond = resolve)) as never).mockResolvedValueOnce({ ...deployment, Id: 'dep-2', Name: 'CZU' } as never);
+  const older = useOperationsStore.getState().open('dep-1');
+  await useOperationsStore.getState().open('dep-2');
+  answerSecond(deployment);
+  await older;
+  expect(useOperationsStore.getState().deployment?.Id).toBe('dep-2');
+});
+
+it('does not file one deployment expenses under another that opened while they loaded', async () => {
+  await useOperationsStore.getState().open('dep-1');
+  let answerExpenses: (value: unknown) => void = () => undefined;
+  server.getExpenses.mockReturnValueOnce(new Promise((resolve) => (answerExpenses = resolve)) as never);
+
+  const loading = useOperationsStore.getState().loadExpenses();
+  server.getDeployment.mockResolvedValueOnce({ ...deployment, Id: 'dep-2', Name: 'CZU' } as never);
+  await useOperationsStore.getState().open('dep-2');
+  answerExpenses([{ Id: 'x-1', DeploymentId: 'dep-1' }]);
+  await loading;
+
+  expect(useOperationsStore.getState().deployment?.Id).toBe('dep-2');
+  expect(useOperationsStore.getState().expenses).toEqual([]);
+});
+
+it('drops a load from an earlier open of the same deployment once it has been opened again', async () => {
+  await useOperationsStore.getState().open('dep-1');
+  let answerExpenses: (value: unknown) => void = () => undefined;
+  server.getExpenses.mockReturnValueOnce(new Promise((resolve) => (answerExpenses = resolve)) as never).mockResolvedValueOnce([{ Id: 'x-2', DeploymentId: 'dep-1' }] as never);
+
+  const stale = useOperationsStore.getState().loadExpenses();
+  useOperationsStore.getState().close();
+  await useOperationsStore.getState().open('dep-1');
+  await useOperationsStore.getState().loadExpenses();
+  answerExpenses([{ Id: 'x-1', DeploymentId: 'dep-1' }]);
+  await stale;
+
+  expect(useOperationsStore.getState().expenses).toEqual([{ Id: 'x-2', DeploymentId: 'dep-1' }]);
+});
+
+it('does not show a failure from an open or a load that ended before it failed', async () => {
+  let failOpen: (reason: unknown) => void = () => undefined;
+  server.getDeployment.mockReturnValueOnce(new Promise((_, reject) => (failOpen = reject)) as never);
+  const opening = useOperationsStore.getState().open('dep-1');
+  useOperationsStore.getState().close();
+  failOpen(new Error('offline'));
+  await opening;
+  expect(useOperationsStore.getState().error).toBeNull();
+
+  await useOperationsStore.getState().open('dep-1');
+  let failUsage: (reason: unknown) => void = () => undefined;
+  useOperationsStore.setState({ costAccess: { Enabled: true, CanViewInternalCosts: false, CanRecordUsage: true } as never });
+  server.getResourceUsage.mockReturnValueOnce(new Promise((_, reject) => (failUsage = reject)) as never);
+  const loading = useOperationsStore.getState().loadUsage();
+  useOperationsStore.getState().close();
+  failUsage(new Error('offline'));
+  await loading;
+  expect(useOperationsStore.getState().error).toBeNull();
+});
+
 it('files expenses against the open deployment and removes only by id', async () => {
   await useOperationsStore.getState().open('dep-1');
   server.saveExpense.mockResolvedValue({ Id: 'x-1', DeploymentId: 'dep-1', ExpenseDate: '2026-09-19T00:00:00', ExpenseType: 4, Amount: 88.4, PreApproved: false, Billable: true } as never);
