@@ -17,11 +17,12 @@ import { WeatherAlertBanner } from '@/components/weather-alerts/weather-alert-ba
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useAppLifecycle } from '@/hooks/use-app-lifecycle';
 import { useCommandMapOverlay } from '@/hooks/use-command-map-overlay';
-import { useMapGeolocationUpdates } from '@/hooks/use-map-geolocation-updates';
+import { useMapGeolocationUpdates, withLiveLocationsSince } from '@/hooks/use-map-geolocation-updates';
 import { useMapSignalRUpdates } from '@/hooks/use-map-signalr-updates';
 import { Env } from '@/lib/env';
 import { logger } from '@/lib/logging';
 import { useDepartmentMapCenter } from '@/lib/map-center';
+import { getPinEntityId } from '@/lib/map-pin-ids';
 import { type MapMakerInfoData } from '@/models/v4/mapping/getMapDataAndMarkersData';
 import { locationService } from '@/services/location';
 import { useCoreStore } from '@/stores/app/core-store';
@@ -91,9 +92,9 @@ function MapContent() {
   const [styleURL, setStyleURL] = useState({ styleURL: getMapStyle() });
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  useMapSignalRUpdates(setMapPins);
+  const requestMapRefresh = useMapSignalRUpdates(setMapPins);
   // Live unit/personnel position deltas from the GeolocationHub — moves markers in place
-  useMapGeolocationUpdates(setMapPins);
+  useMapGeolocationUpdates(mapPins, setMapPins, requestMapRefresh);
 
   // Lane label + color enrichment for resources on the active command board
   const commandOverlay = useCommandMapOverlay();
@@ -277,10 +278,11 @@ function MapContent() {
 
     const fetchMapDataAndMarkers = async () => {
       try {
+        const fetchStartedAt = Date.now();
         const mapDataAndMarkers = await getMapDataAndMarkers(abortController.signal);
 
         if (mapDataAndMarkers && mapDataAndMarkers.Data) {
-          setMapPins(mapDataAndMarkers.Data.MapMakerInfos ?? []);
+          setMapPins(withLiveLocationsSince(mapDataAndMarkers.Data.MapMakerInfos ?? [], fetchStartedAt));
         }
       } catch (error) {
         // Don't log aborted requests as errors
@@ -381,19 +383,19 @@ function MapContent() {
       logger.info({
         message: 'Setting call as current call',
         context: {
-          callId: pin.Id,
+          callId: getPinEntityId(pin),
           callTitle: pin.Title,
         },
       });
 
-      await useCoreStore.getState().setActiveCall(pin.Id);
+      await useCoreStore.getState().setActiveCall(getPinEntityId(pin));
       useToastStore.getState().showToast('success', t('map.call_set_as_current'));
     } catch (error) {
       logger.error({
         message: 'Failed to set call as current call',
         context: {
           error,
-          callId: pin.Id,
+          callId: getPinEntityId(pin),
           callTitle: pin.Title,
         },
       });

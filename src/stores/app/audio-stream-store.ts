@@ -37,6 +37,50 @@ interface AudioStreamState {
   cleanup: () => Promise<void>;
 }
 
+/**
+ * Publishes the player to the OS media session: an Android media-style notification with a
+ * play/pause control (plus the lock screen), and Now Playing / Control Center on iOS.
+ *
+ * On Android this is what starts expo-audio's `AudioControlsService`, the `mediaPlayback`
+ * foreground service declared by the expo-audio config plugin. Without it a backgrounded
+ * stream keeps playing with no user-visible transport control — which is what Google Play
+ * rejected — and the OS kills the playback after roughly three minutes anyway.
+ *
+ * `isLiveStream` drops the scrub bar and seek buttons: a scanner feed has no duration and
+ * nothing buffered to seek into.
+ */
+const activateMediaControls = (player: AudioPlayer, stream: DepartmentAudioResultStreamData) => {
+  try {
+    player.setActiveForLockScreen(
+      true,
+      { title: stream.Name ?? '' },
+      {
+        isLiveStream: true,
+        showSeekForward: false,
+        showSeekBackward: false,
+      }
+    );
+  } catch (error) {
+    // Playback still works without the notification, so never fail the stream over this.
+    logger.warn({
+      message: 'Failed to activate audio stream media controls',
+      context: { error, streamName: stream.Name },
+    });
+  }
+};
+
+/** Tears down the media notification / Now Playing entry before the player is released. */
+const releaseMediaControls = (player: AudioPlayer) => {
+  try {
+    player.clearLockScreenControls();
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to clear audio stream media controls',
+      context: { error },
+    });
+  }
+};
+
 let latestPlayRequestId = 0;
 
 export const useAudioStreamStore = create<AudioStreamState>((set, get) => ({
@@ -111,12 +155,13 @@ export const useAudioStreamStore = create<AudioStreamState>((set, get) => ({
         context: { streamName: stream.Name, streamUrl },
       });
 
-      // Configure audio mode for streaming
+      // Configure audio mode for streaming. The lock-screen / notification controls registered below
+      // are only associated with this player when the session does not mix with other apps.
       await setAudioModeAsync({
         allowsRecording: false,
         shouldPlayInBackground: true,
         playsInSilentMode: true,
-        interruptionMode: 'duckOthers',
+        interruptionMode: 'doNotMix',
         shouldRouteThroughEarpiece: false,
       });
 
@@ -142,6 +187,10 @@ export const useAudioStreamStore = create<AudioStreamState>((set, get) => ({
 
       set({ soundObject: sound, currentStream: stream });
 
+      // Register with the OS media session before playback starts so the notification and
+      // its pause control exist from the first frame of audio.
+      activateMediaControls(sound, stream);
+
       sound.addListener('playbackStatusUpdate', (status: AudioStatus) => {
         if (get().soundObject !== sound) {
           return;
@@ -152,6 +201,7 @@ export const useAudioStreamStore = create<AudioStreamState>((set, get) => ({
             message: 'Audio playback error',
             context: { error: status.error, streamName: stream.Name },
           });
+          releaseMediaControls(sound);
           sound.remove();
           set({
             soundObject: null,
@@ -224,6 +274,7 @@ export const useAudioStreamStore = create<AudioStreamState>((set, get) => ({
       const { soundObject } = get();
       if (soundObject) {
         try {
+          releaseMediaControls(soundObject);
           soundObject.remove();
         } catch {
           // The player may already have been released by an error event.
@@ -248,6 +299,9 @@ export const useAudioStreamStore = create<AudioStreamState>((set, get) => ({
         try {
           soundObject.pause();
         } finally {
+          // Drop the media notification and stop the mediaPlayback foreground service before
+          // the player goes away, otherwise a dead notification lingers in the shade.
+          releaseMediaControls(soundObject);
           soundObject.remove();
         }
 

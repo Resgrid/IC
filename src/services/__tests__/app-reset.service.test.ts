@@ -11,13 +11,14 @@ jest.mock('@/lib/logging', () => ({
 // Mock storage
 jest.mock('@/lib/storage', () => ({
   storage: {
-    getAllKeys: jest.fn(() => ['key1', 'IS_FIRST_TIME', 'key2']),
+    getAllKeys: jest.fn(() => ['key1', 'IS_FIRST_TIME', 'baseUrl', 'key2']),
     delete: jest.fn(),
   },
 }));
 
 // Mock storage/app functions
 jest.mock('@/lib/storage/app', () => ({
+  BASE_API_URL_STORAGE_KEY: 'baseUrl',
   removeActiveCallId: jest.fn(),
   removeDeviceUuid: jest.fn(),
 }));
@@ -147,6 +148,14 @@ jest.mock('@/stores/units/store', () => ({
   useUnitsStore: {
     setState: jest.fn(),
     getState: jest.fn(() => ({})),
+  },
+}));
+
+// Read lazily inside getState, so it is initialised by the time a test calls it.
+const mockClearLiveLocations = jest.fn();
+jest.mock('@/stores/signalr/signalr-store', () => ({
+  useSignalRStore: {
+    getState: jest.fn(() => ({ clearLiveLocations: mockClearLiveLocations })),
   },
 }));
 
@@ -398,6 +407,12 @@ describe('app-reset.service', () => {
       expect(mockStorage.delete).toHaveBeenCalledWith('key2');
       expect(mockStorage.delete).not.toHaveBeenCalledWith('IS_FIRST_TIME');
     });
+
+    it('should preserve the selected server URL across logout', () => {
+      clearPersistedStorage();
+
+      expect(mockStorage.delete).not.toHaveBeenCalledWith('baseUrl');
+    });
   });
 
   describe('resetAllStores', () => {
@@ -414,6 +429,8 @@ describe('app-reset.service', () => {
       expect(useUnitsStore.setState).toHaveBeenCalledWith(INITIAL_UNITS_STATE);
       // Logout must clear in-memory flags and identity so the next session fails closed.
       expect(featureFlagsStore.setState).toHaveBeenCalledWith(INITIAL_FEATURE_FLAGS_STATE);
+      // Realtime map positions from the previous session must not survive logout.
+      expect(mockClearLiveLocations).toHaveBeenCalled();
       expect(mockOfflineQueueClear).toHaveBeenCalled();
       expect(mockLoadingReset).toHaveBeenCalled();
       expect(mockAudioCleanup).toHaveBeenCalled();

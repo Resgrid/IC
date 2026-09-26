@@ -46,8 +46,14 @@ jest.mock('@/api/mapping/mapping', () => ({
   getMapDataAndMarkers: (...args: unknown[]) => mockGetMapDataAndMarkers(...args),
 }));
 
-jest.mock('@/hooks/use-map-signalr-updates', () => ({ useMapSignalRUpdates: jest.fn() }));
-jest.mock('@/hooks/use-map-geolocation-updates', () => ({ useMapGeolocationUpdates: jest.fn() }));
+const mockRequestPinsRefresh = jest.fn();
+const mockUseMapGeolocationUpdates = jest.fn();
+jest.mock('@/hooks/use-map-signalr-updates', () => ({ useMapSignalRUpdates: jest.fn(() => mockRequestPinsRefresh) }));
+jest.mock('@/hooks/use-map-geolocation-updates', () => ({
+  useMapGeolocationUpdates: (...args: unknown[]) => mockUseMapGeolocationUpdates(...args),
+  // No live positions in these tests: the snapshot passes through unchanged.
+  withLiveLocationsSince: (pins: unknown[]) => pins,
+}));
 
 const mockOverlay: Record<string, { callId: string }> = {};
 jest.mock('@/hooks/use-command-map-overlay', () => ({
@@ -116,6 +122,30 @@ describe('IncidentMapCard', () => {
     const { getByTestId, unmount } = render(<IncidentMapCard callId="101" command={command()} annotations={[]} />);
 
     await waitFor(() => expect(getByTestId('mock-map-pins').props.accessibilityLabel).toBe('u5'));
+
+    unmount();
+  });
+
+  it('feeds live positions the FULL pin set and the refetch, not just the incident subset', async () => {
+    mockOverlay['u5'] = { callId: '101' };
+    mockGetMapDataAndMarkers.mockResolvedValue({
+      Data: {
+        MapMakerInfos: [
+          { Id: 'u5', Latitude: 34, Longitude: -118, Title: 'Engine 5' },
+          { Id: 'u7', Latitude: 34.2, Longitude: -118.2, Title: 'Unassigned Unit' },
+        ],
+      },
+    });
+
+    const { getByTestId, unmount } = render(<IncidentMapCard callId="101" command={command()} annotations={[]} />);
+
+    await waitFor(() => expect(getByTestId('mock-map-pins').props.accessibilityLabel).toBe('u5'));
+
+    // A position for u7 must be recognised as a known pin (no refetch), so the hook sees every pin.
+    const [pins, setPins, requestRefresh] = mockUseMapGeolocationUpdates.mock.calls[mockUseMapGeolocationUpdates.mock.calls.length - 1];
+    expect((pins as { Id: string }[]).map((pin) => pin.Id)).toEqual(['u5', 'u7']);
+    expect(typeof setPins).toBe('function');
+    expect(requestRefresh).toBe(mockRequestPinsRefresh);
 
     unmount();
   });

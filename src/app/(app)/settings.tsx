@@ -57,13 +57,9 @@ export default function Settings() {
           : t('settings.sync_status_ok');
 
   /**
-   * Handles logout confirmation - clears all data and signs out
+   * Clears all app data and signs out
    */
-  const handleLogoutConfirm = useCallback(async () => {
-    setShowLogoutConfirm(false);
-
-    trackEvent('user_logout_confirmed', {});
-
+  const performLogout = useCallback(async () => {
     // Clear all app data first using the centralized service
     try {
       await clearAllAppData();
@@ -76,7 +72,27 @@ export default function Settings() {
 
     // Then sign out
     await signOut();
-  }, [signOut, trackEvent]);
+  }, [signOut]);
+
+  /**
+   * Handles logout confirmation - clears all data and signs out
+   */
+  const handleLogoutConfirm = useCallback(async () => {
+    setShowLogoutConfirm(false);
+
+    trackEvent('user_logout_confirmed', {});
+
+    await performLogout();
+  }, [performLogout, trackEvent]);
+
+  /**
+   * The saved tokens belong to the previous server, so changing servers while signed in
+   * signs the user out. The new server URL is preserved by clearAllAppData.
+   */
+  const handleServerUrlChanged = useCallback(async () => {
+    trackEvent('settings_server_url_changed_logout', {});
+    await performLogout();
+  }, [performLogout, trackEvent]);
 
   const handleLoginInfoSubmit = async (data: { username: string; password: string }) => {
     logger.info({
@@ -158,7 +174,7 @@ export default function Settings() {
       </ScrollView>
 
       <LoginInfoBottomSheet isOpen={showLoginInfo} onClose={() => setShowLoginInfo(false)} onSubmit={handleLoginInfoSubmit} />
-      <ServerUrlBottomSheet isOpen={showServerUrl} onClose={() => setShowServerUrl(false)} />
+      <ServerUrlBottomSheet isOpen={showServerUrl} onClose={() => setShowServerUrl(false)} onUrlChanged={handleServerUrlChanged} />
 
       {/* Logout Confirmation Dialog */}
       <AlertDialog isOpen={showLogoutConfirm} onClose={() => setShowLogoutConfirm(false)}>

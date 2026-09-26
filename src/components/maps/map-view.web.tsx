@@ -5,7 +5,7 @@
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 import mapboxgl from 'mapbox-gl';
-import React, { forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useContext, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 // @ts-ignore - react-dom/client types may not be available
 import { createRoot } from 'react-dom/client';
 
@@ -792,9 +792,13 @@ export const UserLocation: React.FC<{ visible?: boolean; showsUserHeadingIndicat
 };
 
 // MarkerView component
-export const MarkerView: React.FC<{ coordinate: [number, number]; children?: React.ReactNode }> = ({ coordinate, children }) => {
+export const MarkerView: React.FC<{ id?: string; coordinate: [number, number]; children?: React.ReactNode }> = ({ id, coordinate, children }) => {
+  // The id keys the underlying mapbox-gl marker, so it has to stay stable while the marker moves:
+  // PointAnnotation then just calls setLngLat. An id derived from the coordinate tore the marker
+  // (and its React root) down and rebuilt it on every live position update.
+  const fallbackId = useId();
   return (
-    <PointAnnotation id={`marker-${coordinate.join('-')}`} coordinate={coordinate}>
+    <PointAnnotation id={id ?? `marker-${fallbackId}`} coordinate={coordinate}>
       {children}
     </PointAnnotation>
   );

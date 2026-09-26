@@ -99,6 +99,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'android.permission.FOREGROUND_SERVICE',
       'android.permission.FOREGROUND_SERVICE_MICROPHONE',
       'android.permission.FOREGROUND_SERVICE_PHONE_CALL',
+      // Department audio (scanner) streams keep playing while backgrounded through
+      // expo-audio's AudioControlsService. The expo-audio config plugin adds this permission
+      // too, but it is declared here so the FGS types the app actually uses are all visible
+      // in one place next to the Play declarations.
+      'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK',
       'android.permission.READ_PHONE_STATE',
       'android.permission.READ_PHONE_NUMBERS',
       'android.permission.MANAGE_OWN_CALLS',
@@ -200,14 +205,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     [
-      'expo-task-manager',
-      {
-        taskManager: {
-          taskName: 'location-updates',
-        },
-      },
-    ],
-    [
       'expo-screen-orientation',
       {
         initialOrientation: 'DEFAULT',
@@ -224,6 +221,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         ios: {
           deploymentTarget: '18.1',
           useFrameworks: 'static',
+          // Apps built with the iOS 27 SDK must adopt the UIKit scene life cycle or they are
+          // killed at launch. Remove once on SDK 58, whose template adopts it by default.
+          enableSceneSupport: true,
         },
       },
     ],
@@ -270,7 +270,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'expo-navigation-bar',
       {
         position: 'relative',
-        visibility: 'hidden',
+        hidden: true,
         behavior: 'inset-touch',
       },
     ],
@@ -316,6 +316,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     './plugins/withNotificationSounds.js',
     './plugins/withMediaButtonModule.js',
     './plugins/withInCallAudioModule.js',
+    './plugins/withResourceBundleDeploymentTarget.js',
     ['./plugins/with-app-icon-badge.js', appIconBadgeConfig],
   ],
   extra: {

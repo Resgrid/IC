@@ -14,6 +14,7 @@ import { Modal, ModalBackdrop, ModalBody, ModalContent, ModalFooter, ModalHeader
 import { Text } from '@/components/ui/text';
 import { useAuthStore } from '@/lib/auth';
 import { useCoreStore } from '@/stores/app/core-store';
+import { isSafeRouteId, parseNotificationData } from '@/stores/push-notification/store';
 import { useToastStore } from '@/stores/toast/store';
 import { type NotificationPayload } from '@/types/notification';
 
@@ -28,9 +29,10 @@ type NovuNotification = NonNullable<ReturnType<typeof useNotifications>['notific
 /**
  * Maps a Novu inbox notification to our display payload. Reference info comes from the trigger
  * payload (`data`): either explicit referenceType/referenceId, or the eventCode prefix scheme
- * the server uses (C{callId} = call, N/M{messageId} = message/notification).
+ * the server uses (C{callId} = call, N/M{messageId} = message/notification, t:/g:{channelId} = chat).
+ * The Novu bridge puts eventCode in the in-app `data`, the only custom field the inbox receives.
  */
-const toNotificationPayload = (item: NovuNotification): NotificationPayload => {
+export const toNotificationPayload = (item: NovuNotification): NotificationPayload => {
   const data = (item.data ?? {}) as Record<string, unknown>;
   const eventCode = typeof data.eventCode === 'string' ? data.eventCode : undefined;
   const eventId = typeof data.eventId === 'string' ? data.eventId : undefined;
@@ -43,6 +45,13 @@ const toNotificationPayload = (item: NovuNotification): NotificationPayload => {
     if (prefix === 'C') {
       referenceType = 'call';
       referenceId = referenceId ?? eventId ?? eventCode.slice(1);
+    } else {
+      // Same rule as the push modal's "View chat": a chat code with an id that cannot steer the router.
+      const parsed = parseNotificationData({ eventCode });
+      if ((parsed.type === 'chat' || parsed.type === 'group-chat') && isSafeRouteId(parsed.id)) {
+        referenceType = 'chat';
+        referenceId = parsed.id;
+      }
     }
   }
 
@@ -55,7 +64,8 @@ const toNotificationPayload = (item: NovuNotification): NotificationPayload => {
     type: typeof data.type === 'string' ? data.type : undefined,
     referenceId,
     referenceType: referenceType as NotificationPayload['referenceType'],
-    metadata: data,
+    // The event code is routing, not something to show under "Additional information".
+    metadata: Object.fromEntries(Object.entries(data).filter(([key]) => key !== 'eventCode')),
   };
 };
 
@@ -123,7 +133,7 @@ const NotificationRow = React.memo<NotificationRowProps>(({ item, isSelectionMod
       {!isSelectionMode ? (
         notification.referenceType && notification.referenceId ? (
           <View style={styles.actionButtons}>
-            <Button onPress={handleNavigate} variant="outline" className="size-8 p-0">
+            <Button onPress={handleNavigate} variant="outline" className="size-8 p-0" testID={`notification-reference-${notification.id}`}>
               <ExternalLink size={24} className="text-primary-500 dark:text-primary-400" strokeWidth={2} />
             </Button>
             <ChevronRight size={24} className="ml-2 text-gray-400" strokeWidth={2} />
@@ -293,6 +303,8 @@ export const NotificationInbox = ({ isOpen, onClose }: NotificationInboxProps) =
       onClose();
       if (referenceType === 'call') {
         router.push(`/call/${referenceId}`);
+      } else if (referenceType === 'chat' && isSafeRouteId(referenceId)) {
+        router.push({ pathname: '/chat/[channelId]', params: { channelId: referenceId } });
       }
     },
     [onClose]

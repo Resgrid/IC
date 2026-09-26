@@ -52,6 +52,7 @@ import { TimersSection } from '@/components/command/timers-section';
 import { TransferCommandSheet } from '@/components/command/transfer-command-sheet';
 import { VoiceSection } from '@/components/command/voice-section';
 import ZeroState from '@/components/common/zero-state';
+import { RecordsQuickCreate } from '@/components/records/records-quick-create';
 import { View } from '@/components/ui';
 import { AlertDialog, AlertDialogBackdrop, AlertDialogBody, AlertDialogContent, AlertDialogFooter, AlertDialogHeader } from '@/components/ui/alert-dialog';
 import { Badge, BadgeText } from '@/components/ui/badge';
@@ -67,6 +68,7 @@ import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { useCommandBoardLayout } from '@/hooks/use-command-board-layout';
 import { useDirectMessage } from '@/hooks/use-direct-message';
+import { useRecordsContext } from '@/hooks/use-records-context';
 import { getIncidentRoleName } from '@/lib/incident-command-utils';
 import { isWeb } from '@/lib/platform';
 import { ChatChannelType } from '@/models/v4/chat';
@@ -94,6 +96,8 @@ export default function CommandBoard() {
   const showLabels = isRoomy;
   const boards = useCommandStore((state) => state.boards);
   const activeBoardCallId = useCommandStore((state) => state.activeCallId);
+  // Records context for the board: the incident it is showing and the role this member holds on it.
+  const recordsContext = useRecordsContext();
   const switchCommand = useCommandStore((state) => state.switchCommand);
   const endCommand = useCommandStore((state) => state.endCommand);
   const refreshBoard = useCommandStore((state) => state.refreshBoard);
@@ -690,6 +694,8 @@ export default function CommandBoard() {
                 <ButtonIcon as={RefreshCw} className="text-gray-700 dark:text-gray-200" />
                 {showLabels ? <ButtonText>{t('common.refresh')}</ButtonText> : null}
               </Button>
+              {/* Contextual create from the board; hidden unless the server offers something here. */}
+              <RecordsQuickCreate context={recordsContext} size={controlSize} className={iconButtonClass} />
               {/* Assistant: answers board questions on-device first, so it stays useful with no signal.
                   Filled purple rather than an outline so it reads as its own thing among the actions. */}
               <Button
