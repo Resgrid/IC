@@ -27,7 +27,6 @@ import { logger } from '@/lib/logging';
 import { getBaseApiUrl } from '@/lib/storage/app';
 import { openLinkInBrowser } from '@/lib/utils';
 import { QueuedEventStatus } from '@/models/offline-queue/queued-event';
-import { clearAllAppData } from '@/services/app-reset.service';
 import { useServerUrlStore } from '@/stores/app/server-url-store';
 import { useOfflineQueueStore } from '@/stores/offline-queue/store';
 
@@ -57,20 +56,10 @@ export default function Settings() {
           : t('settings.sync_status_ok');
 
   /**
-   * Clears all app data and signs out
+   * Signs out. The auth store's logout removes the stored tokens and runs the full app-data reset
+   * (clearAllAppData) itself, the same as every other logout path.
    */
   const performLogout = useCallback(async () => {
-    // Clear all app data first using the centralized service
-    try {
-      await clearAllAppData();
-    } catch (error) {
-      logger.error({
-        message: 'Error during app data cleanup on logout',
-        context: { error },
-      });
-    }
-
-    // Then sign out
     await signOut();
   }, [signOut]);
 

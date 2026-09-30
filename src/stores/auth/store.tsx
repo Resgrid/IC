@@ -3,17 +3,41 @@ import base64 from 'react-native-base64';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import { runSessionCleanup } from '@/lib/auth/session-cleanup';
+import { cacheManager } from '@/lib/cache/cache-manager';
+import { clearCacheScope, setCacheScope } from '@/lib/cache/cache-scope';
 import { logger } from '@/lib/logging';
 
 import { loginRequest, refreshTokenSingleFlight, ssoExternalTokenRequest } from '../../lib/auth/api';
 import type { AuthResponse, AuthState, LoginCredentials, SsoLoginCredentials } from '../../lib/auth/types';
 import { type ProfileModel } from '../../lib/auth/types';
 import { getAuth } from '../../lib/auth/utils';
-import { setItem, zustandStorage } from '../../lib/storage';
+import { removeItem, setItem, zustandStorage } from '../../lib/storage';
 
 // Last SSO exchange that failed with a 2FA challenge, retained IN MEMORY ONLY (module scope,
 // never the persisted store) so the OTP prompt can retry the same IdP token with a code.
 let pendingSsoMfaCredentials: SsoLoginCredentials | null = null;
+
+// Storage keys outside the persisted store that hold a credential: the full token response (refresh
+// token included) written on every login/refresh, and the legacy token pair.
+const STORED_CREDENTIAL_KEYS = ['authResponse', 'token'];
+
+// Single-flight guard: concurrent logout triggers (every 401 caller queued behind a rejected refresh,
+// a refresh timer firing during a manual sign-out) share one run so the data wipe never runs twice.
+let logoutInFlight: Promise<void> | null = null;
+
+const removeStoredCredentials = async (): Promise<void> => {
+  for (const key of STORED_CREDENTIAL_KEYS) {
+    try {
+      await removeItem(key);
+    } catch (error) {
+      logger.warn({
+        message: 'Failed to remove a stored credential on logout',
+        context: { key, error },
+      });
+    }
+  }
+};
 
 const useAuthStore = create<AuthState>()(
   persist(
@@ -184,24 +208,54 @@ const useAuthStore = create<AuthState>()(
       },
 
       logout: async () => {
-        // Clear any pending refresh timer to prevent stacked timeouts
-        const existingTimeoutId = get().refreshTimeoutId;
-        if (existingTimeoutId !== null) {
-          clearTimeout(existingTimeoutId);
+        if (logoutInFlight) {
+          return logoutInFlight;
         }
-        // The retained IdP exchange is a credential; it must not outlive the session.
-        pendingSsoMfaCredentials = null;
-        set({
-          accessToken: null,
-          refreshToken: null,
-          status: 'signedOut',
-          error: null,
-          profile: null,
-          isFirstTime: true,
-          refreshTimeoutId: null,
-          isSsoMfaPending: false,
+
+        logoutInFlight = (async () => {
+          // Clear any pending refresh timer to prevent stacked timeouts
+          const existingTimeoutId = get().refreshTimeoutId;
+          if (existingTimeoutId !== null) {
+            clearTimeout(existingTimeoutId);
+          }
+          // The retained IdP exchange is a credential; it must not outlive the session.
+          pendingSsoMfaCredentials = null;
+          set({
+            accessToken: null,
+            refreshToken: null,
+            refreshTokenExpiresOn: null,
+            status: 'signedOut',
+            error: null,
+            profile: null,
+            // Clearing the user id drops the API cache scope (see the subscription below); leaving it set
+            // keeps this user's cache keys live for whoever signs in next on the same device.
+            userId: null,
+            isFirstTime: true,
+            refreshTimeoutId: null,
+            isSsoMfaPending: false,
+          });
+          Sentry.setUser(null);
+
+          // The token response is stored outside the persisted store; leaving it would keep a valid
+          // refresh token on the device after sign-out.
+          await removeStoredCredentials();
+
+          // Route EVERY logout (Settings, the 401 interceptor, a rejected refresh, the command-app access
+          // check) through the full app-data reset so the next person on a shared device never sees the
+          // previous user's data, connections or queued work. The reset service registers the handler.
+          try {
+            await runSessionCleanup();
+          } catch (error) {
+            logger.error({
+              message: 'Failed to clear app data on logout',
+              context: { error },
+            });
+          }
+        })().finally(() => {
+          logoutInFlight = null;
         });
-        Sentry.setUser(null);
+
+        return logoutInFlight;
       },
 
       refreshAccessToken: async () => {
@@ -211,7 +265,7 @@ const useAuthStore = create<AuthState>()(
             logger.warn({
               message: 'No refresh token available, logging out user',
             });
-            get().logout();
+            await get().logout();
             return;
           }
 
@@ -266,7 +320,7 @@ const useAuthStore = create<AuthState>()(
               message: 'Token refresh failed with non-recoverable error, logging out user',
               context: { error: error instanceof Error ? error.message : String(error) },
             });
-            get().logout();
+            await get().logout();
           }
         }
       },
@@ -364,6 +418,13 @@ const useAuthStore = create<AuthState>()(
             return;
           }
 
+          // No persisted session means any stored token response is left over from a sign-out under an
+          // earlier build that did not remove it. Nothing reads it without a session, so drop the refresh
+          // token it still holds.
+          if (!state?.refreshToken) {
+            void removeStoredCredentials();
+          }
+
           // Defer execution to ensure useAuthStore is fully initialized
           setTimeout(() => {
             if (state && state.refreshToken && state.status === 'signedIn') {
@@ -411,6 +472,42 @@ const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// Keep the API cache scoped to whoever is signed in. Cache keys embed this identity, so a second user on
+// the same device can never be served the first user's cached units, calls or contacts, and signing out
+// drops the scope so nothing leaks into an anonymous session.
+useAuthStore.subscribe((state, previousState) => {
+  if (state.userId === previousState.userId) {
+    return;
+  }
+
+  try {
+    // Drop everything the previous identity cached before the new scope goes live.
+    cacheManager.clear();
+  } catch (error) {
+    // Cache hygiene must never break sign-in or sign-out; the scope still moves on below, so the old
+    // entries are no longer addressable by the new identity.
+    logger.warn({
+      message: 'Failed to clear the API cache on identity change',
+      context: { error },
+    });
+  }
+
+  // Outside the clear() attempt: leaving the scope on the previous user is the failure that actually
+  // leaks, since cache keys embed it.
+  try {
+    if (state.userId) {
+      setCacheScope({ userId: state.userId });
+    } else {
+      clearCacheScope();
+    }
+  } catch (error) {
+    logger.warn({
+      message: 'Failed to reset the API cache scope on identity change',
+      context: { error },
+    });
+  }
+});
 
 const sanitizeJson = (json: string) => {
   return json.replace(/[\u0000]+/g, '');

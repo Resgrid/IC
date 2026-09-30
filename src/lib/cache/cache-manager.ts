@@ -1,4 +1,7 @@
 import { storage } from '@/lib/storage';
+import { getBaseApiUrl } from '@/lib/storage/app';
+
+import { CACHE_SCOPE_KEY, getCacheScopeKey } from './cache-scope';
 
 interface CacheItem<T> {
   data: T;
@@ -19,9 +22,19 @@ export class CacheManager {
     return CacheManager.instance;
   }
 
+  /**
+   * The namespace entries are written under: server base URL plus signed-in identity. Scoping by server
+   * keeps one environment's data from being served against another after a server-URL switch, and by
+   * identity keeps a second user (or a department switch) on the same device from being served the
+   * previous account's cached units, calls or contacts.
+   */
+  getScopeIdentity(): string {
+    return `${getBaseApiUrl()}_${getCacheScopeKey()}`;
+  }
+
   private getCacheKey(endpoint: string, params?: Record<string, unknown>): string {
     const queryString = params ? `?${new URLSearchParams(params as Record<string, string>)}` : '';
-    return `api_cache_${endpoint}${queryString}`;
+    return `api_cache_${this.getScopeIdentity()}_${endpoint}${queryString}`;
   }
 
   private isExpired(timestamp: number, expiresIn: number): boolean {
@@ -91,7 +104,8 @@ export class CacheManager {
   clear(): void {
     const allKeys = storage.getAllKeys();
     allKeys.forEach((key) => {
-      if (key.startsWith('api_cache_')) {
+      // The scope record is not a cached response; dropping it would forget whose session this is.
+      if (key.startsWith('api_cache_') && key !== CACHE_SCOPE_KEY) {
         storage.delete(key);
       }
     });

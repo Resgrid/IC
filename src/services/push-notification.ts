@@ -506,6 +506,31 @@ class PushNotificationService {
     return this.pushToken;
   }
 
+  /**
+   * Clears this device's local push state on logout: the cached token, the badge, and notifications
+   * already delivered for the previous user (which may name incidents or people). The next sign-in
+   * registers again for the new user.
+   */
+  public async unregisterFromPushNotifications(): Promise<void> {
+    try {
+      this.pushToken = null;
+      this.handledResponseIds.clear();
+      await Notifications.setBadgeCountAsync(0).catch(() => {});
+      await Notifications.dismissAllNotificationsAsync().catch(() => {});
+      if (Platform.OS === 'android') {
+        await notifee.cancelAllNotifications().catch(() => {});
+      }
+      logger.info({
+        message: 'Push notification local state cleared on logout',
+      });
+    } catch (error) {
+      logger.warn({
+        message: 'Error clearing push notification state on logout',
+        context: { error },
+      });
+    }
+  }
+
   public cleanup(): void {
     if (this.notificationListener) {
       this.notificationListener.remove();
@@ -594,6 +619,12 @@ export const usePushNotifications = () => {
   useEffect(() => {
     // Push notifications are native-only; skip on web
     if (Platform.OS === 'web') return;
+
+    // Logout clears the user id and the local push state, so the next sign-in (even by the same user)
+    // must register again.
+    if (!userId) {
+      previousUserIdRef.current = null;
+    }
 
     // Only register if we have a signed-in user ID and it's different from the previous one
     if (rights && userId && userId !== previousUserIdRef.current) {

@@ -1,6 +1,9 @@
 // Import global CSS (platform-specific entry: global.css on native, global.web.css on web)
 import '../lib/theme-styles';
 import '../lib/i18n';
+// Registers the full app-data reset with the auth store's logout (session-cleanup registry), so every
+// logout path wipes the previous user's data even before any screen that uses the reset has loaded.
+import '@/services/app-reset.service';
 
 import { Env } from '@env';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
