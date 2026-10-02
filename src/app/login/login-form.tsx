@@ -12,7 +12,7 @@ import { View } from '@/components/ui';
 import { Button, ButtonSpinner, ButtonText } from '@/components/ui/button';
 import { FormControl, FormControlError, FormControlErrorIcon, FormControlErrorText, FormControlLabel, FormControlLabelText } from '@/components/ui/form-control';
 import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
-import { AlertTriangle, EyeIcon, EyeOffIcon, Globe, LogIn, ShieldCheck } from '@/components/ui/lucide-icons';
+import { AlertTriangle, EyeIcon, EyeOffIcon, Globe, LogIn, ShieldCheck, Truck } from '@/components/ui/lucide-icons';
 import { ChevronDownIcon } from '@/components/ui/lucide-icons';
 import { Select, SelectBackdrop, SelectContent, SelectDragIndicator, SelectDragIndicatorWrapper, SelectIcon, SelectInput, SelectItem, SelectPortal, SelectTrigger } from '@/components/ui/select';
 import { Text } from '@/components/ui/text';
@@ -46,9 +46,13 @@ export type LoginFormProps = {
   onServerUrlPress?: () => void;
   /** Called when the user taps "Sign In with SSO" to navigate to the SSO login page */
   onSsoPress?: () => void;
+  /** Opens the shared device setting for this installation (passkey plan section 10.5). */
+  onSharedDevicePress?: () => void;
+  /** This installation is a shared device, and its label when it has one. */
+  sharedDevice?: { label: string | null } | null;
 };
 
-export const LoginForm = ({ onSubmit = () => {}, isLoading = false, error = undefined, onServerUrlPress, onSsoPress }: LoginFormProps) => {
+export const LoginForm = ({ onSubmit = () => {}, isLoading = false, error = undefined, onServerUrlPress, onSsoPress, onSharedDevicePress, sharedDevice = null }: LoginFormProps) => {
   const { colorScheme } = useColorScheme();
   const { t, i18n: i18nInstance } = useTranslation();
   const { language, setLanguage } = useSelectedLanguage();
@@ -212,6 +216,16 @@ export const LoginForm = ({ onSubmit = () => {}, isLoading = false, error = unde
             </Button>
           ) : null}
         </View>
+
+        {/* Shared device: every sign-in here starts a shared session that locks between operators */}
+        {onSharedDevicePress ? (
+          <Button className="mt-2 self-center" variant="link" action="secondary" size="sm" onPress={onSharedDevicePress} testID="login-shared-device">
+            <Truck size={14} style={{ marginRight: 4 }} />
+            <ButtonText className="text-xs">
+              {sharedDevice ? (sharedDevice.label ? t('shared_session.device_on_label', { label: sharedDevice.label }) : t('shared_session.device_on')) : t('shared_session.device_settings')}
+            </ButtonText>
+          </Button>
+        ) : null}
 
         {/* Language selector */}
         <View className="mt-4 flex-row items-center justify-center gap-x-2">

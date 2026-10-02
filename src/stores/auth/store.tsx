@@ -9,10 +9,26 @@ import { clearCacheScope, setCacheScope } from '@/lib/cache/cache-scope';
 import { logger } from '@/lib/logging';
 
 import { loginRequest, refreshTokenSingleFlight, ssoExternalTokenRequest } from '../../lib/auth/api';
+import { isSharedSessionLockedRefresh } from '../../lib/auth/token-refresh';
 import type { AuthResponse, AuthState, LoginCredentials, SsoLoginCredentials } from '../../lib/auth/types';
 import { type ProfileModel } from '../../lib/auth/types';
 import { getAuth } from '../../lib/auth/utils';
+import { isSharedInstallation } from '../../lib/mfa/shared-installation';
 import { removeItem, setItem, zustandStorage } from '../../lib/storage';
+import { markSharedSessionLocked, noteSessionRestoredAtLaunch, resetSharedSession } from '../shared-session/store';
+import {
+  cancelLoginApprovalRequest,
+  forgetLoginSecrets,
+  holdLoginTransaction,
+  type LoginMfaHost,
+  loginSetupOptions,
+  signInWithBrokeredSso,
+  type SsoDepartment,
+  startFactorRecovery,
+  startLoginApproval,
+  verifyLoginMfa,
+  waitForLoginApproval,
+} from './login-mfa';
 
 // Last SSO exchange that failed with a 2FA challenge, retained IN MEMORY ONLY (module scope,
 // never the persisted store) so the OTP prompt can retry the same IdP token with a code.
@@ -39,6 +55,52 @@ const removeStoredCredentials = async (): Promise<void> => {
   }
 };
 
+/**
+ * Signs in with a token response from the completion grant (passkey plan section 7.5): the profile from the id token,
+ * the stored auth response, and the proactive refresh, exactly as the password path does. Throws on a missing or
+ * malformed id token, which no sign-in may continue without.
+ */
+const signInWithTokens = (authResponse: AuthResponse, recoveryCodes: string[] | null): void => {
+  const payload = authResponse.id_token?.split('.')[1];
+  if (!payload) {
+    throw new Error('Invalid ID token format');
+  }
+  const profileData = JSON.parse(sanitizeJson(base64.decode(payload))) as ProfileModel;
+  setItem<AuthResponse>('authResponse', authResponse);
+  const expiresInSeconds = authResponse.expires_in ?? 3600;
+  const existingTimeoutId = useAuthStore.getState().refreshTimeoutId;
+  if (existingTimeoutId !== null) {
+    clearTimeout(existingTimeoutId);
+  }
+  const refreshDelayMs = Math.max((expiresInSeconds - 60) * 1000, 60000);
+  const timeoutId = setTimeout(() => useAuthStore.getState().refreshAccessToken(), refreshDelayMs);
+  useAuthStore.setState({
+    accessToken: authResponse.access_token,
+    refreshToken: authResponse.refresh_token,
+    refreshTokenExpiresOn: new Date(Date.now() + expiresInSeconds * 1000).getTime().toString(),
+    status: 'signedIn',
+    error: null,
+    profile: profileData,
+    userId: profileData.sub,
+    refreshTimeoutId: timeoutId,
+    isSsoMfaPending: false,
+    mfaChallenge: null,
+    pendingRecoveryCodes: recoveryCodes,
+  });
+  Sentry.setUser({ id: profileData.sub, username: profileData.name });
+  logger.info({ message: 'Signed in on a login transaction, scheduling token refresh', context: { refreshDelayMs } });
+};
+
+/**
+ * How the login transaction module moves this store: finishing a sign-in with tokens, showing a pending sign-in, or
+ * sending the member back to the start. Called only after the store exists.
+ */
+const mfaHost: LoginMfaHost = {
+  signIn: signInWithTokens,
+  setChallenge: (challenge, error = null) => useAuthStore.setState({ status: challenge ? 'mfaRequired' : 'signedOut', mfaChallenge: challenge, error }),
+  restart: (code) => useAuthStore.setState({ status: 'signedOut', mfaChallenge: null, error: code }),
+};
+
 const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -52,6 +114,8 @@ const useAuthStore = create<AuthState>()(
       isFirstTime: true,
       refreshTimeoutId: null,
       isSsoMfaPending: false,
+      mfaChallenge: null,
+      pendingRecoveryCodes: null,
       login: async (credentials: LoginCredentials) => {
         try {
           set({ status: 'loading' });
@@ -105,12 +169,20 @@ const useAuthStore = create<AuthState>()(
             }
             const timeoutId = setTimeout(() => get().refreshAccessToken(), refreshDelayMs);
             set({ refreshTimeoutId: timeoutId });
+          } else if (response.mfaTransaction) {
+            // The password was right; a second factor (or the setup the department requires) finishes the sign-in on the
+            // login transaction. The secret goes to login-mfa memory; the store only holds what the screen shows.
+            holdLoginTransaction(response.mfaTransaction.secret);
+            set({ status: 'mfaRequired', error: null, mfaChallenge: response.mfaTransaction.challenge });
+          } else if (response.enrollmentRequired) {
+            set({ status: 'error', error: 'mfa_enrollment_required', mfaChallenge: null });
           } else if (response.mfaRequired) {
             // 2FA challenge: the login screen prompts for the authenticator code and calls
             // login() again with otpCode. Credentials are never retained here.
             set({
               status: 'mfaRequired',
               error: response.invalidOtp ? 'invalid_totp' : null,
+              mfaChallenge: { kind: 'legacy', methods: ['totp'], enrolled: ['totp'], preferred: 'totp', expiresAt: null, source: 'password' },
             });
           } else {
             set({
@@ -207,7 +279,29 @@ const useAuthStore = create<AuthState>()(
         await get().ssoLogin({ ...pendingSsoMfaCredentials, otpCode });
       },
 
-      logout: async () => {
+      verifyLoginMfa: (step) => verifyLoginMfa(mfaHost, step),
+      requestLoginApproval: () => startLoginApproval(mfaHost),
+      waitForLoginApproval: (approvalRequestId, signal) => waitForLoginApproval(mfaHost, approvalRequestId, signal),
+      cancelLoginApproval: (approvalRequestId) => cancelLoginApprovalRequest(approvalRequestId),
+      loginSetupOptions: () => loginSetupOptions(mfaHost),
+      cancelLoginMfa: () => {
+        forgetLoginSecrets();
+        set({ status: 'signedOut', mfaChallenge: null, error: null });
+      },
+      loginWithBrokeredSso: async (department: SsoDepartment) => {
+        set({ status: 'loading', error: null, mfaChallenge: null });
+        const result = await signInWithBrokeredSso(mfaHost, department);
+        if (result.outcome === 'cancelled') {
+          set({ status: 'signedOut' });
+        } else if (result.outcome === 'failed') {
+          set({ status: 'error', error: result.code });
+        }
+        return result;
+      },
+      dismissRecoveryCodes: () => set({ pendingRecoveryCodes: null }),
+      beginFactorRecovery: (recoveryCode) => startFactorRecovery(mfaHost, recoveryCode),
+
+      logout: async (reason?: string) => {
         if (logoutInFlight) {
           return logoutInFlight;
         }
@@ -218,14 +312,17 @@ const useAuthStore = create<AuthState>()(
           if (existingTimeoutId !== null) {
             clearTimeout(existingTimeoutId);
           }
-          // The retained IdP exchange is a credential; it must not outlive the session.
+          // The retained IdP exchange and any sign-in secrets are credentials; they must not outlive the session.
           pendingSsoMfaCredentials = null;
+          forgetLoginSecrets();
+          resetSharedSession();
           set({
             accessToken: null,
             refreshToken: null,
             refreshTokenExpiresOn: null,
             status: 'signedOut',
-            error: null,
+            // Why the session ended, when the screen should say (a shared shift that ran out); otherwise nothing.
+            error: typeof reason === 'string' ? reason : null,
             profile: null,
             // Clearing the user id drops the API cache scope (see the subscription below); leaving it set
             // keeps this user's cache keys live for whoever signs in next on the same device.
@@ -233,6 +330,8 @@ const useAuthStore = create<AuthState>()(
             isFirstTime: true,
             refreshTimeoutId: null,
             isSsoMfaPending: false,
+            mfaChallenge: null,
+            pendingRecoveryCodes: null,
           });
           Sentry.setUser(null);
 
@@ -297,6 +396,18 @@ const useAuthStore = create<AuthState>()(
           const timeoutId = setTimeout(() => get().refreshAccessToken(), refreshDelayMs);
           set({ refreshTimeoutId: timeoutId });
         } catch (error) {
+          if (isSharedSessionLockedRefresh(error)) {
+            // A locked shared session (passkey plan section 10.5): the tokens stay, the lock screen unlocks the same
+            // session, and the refresh runs again after the unlock. Never a sign-out.
+            logger.info({ message: 'Token refresh waits for the shared session to unlock' });
+            const existingTimeoutId = get().refreshTimeoutId;
+            if (existingTimeoutId !== null) {
+              clearTimeout(existingTimeoutId);
+            }
+            set({ refreshTimeoutId: null });
+            markSharedSessionLocked(null);
+            return;
+          }
           // Check if it's a network error vs an invalid refresh token
           const isNetworkError = error instanceof Error && (error.message.includes('Network Error') || error.message.includes('timeout') || error.message.includes('ECONNREFUSED') || error.message.includes('ETIMEDOUT'));
 
@@ -405,9 +516,12 @@ const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => zustandStorage),
-      // The pending SSO exchange lives in module memory and dies with the process, so a rehydrated
-      // `true` here would open the OTP prompt with nothing to retry. Force it back to false.
-      merge: (persisted, current) => ({ ...current, ...(persisted as Partial<AuthState>), isSsoMfaPending: false }),
+      // A pending sign-in and recovery codes shown once are never written to storage, and neither is the refresh timer
+      // (a handle that means nothing after a restart).
+      partialize: ({ mfaChallenge: _mfaChallenge, pendingRecoveryCodes: _pendingRecoveryCodes, refreshTimeoutId: _refreshTimeoutId, ...persisted }) => persisted,
+      // The pending SSO exchange and the login transaction live in module memory and die with the process, so a
+      // rehydrated pending state would open a prompt with nothing to finish. Force them back.
+      merge: (persisted, current) => ({ ...current, ...(persisted as Partial<AuthState>), isSsoMfaPending: false, mfaChallenge: null, pendingRecoveryCodes: null }),
       onRehydrateStorage: () => {
         return (state, error) => {
           if (error) {
@@ -423,6 +537,13 @@ const useAuthStore = create<AuthState>()(
           // token it still holds.
           if (!state?.refreshToken) {
             void removeStoredCredentials();
+          } else {
+            // A shared command session restored at launch locks before anyone can use it (passkey plan section 12.5.3):
+            // on a shared installation the screen is concealed from the first frame, before the server is even asked.
+            noteSessionRestoredAtLaunch();
+            if (isSharedInstallation()) {
+              markSharedSessionLocked(null);
+            }
           }
 
           // Defer execution to ensure useAuthStore is fully initialized

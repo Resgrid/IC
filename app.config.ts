@@ -43,6 +43,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
     bundleIdentifier: Env.BUNDLE_ID,
     requireFullScreen: true,
+    // Passkeys: IC's own relying-party hosts, one per region (passkey workbook section 5.1; the IC web host is proposed).
+    // Each host serves an apple-app-site-association listing only this app. Staging and development builds use their own
+    // hosts, not these.
+    ...((Env.APP_ENV === 'production' || Env.APP_ENV === 'internal') && {
+      associatedDomains: ['webcredentials:ic.resgrid.com', 'webcredentials:ic-eu-central.resgrid.com'],
+    }),
     infoPlist: {
       UIBackgroundModes: ['remote-notification', 'audio', 'bluetooth-central', 'voip'],
       ITSAppUsesNonExemptEncryption: false,
