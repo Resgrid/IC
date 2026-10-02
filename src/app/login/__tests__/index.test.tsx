@@ -105,9 +105,10 @@ jest.mock('../login-form', () => {
   const { View, TouchableOpacity, Text } = require('react-native');
 
   return {
-    LoginForm: ({ onSubmit, isLoading, error, onServerUrlPress }: any) =>
+    LoginForm: ({ onSubmit, isLoading, error, onServerUrlPress, sharedDevice }: any) =>
       React.createElement(View, { testID: 'login-form' }, [
         React.createElement(Text, { key: 'loading' }, isLoading ? 'Loading...' : 'Not Loading'),
+        React.createElement(Text, { key: 'shared-device', testID: 'shared-device-state' }, sharedDevice ? `shared:${sharedDevice.label ?? ''}` : 'personal'),
         error && React.createElement(Text, { key: 'error' }, error),
         React.createElement(TouchableOpacity, {
           key: 'submit',
@@ -146,6 +147,18 @@ jest.mock('@/hooks/use-analytics', () => ({
 
 jest.mock('@/lib/auth', () => ({
   useAuth: () => mockUseAuth(),
+}));
+
+// The second-factor sheet renders as a marker that says whether it is open.
+jest.mock('@/components/auth/login-mfa-sheet', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return { LoginMfaSheet: ({ isOpen }: { isOpen: boolean }) => (isOpen ? React.createElement(View, { testID: 'login-mfa-sheet-open' }) : null) };
+});
+
+const mockUseSharedInstallation = jest.fn(() => ({ configured: false, shared: false, label: null as string | null }));
+jest.mock('@/lib/mfa/shared-installation', () => ({
+  useSharedInstallation: () => mockUseSharedInstallation(),
 }));
 
 jest.mock('@/lib/logging', () => ({
@@ -272,5 +285,52 @@ describe('Login', () => {
     fireEvent.press(submitButton);
 
     expect(mockLogin).toHaveBeenCalledWith({ username: 'test', password: 'test' });
+  });
+});
+
+describe('the shared device setting on the login screen', () => {
+  beforeEach(() => {
+    mockUseAuth.mockReturnValue({ login: jest.fn(), ssoLogin: jest.fn(), status: 'idle', error: null, isAuthenticated: false });
+    mockUseAnalytics.mockReturnValue({ trackEvent: jest.fn() });
+  });
+  afterEach(() => mockUseSharedInstallation.mockReset().mockImplementation(() => ({ configured: false, shared: false, label: null })));
+
+  it.each([
+    ['an installation nobody has set up', { configured: false, shared: false, label: null }],
+    ['an installation marked personal', { configured: true, shared: false, label: 'Engine 12 MDT' }],
+  ])('reports %s as a personal device', (_name, setting) => {
+    mockUseSharedInstallation.mockReturnValue(setting);
+    render(<Login />);
+    expect(screen.getByTestId('shared-device-state').props.children).toBe('personal');
+  });
+
+  it('reports a shared installation with its label', () => {
+    mockUseSharedInstallation.mockReturnValue({ configured: true, shared: true, label: 'Engine 12 MDT' });
+    render(<Login />);
+    expect(screen.getByTestId('shared-device-state').props.children).toBe('shared:Engine 12 MDT');
+  });
+});
+
+describe('the second-factor sheet on the login screen', () => {
+  const { default: useAuthStore } = jest.requireActual('@/stores/auth/store') as typeof import('@/stores/auth/store');
+  const verify = (source: 'password' | 'sso') => ({ kind: 'verify' as const, methods: ['totp' as const], enrolled: ['totp' as const], preferred: 'totp' as const, expiresAt: null, source });
+
+  beforeEach(() => {
+    mockUseAuth.mockReturnValue({ login: jest.fn(), ssoLogin: jest.fn(), status: 'mfaRequired', error: null, isAuthenticated: false });
+    mockUseAnalytics.mockReturnValue({ trackEvent: jest.fn() });
+  });
+  afterEach(() => useAuthStore.setState({ mfaChallenge: null }));
+
+  it('opens for a password sign-in that continues on a login transaction', () => {
+    useAuthStore.setState({ mfaChallenge: verify('password') });
+    render(<Login />);
+    expect(screen.getByTestId('login-mfa-sheet-open')).toBeTruthy();
+  });
+
+  it("leaves a single sign-on's second factor to the SSO screen on top of it", () => {
+    // Both screens are mounted while the SSO screen is shown; two sheets would each stage their own setup key.
+    useAuthStore.setState({ mfaChallenge: verify('sso') });
+    render(<Login />);
+    expect(screen.queryByTestId('login-mfa-sheet-open')).toBeNull();
   });
 });

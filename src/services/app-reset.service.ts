@@ -6,27 +6,47 @@
  * It's designed to be reusable and testable.
  */
 
+import { queryClient } from '@/api/common/api-provider';
+import { registerSessionCleanupHandler } from '@/lib/auth/session-cleanup';
 import { logger } from '@/lib/logging';
+import { SHARED_INSTALLATION_STORAGE_KEY } from '@/lib/mfa/shared-installation';
 import { storage } from '@/lib/storage';
 import { BASE_API_URL_STORAGE_KEY, removeActiveCallId, removeDeviceUuid } from '@/lib/storage/app';
+import { locationService } from '@/services/location';
+import { pushNotificationService } from '@/services/push-notification';
+import { signalRService } from '@/services/signalr.service';
 import { useAudioStreamStore } from '@/stores/app/audio-stream-store';
 import { INITIAL_STATE as BLUETOOTH_INITIAL_STATE, useBluetoothAudioStore } from '@/stores/app/bluetooth-audio-store';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useLiveKitStore } from '@/stores/app/livekit-store';
 import { useLoadingStore } from '@/stores/app/loading-store';
 import { useLocationStore } from '@/stores/app/location-store';
+import { useCallVideoFeedStore } from '@/stores/call-video-feeds/store';
 import { useCallsStore } from '@/stores/calls/store';
+import { useChatStore } from '@/stores/chat/store';
+import { useCheckInTimerStore } from '@/stores/check-in-timers/store';
+import { useIncidentAssistantStore } from '@/stores/command/assistant-store';
+import { useCommandBoardStore } from '@/stores/command/board-store';
+import { useIncidentsStore } from '@/stores/command/incidents-store';
+import { useCommandStore } from '@/stores/command/store';
 import { useContactsStore } from '@/stores/contacts/store';
+import { dataProtectionStore } from '@/stores/data-protection/store';
 import { useDispatchStore } from '@/stores/dispatch/store';
 import { featureFlagsStore } from '@/stores/feature-flags/store';
+import { useMapsStore } from '@/stores/maps/store';
 import { useNotesStore } from '@/stores/notes/store';
 import { useOfflineQueueStore } from '@/stores/offline-queue/store';
+import { useOperationsStore } from '@/stores/operations/store';
+import { usePoisStore } from '@/stores/pois/store';
 import { useProtocolsStore } from '@/stores/protocols/store';
 import { usePushNotificationModalStore } from '@/stores/push-notification/store';
+import { useDeploymentsStore } from '@/stores/records/deployments-store';
+import { useRecordsStore } from '@/stores/records/store';
 import { useRolesStore } from '@/stores/roles/store';
 import { securityStore } from '@/stores/security/store';
 import { useSignalRStore } from '@/stores/signalr/signalr-store';
 import { useUnitsStore } from '@/stores/units/store';
+import { useWeatherAlertsStore } from '@/stores/weather-alerts/store';
 
 // ============================================================================
 // Initial State Constants
@@ -167,7 +187,8 @@ export const INITIAL_PUSH_NOTIFICATION_MODAL_STATE = {
 
 // Keys to preserve during storage clear. The selected server URL is an install-level
 // preference: wiping it on logout would silently send the next sign-in to the default server.
-const STORAGE_KEYS_TO_PRESERVE = ['IS_FIRST_TIME', BASE_API_URL_STORAGE_KEY];
+// A shared command device stays shared across operators: signing out is exactly when the next one signs in.
+const STORAGE_KEYS_TO_PRESERVE = ['IS_FIRST_TIME', BASE_API_URL_STORAGE_KEY, SHARED_INSTALLATION_STORAGE_KEY];
 
 /**
  * Clears all persisted storage items except those in the preserve list
@@ -187,6 +208,11 @@ export const clearPersistedStorage = (): void => {
 export const clearAppStorageItems = (): void => {
   removeActiveCallId();
   removeDeviceUuid();
+};
+
+/** Returns a store with no reset method of its own to the state it was created with. */
+const resetToInitialState = <T>(store: { getInitialState: () => T; setState: (state: T, replace: true) => void }): void => {
+  store.setState(store.getInitialState(), true);
 };
 
 /**
@@ -247,11 +273,97 @@ export const resetAllStores = async (): Promise<void> => {
 
   // Push notification modal store - reset
   usePushNotificationModalStore.setState(INITIAL_PUSH_NOTIFICATION_MODAL_STATE);
+
+  // Stores with their own reset: clearPersistedStorage() wipes what they persisted, but the in-memory
+  // copies would otherwise be written back on the next change under the next user's sign-in.
+  // Check-in timers also stop the polling interval that would keep fetching the old call's timers.
+  useChatStore.getState().reset();
+  useCheckInTimerStore.getState().reset();
+  useRecordsStore.getState().reset();
+  useDeploymentsStore.getState().reset();
+  useWeatherAlertsStore.getState().reset();
+  useCallVideoFeedStore.getState().reset();
+  useCommandBoardStore.getState().clearBoard();
+  useIncidentsStore.getState().clear();
+
+  // Stores with no reset of their own go back to the state they were created with (for persisted
+  // stores, the pre-hydration state): the incident command board and its assistant history, time
+  // reports, maps, POIs, and the ADP capability/grant (whose own sweep only runs from 'signedIn').
+  resetToInitialState(useCommandStore);
+  resetToInitialState(useIncidentAssistantStore);
+  resetToInitialState(useOperationsStore);
+  resetToInitialState(useMapsStore);
+  resetToInitialState(usePoisStore);
+  resetToInitialState(dataProtectionStore);
+};
+
+/**
+ * Tears down live services and realtime connections. MUST run on every logout path — otherwise the
+ * previous user's hub connections keep receiving events, location keeps reporting, and delivered
+ * notifications for the previous user stay on the device.
+ */
+export const teardownServices = async (): Promise<void> => {
+  // SignalR: the store-level disconnects also unregister handlers and stop heartbeat/rejoin timers.
+  const signalR = useSignalRStore.getState();
+  for (const disconnect of [signalR.disconnectUpdateHub, signalR.disconnectGeolocationHub, signalR.disconnectChatHub]) {
+    try {
+      await disconnect();
+    } catch (error) {
+      logger.error({
+        message: 'Error disconnecting a SignalR hub during reset',
+        context: { error },
+      });
+    }
+  }
+
+  // Backstop for any other hub the service still holds.
+  try {
+    await signalRService.disconnectAll();
+  } catch (error) {
+    logger.error({
+      message: 'Error disconnecting SignalR hubs during reset',
+      context: { error },
+    });
+  }
+  useSignalRStore.setState({
+    isUpdateHubConnected: false,
+    isGeolocationHubConnected: false,
+    isChatHubConnected: false,
+    lastUpdateMessage: null,
+    lastUpdateTimestamp: 0,
+    lastGeolocationJoinAt: 0,
+    liveLocations: {},
+    error: null,
+  });
+
+  // Location tracking: stop updates (battery + privacy).
+  try {
+    await locationService.stopLocationUpdates();
+  } catch (error) {
+    logger.error({
+      message: 'Error stopping location updates during reset',
+      context: { error },
+    });
+  }
+
+  // Push notifications: clear the local token, badge and delivered notifications. Only the native
+  // service has the method; the web/Electron variants have no device state to clear.
+  try {
+    const unregister = (pushNotificationService as { unregisterFromPushNotifications?: () => Promise<void> }).unregisterFromPushNotifications;
+    if (unregister) {
+      await unregister.call(pushNotificationService);
+    }
+  } catch (error) {
+    logger.error({
+      message: 'Error clearing push notification state during reset',
+      context: { error },
+    });
+  }
 };
 
 /**
  * Clears all app data, cached values, settings, and stores.
- * This is the main function to call when user logs out.
+ * This runs on EVERY logout path through the session-cleanup registry.
  *
  * @returns Promise that resolves when all data has been cleared
  */
@@ -261,6 +373,10 @@ export const clearAllAppData = async (): Promise<void> => {
   });
 
   try {
+    // Tear down realtime connections and background services first so nothing keeps writing into
+    // stores while they are being reset.
+    await teardownServices();
+
     // Clear persisted storage items
     clearAppStorageItems();
 
@@ -269,6 +385,9 @@ export const clearAllAppData = async (): Promise<void> => {
 
     // Reset all zustand stores to their initial states
     await resetAllStores();
+
+    // Drop all react-query cached data — query keys are not user-scoped.
+    queryClient.clear();
 
     logger.info({
       message: 'Successfully cleared all app data',
@@ -283,11 +402,16 @@ export const clearAllAppData = async (): Promise<void> => {
   }
 };
 
+// Every logout path (the auth store's logout) runs clearAllAppData through this registration. The root
+// layout imports this module for its side effect so the handler is in place before anyone can sign out.
+registerSessionCleanupHandler(clearAllAppData);
+
 export default {
   clearAllAppData,
   clearAppStorageItems,
   clearPersistedStorage,
   resetAllStores,
+  teardownServices,
   // Export initial states for testing and external use
   INITIAL_CORE_STATE,
   INITIAL_CALLS_STATE,

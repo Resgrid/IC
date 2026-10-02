@@ -25,6 +25,7 @@ import {
   Headphones as RawHeadphones,
   HomeIcon as RawHomeIcon,
   Loader2 as RawLoader2,
+  Lock as RawLock,
   LogIn as RawLogIn,
   type LucideProps,
   MailIcon as RawMailIcon,
@@ -51,6 +52,7 @@ import {
   TimerReset as RawTimerReset,
   Trash2 as RawTrash2,
   TrashIcon as RawTrashIcon,
+  Truck as RawTruck,
   UserIcon as RawUserIcon,
   Users as RawUsers,
   UsersIcon as RawUsersIcon,
@@ -114,6 +116,7 @@ export const GlobeIcon = themed(RawGlobeIcon);
 export const Headphones = themed(RawHeadphones);
 export const HomeIcon = themed(RawHomeIcon);
 export const Loader2 = themed(RawLoader2);
+export const Lock = themed(RawLock);
 export const LogIn = themed(RawLogIn);
 export const MailIcon = themed(RawMailIcon);
 export const MapPinIcon = themed(RawMapPinIcon);
@@ -132,6 +135,7 @@ export const RefreshCwIcon = themed(RawRefreshCwIcon);
 export const SearchIcon = themed(RawSearchIcon);
 export const SettingsIcon = themed(RawSettingsIcon);
 export const ShieldCheck = themed(RawShieldCheck);
+export const Truck = themed(RawTruck);
 export const SmartphoneIcon = themed(RawSmartphoneIcon);
 export const Speaker = themed(RawSpeaker);
 export const StarIcon = themed(RawStarIcon);

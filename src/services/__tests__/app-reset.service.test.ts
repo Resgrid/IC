@@ -11,7 +11,7 @@ jest.mock('@/lib/logging', () => ({
 // Mock storage
 jest.mock('@/lib/storage', () => ({
   storage: {
-    getAllKeys: jest.fn(() => ['key1', 'IS_FIRST_TIME', 'baseUrl', 'key2']),
+    getAllKeys: jest.fn(() => ['key1', 'IS_FIRST_TIME', 'baseUrl', 'SHARED_INSTALLATION', 'key2']),
     delete: jest.fn(),
   },
 }));
@@ -153,11 +153,74 @@ jest.mock('@/stores/units/store', () => ({
 
 // Read lazily inside getState, so it is initialised by the time a test calls it.
 const mockClearLiveLocations = jest.fn();
+const mockDisconnectUpdateHub = jest.fn();
+const mockDisconnectGeolocationHub = jest.fn();
+const mockDisconnectChatHub = jest.fn();
 jest.mock('@/stores/signalr/signalr-store', () => ({
   useSignalRStore: {
-    getState: jest.fn(() => ({ clearLiveLocations: mockClearLiveLocations })),
+    setState: jest.fn(),
+    getState: jest.fn(() => ({
+      clearLiveLocations: mockClearLiveLocations,
+      disconnectUpdateHub: mockDisconnectUpdateHub,
+      disconnectGeolocationHub: mockDisconnectGeolocationHub,
+      disconnectChatHub: mockDisconnectChatHub,
+    })),
   },
 }));
+
+// react-query client (its provider module pulls in a dev plugin Jest cannot parse)
+jest.mock('@/api/common/api-provider', () => ({
+  queryClient: { clear: jest.fn() },
+}));
+
+// The module registers clearAllAppData with the auth store's logout at import time.
+jest.mock('@/lib/auth/session-cleanup', () => ({
+  registerSessionCleanupHandler: jest.fn(),
+}));
+
+// Services torn down on every logout
+jest.mock('@/services/location', () => ({
+  locationService: { stopLocationUpdates: jest.fn() },
+}));
+
+jest.mock('@/services/push-notification', () => ({
+  pushNotificationService: { unregisterFromPushNotifications: jest.fn() },
+}));
+
+jest.mock('@/services/signalr.service', () => ({
+  signalRService: { disconnectAll: jest.fn() },
+}));
+
+// Stores with their own reset method
+// Function declarations: jest.mock factories run at import time, before any const is initialised.
+function mockStoreWithMethod(method: string) {
+  const fn = jest.fn();
+  return { getState: jest.fn(() => ({ [method]: fn })), setState: jest.fn(), __method: fn };
+}
+
+jest.mock('@/stores/chat/store', () => ({ useChatStore: mockStoreWithMethod('reset') }));
+jest.mock('@/stores/check-in-timers/store', () => ({ useCheckInTimerStore: mockStoreWithMethod('reset') }));
+jest.mock('@/stores/records/store', () => ({ useRecordsStore: mockStoreWithMethod('reset') }));
+jest.mock('@/stores/records/deployments-store', () => ({ useDeploymentsStore: mockStoreWithMethod('reset') }));
+jest.mock('@/stores/weather-alerts/store', () => ({ useWeatherAlertsStore: mockStoreWithMethod('reset') }));
+jest.mock('@/stores/call-video-feeds/store', () => ({ useCallVideoFeedStore: mockStoreWithMethod('reset') }));
+jest.mock('@/stores/command/board-store', () => ({ useCommandBoardStore: mockStoreWithMethod('clearBoard') }));
+jest.mock('@/stores/command/incidents-store', () => ({ useIncidentsStore: mockStoreWithMethod('clear') }));
+
+// Stores reset to the state they were created with
+function mockStoreWithInitialState(name: string) {
+  return {
+    getInitialState: jest.fn(() => ({ initialStateOf: name })),
+    setState: jest.fn(),
+  };
+}
+
+jest.mock('@/stores/command/store', () => ({ useCommandStore: mockStoreWithInitialState('command') }));
+jest.mock('@/stores/command/assistant-store', () => ({ useIncidentAssistantStore: mockStoreWithInitialState('assistant') }));
+jest.mock('@/stores/operations/store', () => ({ useOperationsStore: mockStoreWithInitialState('operations') }));
+jest.mock('@/stores/maps/store', () => ({ useMapsStore: mockStoreWithInitialState('maps') }));
+jest.mock('@/stores/pois/store', () => ({ usePoisStore: mockStoreWithInitialState('pois') }));
+jest.mock('@/stores/data-protection/store', () => ({ dataProtectionStore: mockStoreWithInitialState('data-protection') }));
 
 import {
   clearAllAppData,
@@ -179,7 +242,11 @@ import {
   INITIAL_SECURITY_STATE,
   INITIAL_UNITS_STATE,
   resetAllStores,
+  teardownServices,
 } from '../app-reset.service';
+
+// Captured before beforeEach clears mock history: registration happens once, at import.
+const registeredCleanupHandlers = [...jest.requireMock('@/lib/auth/session-cleanup').registerSessionCleanupHandler.mock.calls];
 
 // Get mock references after imports
 const mockStorage = jest.requireMock('@/lib/storage').storage;
@@ -413,6 +480,12 @@ describe('app-reset.service', () => {
 
       expect(mockStorage.delete).not.toHaveBeenCalledWith('baseUrl');
     });
+
+    it('keeps a shared device shared for the next operator', () => {
+      clearPersistedStorage();
+
+      expect(mockStorage.delete).not.toHaveBeenCalledWith('SHARED_INSTALLATION');
+    });
   });
 
   describe('resetAllStores', () => {
@@ -490,6 +563,102 @@ describe('app-reset.service', () => {
       // The cleanup error is caught and logged within resetAllStores, 
       // so clearAllAppData should complete without throwing
       await expect(clearAllAppData()).resolves.toBeUndefined();
+    });
+
+    it('tears down live services before wiping storage, then drops the react-query cache', async () => {
+      const { signalRService } = jest.requireMock('@/services/signalr.service');
+      const { queryClient } = jest.requireMock('@/api/common/api-provider');
+
+      await clearAllAppData();
+
+      // Nothing may keep writing into storage while it is being cleared.
+      expect(signalRService.disconnectAll.mock.invocationCallOrder[0]).toBeLessThan(mockStorage.getAllKeys.mock.invocationCallOrder[0]);
+      expect(queryClient.clear).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('resetAllStores (session-scoped stores)', () => {
+    it.each([
+      ['@/stores/chat/store', 'useChatStore'],
+      ['@/stores/check-in-timers/store', 'useCheckInTimerStore'],
+      ['@/stores/records/store', 'useRecordsStore'],
+      ['@/stores/records/deployments-store', 'useDeploymentsStore'],
+      ['@/stores/weather-alerts/store', 'useWeatherAlertsStore'],
+      ['@/stores/call-video-feeds/store', 'useCallVideoFeedStore'],
+      ['@/stores/command/board-store', 'useCommandBoardStore'],
+      ['@/stores/command/incidents-store', 'useIncidentsStore'],
+    ])('runs the reset of %s', async (modulePath, exportName) => {
+      const store = jest.requireMock(modulePath)[exportName];
+
+      await resetAllStores();
+
+      expect(store.__method).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ['@/stores/command/store', 'useCommandStore'],
+      ['@/stores/command/assistant-store', 'useIncidentAssistantStore'],
+      ['@/stores/operations/store', 'useOperationsStore'],
+      ['@/stores/maps/store', 'useMapsStore'],
+      ['@/stores/pois/store', 'usePoisStore'],
+      ['@/stores/data-protection/store', 'dataProtectionStore'],
+    ])('replaces %s with the state it was created with', async (modulePath, exportName) => {
+      const store = jest.requireMock(modulePath)[exportName];
+
+      await resetAllStores();
+
+      expect(store.setState).toHaveBeenCalledWith(store.getInitialState(), true);
+    });
+  });
+
+  describe('teardownServices', () => {
+    it('disconnects every hub, stops location and clears local push state', async () => {
+      const { signalRService } = jest.requireMock('@/services/signalr.service');
+      const { locationService } = jest.requireMock('@/services/location');
+      const { pushNotificationService } = jest.requireMock('@/services/push-notification');
+      const { useSignalRStore } = jest.requireMock('@/stores/signalr/signalr-store');
+
+      await teardownServices();
+
+      expect(mockDisconnectUpdateHub).toHaveBeenCalledTimes(1);
+      expect(mockDisconnectGeolocationHub).toHaveBeenCalledTimes(1);
+      expect(mockDisconnectChatHub).toHaveBeenCalledTimes(1);
+      expect(signalRService.disconnectAll).toHaveBeenCalledTimes(1);
+      expect(useSignalRStore.setState).toHaveBeenCalledWith(expect.objectContaining({ isUpdateHubConnected: false, isGeolocationHubConnected: false, isChatHubConnected: false, liveLocations: {} }));
+      expect(locationService.stopLocationUpdates).toHaveBeenCalledTimes(1);
+      expect(pushNotificationService.unregisterFromPushNotifications).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps tearing down when one step fails', async () => {
+      const { signalRService } = jest.requireMock('@/services/signalr.service');
+      const { locationService } = jest.requireMock('@/services/location');
+      const { pushNotificationService } = jest.requireMock('@/services/push-notification');
+      mockDisconnectUpdateHub.mockRejectedValueOnce(new Error('hub gone'));
+      signalRService.disconnectAll.mockRejectedValueOnce(new Error('socket error'));
+      locationService.stopLocationUpdates.mockRejectedValueOnce(new Error('no permission'));
+
+      await expect(teardownServices()).resolves.toBeUndefined();
+
+      expect(mockDisconnectChatHub).toHaveBeenCalledTimes(1);
+      expect(pushNotificationService.unregisterFromPushNotifications).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips push cleanup on platforms whose push service has no local state', async () => {
+      const { pushNotificationService } = jest.requireMock('@/services/push-notification');
+      const unregister = pushNotificationService.unregisterFromPushNotifications;
+      delete pushNotificationService.unregisterFromPushNotifications;
+
+      try {
+        await expect(teardownServices()).resolves.toBeUndefined();
+      } finally {
+        pushNotificationService.unregisterFromPushNotifications = unregister;
+      }
+    });
+  });
+
+  describe('session cleanup registration', () => {
+    it('registers clearAllAppData as the handler every logout runs', () => {
+      expect(registeredCleanupHandlers).toEqual([[clearAllAppData]]);
     });
   });
 });

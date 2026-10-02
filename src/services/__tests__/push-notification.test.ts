@@ -110,6 +110,8 @@ const mockGetLastNotificationResponseAsync = jest.fn(() => Promise.resolve(null)
 const mockGetPermissionsAsync = jest.fn(() => Promise.resolve({ status: 'granted' }));
 const mockRequestPermissionsAsync = jest.fn(() => Promise.resolve({ status: 'granted' }));
 const mockGetDevicePushTokenAsync = jest.fn(() => Promise.resolve({ data: 'test-device-token' }));
+const mockSetBadgeCountAsync = jest.fn((_count: number) => Promise.resolve(true));
+const mockDismissAllNotificationsAsync = jest.fn(() => Promise.resolve());
 
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: mockSetNotificationHandler,
@@ -119,6 +121,8 @@ jest.mock('expo-notifications', () => ({
   getPermissionsAsync: mockGetPermissionsAsync,
   requestPermissionsAsync: mockRequestPermissionsAsync,
   getDevicePushTokenAsync: mockGetDevicePushTokenAsync,
+  setBadgeCountAsync: mockSetBadgeCountAsync,
+  dismissAllNotificationsAsync: mockDismissAllNotificationsAsync,
   AndroidImportance: { MAX: 5, HIGH: 4, DEFAULT: 3 },
   AndroidNotificationVisibility: { PUBLIC: 1 },
 }));
@@ -460,6 +464,26 @@ describe('PushNotificationService (expo-notifications transport)', () => {
       expect(mockReceivedRemove).toHaveBeenCalledTimes(1);
       expect(mockResponseRemove).toHaveBeenCalledTimes(1);
       expect(mockNotifeeForegroundUnsubscribe).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('unregisterFromPushNotifications', () => {
+    it('forgets the token and clears the badge and delivered notifications on logout', async () => {
+      await pushNotificationService.registerForPushNotifications('user-1', 'DEPT');
+      expect(pushNotificationService.getPushToken()).not.toBeNull();
+
+      await pushNotificationService.unregisterFromPushNotifications();
+
+      expect(pushNotificationService.getPushToken()).toBeNull();
+      expect(mockSetBadgeCountAsync).toHaveBeenCalledWith(0);
+      expect(mockDismissAllNotificationsAsync).toHaveBeenCalledTimes(1);
+    });
+
+    it('never throws when the platform refuses to clear notifications', async () => {
+      mockSetBadgeCountAsync.mockRejectedValueOnce(new Error('no badge permission'));
+      mockDismissAllNotificationsAsync.mockRejectedValueOnce(new Error('not supported'));
+
+      await expect(pushNotificationService.unregisterFromPushNotifications()).resolves.toBeUndefined();
     });
   });
 });
