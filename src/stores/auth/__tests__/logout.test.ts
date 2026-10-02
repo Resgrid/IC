@@ -54,6 +54,7 @@ jest.mock('@/lib/cache/cache-manager', () => ({
 }));
 
 jest.mock('@/lib/cache/cache-scope', () => ({
+  getCacheScope: jest.fn(() => ({ userId: null, departmentId: null })),
   setCacheScope: jest.fn(),
   clearCacheScope: jest.fn(),
 }));
@@ -291,6 +292,38 @@ describe('auth store rehydration', () => {
       require('../store');
 
       expect(storage.__values.has('authResponse')).toBe(true);
+    });
+  });
+
+  it('scopes the API cache to the restored identity, which rehydrates before the identity subscription exists', async () => {
+    jest.useFakeTimers();
+    await jest.isolateModulesAsync(async () => {
+      const storage = jest.requireMock('@/lib/storage');
+      const cacheScope = jest.requireMock('@/lib/cache/cache-scope');
+      storage.__values.clear();
+      storage.__values.set('auth-storage', persist({ status: 'signedIn', accessToken: 'access', refreshToken: 'refresh', userId: 'user-1' }));
+      cacheScope.getCacheScope.mockReturnValue({ userId: null, departmentId: null });
+      cacheScope.setCacheScope.mockClear();
+
+      require('../store');
+
+      expect(cacheScope.setCacheScope).toHaveBeenCalledWith({ userId: 'user-1' });
+    });
+  });
+
+  it('leaves a cache scope that already matches the restored identity alone', async () => {
+    jest.useFakeTimers();
+    await jest.isolateModulesAsync(async () => {
+      const storage = jest.requireMock('@/lib/storage');
+      const cacheScope = jest.requireMock('@/lib/cache/cache-scope');
+      storage.__values.clear();
+      storage.__values.set('auth-storage', persist({ status: 'signedIn', accessToken: 'access', refreshToken: 'refresh', userId: 'user-1' }));
+      cacheScope.getCacheScope.mockReturnValue({ userId: 'user-1', departmentId: 'dept-1' });
+      cacheScope.setCacheScope.mockClear();
+
+      require('../store');
+
+      expect(cacheScope.setCacheScope).not.toHaveBeenCalled();
     });
   });
 });

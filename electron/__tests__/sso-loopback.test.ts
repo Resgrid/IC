@@ -72,6 +72,16 @@ describe('createSsoLoopback', () => {
     expect(loopback.openTrips).toBe(0);
   });
 
+  it('closes the listener when the system browser cannot be opened', async () => {
+    const failure = new Error('No application is registered to open https links');
+    const loopback = createSsoLoopback({ openExternal: jest.fn(async () => Promise.reject(failure)) });
+    const listener = await loopback.listen();
+
+    await expect(loopback.open(listener.id, 'https://login.resgrid.com/sso/authorize')).rejects.toBe(failure);
+    expect(loopback.openTrips).toBe(0);
+    await expect(get(listener.returnTarget)).rejects.toThrow();
+  });
+
   it('resolves null on cancel and on timeout', async () => {
     const loopback = createSsoLoopback({ openExternal: async () => undefined, waitMs: 50 });
 

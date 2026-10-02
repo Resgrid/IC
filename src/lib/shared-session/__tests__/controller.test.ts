@@ -99,6 +99,18 @@ describe('shared session controller', () => {
     expect(useSharedSessionStore.getState()).toMatchObject({ locked: false, lockVersion: 4 });
   });
 
+  it('does not carry a status answer from before a sign-out into the next session', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    mockGetCurrentSession.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+    const pending = checkSharedSession();
+
+    resetSharedSession();
+    answer(session({ Operator: 'pat' }));
+    await pending;
+
+    expect(useSharedSessionStore.getState()).toMatchObject({ shared: false, operator: null, checkedAt: null });
+  });
+
   it('keeps the last state when the server cannot be reached', async () => {
     await checkSharedSession();
     mockGetCurrentSession.mockRejectedValueOnce(new Error('offline'));

@@ -31,7 +31,7 @@ jest.mock('@/lib/mfa/shared-installation', () => ({
   isSharedInstallation: () => mockSharedInstallation,
 }));
 jest.mock('@/lib/cache/cache-manager', () => ({ cacheManager: { clear: jest.fn(), remove: jest.fn(), prune: jest.fn() } }));
-jest.mock('@/lib/cache/cache-scope', () => ({ setCacheScope: jest.fn(), clearCacheScope: jest.fn() }));
+jest.mock('@/lib/cache/cache-scope', () => ({ getCacheScope: jest.fn(() => ({ userId: null, departmentId: null })), setCacheScope: jest.fn(), clearCacheScope: jest.fn() }));
 
 import { registerSessionCleanupHandler } from '@/lib/auth/session-cleanup';
 import { hasLoginTransaction } from '@/stores/auth/login-mfa';

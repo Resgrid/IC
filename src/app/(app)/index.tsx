@@ -209,7 +209,7 @@ function MapContent() {
         });
       } catch (error) {
         logger.error({
-          message: 'MapPage: Failed to start location tracking. ' + JSON.stringify(error),
+          message: 'MapPage: Failed to start location tracking',
           context: {
             error,
           },

@@ -84,7 +84,7 @@ export default function Login() {
         onServerUrlPress={() => setShowServerUrl(true)}
         onSsoPress={() => router.push('/login/sso')}
         onSharedDevicePress={() => router.push('/login/shared-device' as unknown as Href)}
-        sharedDevice={installation}
+        sharedDevice={installation.shared ? installation : null}
       />
 
       <Modal

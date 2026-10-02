@@ -151,6 +151,32 @@ describe('LogService#error Sentry reporting', () => {
   });
 });
 
+describe('LogService console transport', () => {
+  it('redacts the context before it reaches the device console', () => {
+    const axiosError = Object.assign(new Error('Request failed with status code 400'), {
+      name: 'AxiosError',
+      isAxiosError: true,
+      config: { method: 'post', url: '/Connect/token', data: 'password=hunter2&grant_type=password' },
+      response: { status: 400 },
+    });
+
+    logger.warn({ message: 'Sign-in failed', operation: 'login', context: { error: axiosError, accessToken: 'abc', unitId: 'unit-123' } });
+
+    expect(mockTransportLog).toHaveBeenCalledTimes(1);
+    const [message, context] = mockTransportLog.mock.calls[0];
+    expect(message).toBe('Sign-in failed');
+    expect(context).toEqual(
+      expect.objectContaining({
+        accessToken: '[REDACTED]',
+        unitId: 'unit-123',
+        operation: 'login',
+        error: expect.objectContaining({ name: 'AxiosError', status: 400, url: '/Connect/token' }),
+      })
+    );
+    expect(JSON.stringify(context)).not.toContain('hunter2');
+  });
+});
+
 describe('sanitizeLogContext', () => {
   it('redacts sensitive keys', () => {
     expect(sanitizeLogContext({ accessToken: 'abc', refresh_token: 'def', unitId: 'unit-123' })).toEqual({

@@ -147,9 +147,10 @@ class LogService {
     // Bail before allocating the context object on hot paths (SignalR messages,
     // GPS fixes) when the level would be filtered out anyway.
     if (isJest || LEVEL_VALUES[level] < MIN_SEVERITY) return;
+    // Redacted here, before the console transport, not only on the Sentry path: release builds still print warn and
+    // error to logcat and the Xcode console, and a raw AxiosError serializes its urlencoded password body there.
     this.logger[level](message, {
-      ...this.globalContext,
-      ...context,
+      ...sanitizeLogContext({ ...this.globalContext, ...context }),
       ...(operation ? { operation } : {}),
       ...(trace_id ? { trace_id } : {}),
       timestamp: new Date().toISOString(),

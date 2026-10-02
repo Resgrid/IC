@@ -1,8 +1,8 @@
 import { ChevronRight } from 'lucide-react-native';
 import { useColorScheme } from 'nativewind';
-import React, { useRef, useState } from 'react';
-import type { GestureResponderEvent } from 'react-native';
-import { Image, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
+import React, { useState } from 'react';
+import { Image, StyleSheet, useWindowDimensions } from 'react-native';
+import { Gesture, GestureDetector, ScrollView } from 'react-native-gesture-handler';
 
 import { FocusAwareStatusBar, SafeAreaView, View } from '@/components/ui';
 import { Pressable } from '@/components/ui/pressable';
@@ -28,26 +28,25 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ title, descr
   const { width, height, fontScale } = useWindowDimensions();
   const [containerWidth, setContainerWidth] = useState(width);
   const { colorScheme } = useColorScheme();
-  const start = useRef<{ x: number; y: number } | null>(null);
   const availableWidth = Math.min(width, containerWidth);
   const horizontal = availableWidth >= 680 && fontScale < 1.5;
   const compact = height < 500;
   const last = currentIndex === total - 1;
   const actionColor = colorScheme === 'dark' ? 'black' : 'white';
 
-  const handleTouchStart = (event: GestureResponderEvent) => {
-    start.current = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY ?? 0 };
-  };
-  const handleTouchEnd = (event: GestureResponderEvent) => {
-    const origin = start.current;
-    start.current = null;
-    if (!origin) return;
-    const dx = event.nativeEvent.pageX - origin.x;
-    const dy = (event.nativeEvent.pageY ?? 0) - origin.y;
-    // Vertical scrolling must not accidentally advance or complete onboarding.
-    if (Math.abs(dx) < 60 || Math.abs(dx) <= Math.abs(dy) * 1.5) return;
-    onSlideChange(Math.max(0, Math.min(total - 1, currentIndex + (dx < 0 ? 1 : -1))));
-  };
+  // A gesture rather than raw touches: once the page's ScrollView takes a drag on a short screen, the view only sees a
+  // touch cancel and never the end of the swipe. This pan claims a deliberately sideways drag before the scroll can,
+  // and gives way to it as soon as the drag goes vertical.
+  const swipe = Gesture.Pan()
+    .runOnJS(true)
+    .withTestId('onboarding-swipe')
+    .activeOffsetX([-20, 20])
+    .failOffsetY([-15, 15])
+    .onEnd(({ translationX, translationY }) => {
+      // Vertical scrolling must not accidentally advance or complete onboarding.
+      if (Math.abs(translationX) < 60 || Math.abs(translationX) <= Math.abs(translationY) * 1.5) return;
+      onSlideChange(Math.max(0, Math.min(total - 1, currentIndex + (translationX < 0 ? 1 : -1))));
+    });
 
   return (
     <SafeAreaView className="flex-1 bg-background-50" onLayout={(event) => setContainerWidth(event.nativeEvent.layout.width)}>
@@ -61,41 +60,35 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ title, descr
             </Pressable>
           </View>
 
-          <View
-            style={[styles.main, { paddingVertical: compact ? 16 : 32 }]}
-            testID="onboarding-flatlist"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-            onTouchCancel={() => {
-              start.current = null;
-            }}
-          >
-            <View testID="onboarding-content" className="border border-outline-100 bg-background-0" style={[styles.card, horizontal ? styles.horizontal : styles.vertical]}>
-              <View
-                accessible={false}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-                className="bg-primary-50"
-                style={[styles.artwork, { width: horizontal ? 180 : compact ? 112 : 160, height: horizontal ? 180 : compact ? 112 : 160 }]}
-              >
-                <View className="border border-primary-200 bg-background-0" style={styles.icon}>
-                  {icon}
+          <GestureDetector gesture={swipe}>
+            <View style={[styles.main, { paddingVertical: compact ? 16 : 32 }]} testID="onboarding-flatlist">
+              <View testID="onboarding-content" className="border border-outline-100 bg-background-0" style={[styles.card, horizontal ? styles.horizontal : styles.vertical]}>
+                <View
+                  accessible={false}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  className="bg-primary-50"
+                  style={[styles.artwork, { width: horizontal ? 180 : compact ? 112 : 160, height: horizontal ? 180 : compact ? 112 : 160 }]}
+                >
+                  <View className="border border-primary-200 bg-background-0" style={styles.icon}>
+                    {icon}
+                  </View>
+                </View>
+                <View style={styles.copy}>
+                  <Text
+                    accessibilityRole="header"
+                    className={`font-bold text-typography-950 ${availableWidth < 360 ? 'text-[28px] leading-[36px]' : 'text-[34px] leading-[44px]'}`}
+                    style={[styles.title, { textAlign: horizontal ? 'left' : 'center' }]}
+                  >
+                    {title}
+                  </Text>
+                  <Text className="text-[17px] leading-[28px] text-typography-600" style={[styles.description, { textAlign: horizontal ? 'left' : 'center' }]}>
+                    {description}
+                  </Text>
                 </View>
               </View>
-              <View style={styles.copy}>
-                <Text
-                  accessibilityRole="header"
-                  className={`font-bold text-typography-950 ${availableWidth < 360 ? 'text-[28px] leading-[36px]' : 'text-[34px] leading-[44px]'}`}
-                  style={[styles.title, { textAlign: horizontal ? 'left' : 'center' }]}
-                >
-                  {title}
-                </Text>
-                <Text className="text-[17px] leading-[28px] text-typography-600" style={[styles.description, { textAlign: horizontal ? 'left' : 'center' }]}>
-                  {description}
-                </Text>
-              </View>
             </View>
-          </View>
+          </GestureDetector>
 
           <View style={styles.footer}>
             <View accessible accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: total, now: currentIndex + 1 }} style={styles.progress}>

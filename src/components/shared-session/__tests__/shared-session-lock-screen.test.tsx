@@ -139,6 +139,25 @@ describe('SharedSessionLockScreen', () => {
     expect(mocked.completeUnlock).toHaveBeenCalledWith(7, { Method: 'passkey_approval', ApprovalRequestId: 'apr-1' });
   });
 
+  it('withdraws an approval request still in flight when the lock screen goes away, and never waits on it', async () => {
+    let started: (value: { ApprovalRequestId: string; MatchNumber: string; ExpiresIn: number }) => void = () => undefined;
+    mocked.requestUnlockApproval.mockImplementationOnce(() => new Promise((resolve) => (started = resolve)));
+    mocked.cancelUnlockApproval.mockResolvedValue(undefined as never);
+    const { getByTestId } = render(<SharedSessionLockScreen />);
+    showLocked();
+    await waitFor(() => expect(getByTestId('shared-lock-approval')).toBeTruthy());
+
+    await act(async () => fireEvent.press(getByTestId('shared-lock-approval')));
+    expect(mocked.requestUnlockApproval).toHaveBeenCalledWith(7);
+    // Signed out from elsewhere while the request was pending: the screen hides.
+    await act(async () => useAuthStore.setState({ status: 'signedOut' }));
+    await act(async () => started({ ApprovalRequestId: 'apr-1', MatchNumber: '42', ExpiresIn: 120 }));
+
+    expect(waitForApproval).not.toHaveBeenCalled();
+    expect(mocked.cancelUnlockApproval).toHaveBeenCalledWith('apr-1');
+    expect(mocked.completeUnlock).not.toHaveBeenCalled();
+  });
+
   it('unlocks through the organization with a fresh provider sign-in', async () => {
     (runSsoRoundTrip as jest.Mock).mockResolvedValue({ ok: true, trip: { ssoTransactionId: 'sso-1', ssoCode: 'code', codeVerifier: 'ver' } });
     const { getByTestId } = render(<SharedSessionLockScreen />);

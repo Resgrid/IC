@@ -79,12 +79,21 @@ export const runSsoRoundTrip = async (begin: (secrets: SsoRoundTripSecrets) => P
   }
 
   let returnedUrl: string | null;
-  if (desktop && listener) {
-    // The provider opens in the member's own browser; the loopback listener hands back its one return.
-    returnedUrl = await desktop.ssoOpen(listener.id, begun.AuthorizeUrl);
-  } else {
-    const result = await WebBrowser.openAuthSessionAsync(begun.AuthorizeUrl, returnTarget, { preferEphemeralSession: ephemeral });
-    returnedUrl = result.type === 'success' && result.url ? result.url : null;
+  try {
+    if (desktop && listener) {
+      // The provider opens in the member's own browser; the loopback listener hands back its one return.
+      returnedUrl = await desktop.ssoOpen(listener.id, begun.AuthorizeUrl);
+    } else {
+      const result = await WebBrowser.openAuthSessionAsync(begun.AuthorizeUrl, returnTarget, { preferEphemeralSession: ephemeral });
+      returnedUrl = result.type === 'success' && result.url ? result.url : null;
+    }
+  } catch {
+    // No browser could be opened: a failed round trip the caller can report, never a rejection that leaves its sign-in
+    // spinning, and never a loopback listener left waiting out its ten minutes.
+    if (desktop && listener) {
+      await desktop.ssoCancel(listener.id).catch(() => undefined);
+    }
+    return { ok: false, reason: 'failed' };
   }
   if (!returnedUrl) {
     return { ok: false, reason: 'cancelled' };

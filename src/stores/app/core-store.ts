@@ -91,7 +91,7 @@ export const useCoreStore = create<CoreState>()(
             isInitializing: false,
           });
           logger.error({
-            message: `Failed to init core app data: ${JSON.stringify(error)}`,
+            message: 'Failed to init core app data',
             context: { error },
           });
           throw error;
@@ -124,7 +124,7 @@ export const useCoreStore = create<CoreState>()(
         } catch (error) {
           set({ error: 'Failed to set active call', isLoading: false });
           logger.error({
-            message: `Failed to set active call: ${JSON.stringify(error)}`,
+            message: 'Failed to set active call',
             context: { error },
           });
         }
@@ -143,7 +143,7 @@ export const useCoreStore = create<CoreState>()(
         } catch (error) {
           set({ error: 'Failed to fetch config', isLoading: false });
           logger.error({
-            message: `Failed to fetch config: ${JSON.stringify(error)}`,
+            message: 'Failed to fetch config',
             context: { error },
           });
           throw error; // Re-throw to allow calling code to handle

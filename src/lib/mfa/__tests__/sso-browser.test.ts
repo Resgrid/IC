@@ -71,6 +71,11 @@ describe('runSsoRoundTrip', () => {
     await runSsoRoundTrip(async () => begun, true);
     expect(openAuthSession).toHaveBeenCalledWith(begun.AuthorizeUrl, 'resgridic://sso-return', { preferEphemeralSession: true });
   });
+
+  it('reports a browser that cannot be opened as a failed round trip instead of rejecting', async () => {
+    openAuthSession.mockRejectedValueOnce(new Error('Another web browser is already open'));
+    await expect(runSsoRoundTrip(async () => begun)).resolves.toEqual({ ok: false, reason: 'failed' });
+  });
 });
 
 describe('runSsoRoundTrip in the desktop app', () => {
@@ -117,6 +122,20 @@ describe('runSsoRoundTrip in the desktop app', () => {
     expect(result).toEqual({ ok: false, reason: 'refused', code: 'sso_unavailable' });
     expect(bridge.ssoCancel).toHaveBeenCalledWith('trip-1');
     expect(bridge.ssoOpen).not.toHaveBeenCalled();
+  });
+
+  it('closes the listener and reports a failed round trip when the system browser cannot be opened', async () => {
+    bridge.ssoOpen.mockRejectedValueOnce(new Error('No application is registered to open https links'));
+
+    await expect(runSsoRoundTrip(async () => begun)).resolves.toEqual({ ok: false, reason: 'failed' });
+    expect(bridge.ssoCancel).toHaveBeenCalledWith('trip-1');
+  });
+
+  it('still reports a failed round trip when closing the listener fails too', async () => {
+    bridge.ssoOpen.mockRejectedValueOnce(new Error('ipc closed'));
+    bridge.ssoCancel.mockRejectedValueOnce(new Error('ipc closed'));
+
+    await expect(runSsoRoundTrip(async () => begun)).resolves.toEqual({ ok: false, reason: 'failed' });
   });
 
   it('reads a closed or timed-out listener as cancelled, and still checks the state', async () => {

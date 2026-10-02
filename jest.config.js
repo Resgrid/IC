@@ -6,6 +6,9 @@ module.exports = {
   preset: 'jest-expo',
   // Reanimated v4 worklets: resolve to the non-native builds in Jest
   resolver: 'react-native-worklets/jest/resolver.js',
+  // Gesture handler's own Jest setup: its JS runs for real (GestureDetector, Gesture, ScrollView, jest-utils) with only
+  // the native module stubbed. Appended to the preset's setupFiles, not replacing them.
+  setupFiles: ['react-native-gesture-handler/jestSetup'],
   setupFilesAfterEnv: ['<rootDir>/jest-setup.ts'],
   testMatch: ['**/?(*.)+(spec|test).ts?(x)'],
   testPathIgnorePatterns: ['<rootDir>/node_modules/', '\\.\\._.*'],

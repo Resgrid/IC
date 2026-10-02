@@ -5,7 +5,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { runSessionCleanup } from '@/lib/auth/session-cleanup';
 import { cacheManager } from '@/lib/cache/cache-manager';
-import { clearCacheScope, setCacheScope } from '@/lib/cache/cache-scope';
+import { clearCacheScope, getCacheScope, setCacheScope } from '@/lib/cache/cache-scope';
 import { logger } from '@/lib/logging';
 
 import { loginRequest, refreshTokenSingleFlight, ssoExternalTokenRequest } from '../../lib/auth/api';
@@ -629,6 +629,21 @@ useAuthStore.subscribe((state, previousState) => {
     });
   }
 });
+
+// The storage is synchronous, so persist rehydrated the session inside create() above, before the subscription existed:
+// a restored identity never reaches it. Seed the scope from it here, or a missing or stale api_cache_scope (a build that
+// predates it, or a write that failed) would serve this user an anonymous or previous user's cache partition.
+try {
+  const restoredUserId = useAuthStore.getState().userId;
+  if (restoredUserId && getCacheScope().userId !== restoredUserId) {
+    setCacheScope({ userId: restoredUserId });
+  }
+} catch (error) {
+  logger.warn({
+    message: 'Failed to seed the API cache scope from the restored session',
+    context: { error },
+  });
+}
 
 const sanitizeJson = (json: string) => {
   return json.replace(/[\u0000]+/g, '');

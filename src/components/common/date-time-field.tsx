@@ -51,6 +51,17 @@ export const DateTimeField = ({ value, onChange, label, mode = 'date', disabled 
   };
   const monthEnd = calendarDate(1);
   monthEnd.setMonth(month + 1, 0);
+  // The selection follows the calendar: Done never commits a day from a month or year no longer shown. The day is
+  // kept where the new month has it (Jan 31 -> Feb 28/29), and so is the time of day.
+  const showPeriod = (nextYear: number, nextMonth: number) => {
+    const next = new Date(draft);
+    next.setDate(1);
+    next.setFullYear(nextYear, nextMonth + 1, 0);
+    next.setDate(Math.min(draft.getDate(), next.getDate()));
+    setDraft(next);
+    setMonth(nextMonth);
+    setYear(nextYear);
+  };
   const move = (direction: number) => {
     if (view === 'years') {
       setYearPage((page) => Math.max(1, Math.min(9976, page + direction * 24)));
@@ -59,8 +70,7 @@ export const DateTimeField = ({ value, onChange, label, mode = 'date', disabled 
     const next = calendarDate(1);
     next.setMonth(month + direction);
     if (next.getFullYear() < 1 || next.getFullYear() > 9999) return;
-    setMonth(next.getMonth());
-    setYear(next.getFullYear());
+    showPeriod(next.getFullYear(), next.getMonth());
   };
   const choice = (text: string, id: string, onPress: () => void, chosen = false, accessibilityLabel = text) => (
     <Pressable
@@ -134,7 +144,7 @@ export const DateTimeField = ({ value, onChange, label, mode = 'date', disabled 
                               String(number),
                               `year-${number}`,
                               () => {
-                                setYear(number);
+                                showPeriod(number, month);
                                 setView('days');
                               },
                               year === number
@@ -150,7 +160,7 @@ export const DateTimeField = ({ value, onChange, label, mode = 'date', disabled 
                               new Date(2024, number, 1).toLocaleDateString(locale, { month: 'short' }),
                               `month-${number}`,
                               () => {
-                                setMonth(number);
+                                showPeriod(year, number);
                                 setView('days');
                               },
                               month === number

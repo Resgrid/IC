@@ -185,18 +185,28 @@ export const SharedSessionLockScreen: React.FC = () => {
     }
     setErrorCode(null);
     setBusy(true);
+    // Registered before the request goes out, so a screen hidden or unmounted while it is in flight stops this approval
+    // too, instead of starting a wait nothing can abort.
+    const abort = new AbortController();
+    approvalAbort.current = abort;
     let started: { ApprovalRequestId: string; MatchNumber: string };
     try {
       started = await requestUnlockApproval(options.LockVersion);
     } catch (error) {
-      setErrorCode(toMfaProblem(error).code);
+      if (!abort.signal.aborted) {
+        approvalAbort.current = null;
+        setErrorCode(toMfaProblem(error).code);
+      }
       setBusy(false);
       return;
     }
     setBusy(false);
+    if (abort.signal.aborted) {
+      // Nobody is waiting on this screen any more: withdraw the request rather than leave it on the approver's phone.
+      void cancelUnlockApproval(started.ApprovalRequestId).catch(() => undefined);
+      return;
+    }
     setApproval({ id: started.ApprovalRequestId, number: started.MatchNumber });
-    const abort = new AbortController();
-    approvalAbort.current = abort;
     const result = await waitForApproval(() => getUnlockApprovalStatus(started.ApprovalRequestId), abort.signal);
     if (abort.signal.aborted) {
       return;

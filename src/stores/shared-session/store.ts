@@ -100,8 +100,13 @@ export const markSharedSessionLocked = (lockVersion: number | null): void => {
   }));
 };
 
-/** Sign-out, end of shift, or a personal session: nothing of the last shared session is kept. */
+/**
+ * Sign-out, end of shift, or a personal session: nothing of the last shared session is kept. It also counts as a new
+ * generation, so a status answer or a data-protection step-up still in flight from the last session is discarded rather
+ * than landing on the next operator's.
+ */
 export const resetSharedSession = (): void => {
+  lockGeneration += 1;
   useSharedSessionStore.setState({ ...INITIAL_SHARED_SESSION_STATE });
 };
 

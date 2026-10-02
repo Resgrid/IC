@@ -125,4 +125,20 @@ describe('protected data by every step-up method (passkey plan section 8.1)', ()
     expect(dataProtectionStore.getState().grantToken).toBeNull();
     resetSharedSession();
   });
+
+  it('keeps no grant from a ceremony that finished after sign-out reset the shared session', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    mocked.getStepUpPasskeyOptions.mockResolvedValue({ RequestId: 'req-1', Options: {} });
+    (getPasskeyAssertion as jest.Mock).mockResolvedValue({ id: 'cred' });
+    mocked.verifyStepUpPasskey.mockImplementation(() => new Promise((resolve) => (finish = resolve)) as never);
+
+    const pending = dataProtectionStore.getState().verifyPasskey();
+    await new Promise((resolve) => setImmediate(resolve));
+    // Sign-out resets the shared session; the next operator must not inherit a grant the last one started.
+    resetSharedSession();
+    finish(grant());
+
+    await expect(pending).resolves.toBe(false);
+    expect(dataProtectionStore.getState().grantToken).toBeNull();
+  });
 });

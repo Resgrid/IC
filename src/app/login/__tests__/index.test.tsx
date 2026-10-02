@@ -105,9 +105,10 @@ jest.mock('../login-form', () => {
   const { View, TouchableOpacity, Text } = require('react-native');
 
   return {
-    LoginForm: ({ onSubmit, isLoading, error, onServerUrlPress }: any) =>
+    LoginForm: ({ onSubmit, isLoading, error, onServerUrlPress, sharedDevice }: any) =>
       React.createElement(View, { testID: 'login-form' }, [
         React.createElement(Text, { key: 'loading' }, isLoading ? 'Loading...' : 'Not Loading'),
+        React.createElement(Text, { key: 'shared-device', testID: 'shared-device-state' }, sharedDevice ? `shared:${sharedDevice.label ?? ''}` : 'personal'),
         error && React.createElement(Text, { key: 'error' }, error),
         React.createElement(TouchableOpacity, {
           key: 'submit',
@@ -154,6 +155,11 @@ jest.mock('@/components/auth/login-mfa-sheet', () => {
   const { View } = require('react-native');
   return { LoginMfaSheet: ({ isOpen }: { isOpen: boolean }) => (isOpen ? React.createElement(View, { testID: 'login-mfa-sheet-open' }) : null) };
 });
+
+const mockUseSharedInstallation = jest.fn(() => ({ configured: false, shared: false, label: null as string | null }));
+jest.mock('@/lib/mfa/shared-installation', () => ({
+  useSharedInstallation: () => mockUseSharedInstallation(),
+}));
 
 jest.mock('@/lib/logging', () => ({
   logger: {
@@ -279,6 +285,29 @@ describe('Login', () => {
     fireEvent.press(submitButton);
 
     expect(mockLogin).toHaveBeenCalledWith({ username: 'test', password: 'test' });
+  });
+});
+
+describe('the shared device setting on the login screen', () => {
+  beforeEach(() => {
+    mockUseAuth.mockReturnValue({ login: jest.fn(), ssoLogin: jest.fn(), status: 'idle', error: null, isAuthenticated: false });
+    mockUseAnalytics.mockReturnValue({ trackEvent: jest.fn() });
+  });
+  afterEach(() => mockUseSharedInstallation.mockReset().mockImplementation(() => ({ configured: false, shared: false, label: null })));
+
+  it.each([
+    ['an installation nobody has set up', { configured: false, shared: false, label: null }],
+    ['an installation marked personal', { configured: true, shared: false, label: 'Engine 12 MDT' }],
+  ])('reports %s as a personal device', (_name, setting) => {
+    mockUseSharedInstallation.mockReturnValue(setting);
+    render(<Login />);
+    expect(screen.getByTestId('shared-device-state').props.children).toBe('personal');
+  });
+
+  it('reports a shared installation with its label', () => {
+    mockUseSharedInstallation.mockReturnValue({ configured: true, shared: true, label: 'Engine 12 MDT' });
+    render(<Login />);
+    expect(screen.getByTestId('shared-device-state').props.children).toBe('shared:Engine 12 MDT');
   });
 });
 
