@@ -9,6 +9,7 @@
 import { queryClient } from '@/api/common/api-provider';
 import { registerSessionCleanupHandler } from '@/lib/auth/session-cleanup';
 import { logger } from '@/lib/logging';
+import { clearMapboxToken } from '@/lib/mapbox-token';
 import { SHARED_INSTALLATION_STORAGE_KEY } from '@/lib/mfa/shared-installation';
 import { storage } from '@/lib/storage';
 import { BASE_API_URL_STORAGE_KEY, removeActiveCallId, removeDeviceUuid } from '@/lib/storage/app';
@@ -234,6 +235,9 @@ export const resetAllStores = async (): Promise<void> => {
 
   // Realtime map positions belong to the previous session's department.
   useSignalRStore.getState().clearLiveLocations();
+
+  // The server-supplied Mapbox token may be the previous department's (or server's); back to the built-in one.
+  clearMapboxToken();
 
   // Stores with existing reset/clear methods
   useOfflineQueueStore.getState().clearAllEvents();

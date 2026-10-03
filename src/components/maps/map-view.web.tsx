@@ -9,11 +9,15 @@ import React, { forwardRef, useCallback, useContext, useEffect, useId, useImpera
 // @ts-ignore - react-dom/client types may not be available
 import { createRoot } from 'react-dom/client';
 
-import { Env } from '@/lib/env';
 import { useDepartmentMapCenter } from '@/lib/map-center';
+import { onMapboxAccessTokenChange } from '@/lib/mapbox-token';
 
-// Set the access token globally
-mapboxgl.accessToken = Env.IC_MAPBOX_PUBKEY;
+// Keep mapbox-gl on the token in use (the built-in one, or the server-supplied one once Mapbox has verified
+// it), now and on every change. The listener runs inside the token store's state change, before React
+// re-renders a map with a style that needs the new token.
+onMapboxAccessTokenChange((token) => {
+  mapboxgl.accessToken = token;
+});
 
 // Prototype-level guard: mapbox-gl's pointer handlers (mouseover/mousemove) call
 // Map#unproject synchronously from DOM events. During style load or map teardown the
@@ -207,7 +211,12 @@ export const MapView = forwardRef<any, MapViewProps>(
   ) => {
     const mapContainer = useRef<HTMLDivElement>(null);
     const map = useRef<any | null>(null);
-    const [isLoaded, setIsLoaded] = useState(false);
+    // The map whose style finished loading, and that style. Children render only while it is the style asked
+    // for, so a style change unmounts them (taking their sources/layers off the old map) before the rebuild.
+    const [loaded, setLoaded] = useState<{ map: any; style: string } | null>(null);
+    const isLoaded = loaded !== null && loaded.style === styleURL;
+    // The view of a map torn down for a style change, so its replacement opens where the user was.
+    const carriedCameraRef = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null);
     const [hasSize, setHasSize] = useState(false);
     // Reactive: department config can land after the map is constructed.
     const departmentCenter = useDepartmentMapCenter();
@@ -254,17 +263,27 @@ export const MapView = forwardRef<any, MapViewProps>(
       const { clientWidth, clientHeight } = mapContainer.current;
       if (clientWidth === 0 || clientHeight === 0) return;
 
+      const carriedCamera = carriedCameraRef.current;
+      carriedCameraRef.current = null;
+      const builtStyle = styleURL;
+
       try {
         // Use initialCenter/initialZoom if provided so the map starts at the
         // correct position without needing a programmatic camera move later.
-        const startCenter = initialCenter && isFinite(initialCenter[0]) && isFinite(initialCenter[1]) ? initialCenter : ([departmentCenter.longitude, departmentCenter.latitude] as [number, number]); // Department center
-        const startZoom = initialZoom != null && isFinite(initialZoom) ? initialZoom : 4;
+        // A map rebuilt for a style change keeps the previous map's view instead.
+        const startCenter = carriedCamera
+          ? carriedCamera.center
+          : initialCenter && isFinite(initialCenter[0]) && isFinite(initialCenter[1])
+            ? initialCenter
+            : ([departmentCenter.longitude, departmentCenter.latitude] as [number, number]); // Department center
+        const startZoom = carriedCamera ? carriedCamera.zoom : initialZoom != null && isFinite(initialZoom) ? initialZoom : 4;
 
         const newMap = new mapboxgl.Map({
           container: mapContainer.current,
-          style: styleURL,
+          style: builtStyle,
           center: startCenter,
           zoom: startZoom,
+          ...(carriedCamera ? { bearing: carriedCamera.bearing, pitch: carriedCamera.pitch } : {}),
           attributionControl: attributionEnabled,
           logoPosition: logoEnabled ? 'bottom-left' : undefined,
           dragRotate: rotateEnabled,
@@ -288,7 +307,7 @@ export const MapView = forwardRef<any, MapViewProps>(
         }
 
         newMap.on('load', () => {
-          setIsLoaded(true);
+          setLoaded({ map: newMap, style: builtStyle });
           onDidFinishLoadingMap?.();
         });
 
@@ -366,6 +385,15 @@ export const MapView = forwardRef<any, MapViewProps>(
       return () => {
         if (map.current) {
           const dyingMap = map.current;
+
+          // A style change rebuilds the map; carry the view over to the replacement.
+          try {
+            const center = dyingMap.getCenter();
+            carriedCameraRef.current = { center: [center.lng, center.lat], zoom: dyingMap.getZoom(), bearing: dyingMap.getBearing(), pitch: dyingMap.getPitch() };
+          } catch {
+            carriedCameraRef.current = null;
+          }
+
           (dyingMap as any).__removed = true;
           map.current = null;
 
@@ -388,9 +416,12 @@ export const MapView = forwardRef<any, MapViewProps>(
             // the map is discarded either way.
           }
         }
+        setLoaded(null);
       };
+      // Rebuilt, not restyled, when the style changes: setStyle() drops every source and layer the children
+      // added at runtime, and they never re-add themselves. A fresh map remounts them against the new style.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasSize]);
+    }, [hasSize, styleURL]);
 
     // The constructor center is fixed at build time, and department config can land after that.
     // Recenter when it changes — but only when the caller pinned no initial center and the user
@@ -430,13 +461,6 @@ export const MapView = forwardRef<any, MapViewProps>(
       return () => ro.disconnect();
     }, [isLoaded]);
 
-    // Update style when it changes
-    useEffect(() => {
-      if (map.current && styleURL) {
-        map.current.setStyle(styleURL);
-      }
-    }, [styleURL]);
-
     return (
       <div
         ref={mapContainer}
@@ -450,7 +474,7 @@ export const MapView = forwardRef<any, MapViewProps>(
           minHeight: style?.height || style?.minHeight || 100,
         }}
       >
-        {isLoaded && <MapContext.Provider value={map.current}>{children}</MapContext.Provider>}
+        {isLoaded && <MapContext.Provider value={loaded.map}>{children}</MapContext.Provider>}
       </div>
     );
   }

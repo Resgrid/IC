@@ -8,14 +8,16 @@ import Mapbox from '@/components/maps/mapbox';
 import { Box } from '@/components/ui/box';
 import { Button, ButtonText } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
-import { Env } from '@/lib/env';
 import { useDepartmentMapCenter } from '@/lib/map-center';
+import { useDepartmentMapStyle } from '@/lib/map-style';
+import { getMapboxAccessToken } from '@/lib/mapbox-token';
 
 // Ensure Mapbox access token is set before using any Mapbox components
-if (!Env.IC_MAPBOX_PUBKEY) {
+const mapboxAccessToken = getMapboxAccessToken();
+if (!mapboxAccessToken) {
   console.error('Mapbox access token is not configured. Please set IC_MAPBOX_PUBKEY in your environment.');
 } else {
-  Mapbox.setAccessToken(Env.IC_MAPBOX_PUBKEY);
+  Mapbox.setAccessToken(mapboxAccessToken);
 }
 
 // Falls back to the department's configured map center rather than a hardcoded point, so a
@@ -39,6 +41,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ initialLocation, onLoca
   const cameraRef = useRef<any>(null); // Using any due to imperative handle
   const isMountedRef = useRef(true);
   const departmentCenter = useDepartmentMapCenter();
+  const mapStyle = useDepartmentMapStyle();
   // Always start with a location - either initial, or default
   const [currentLocation, setCurrentLocation] = useState<{
     latitude: number;
@@ -150,7 +153,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ initialLocation, onLoca
 
   return (
     <Box style={[styles.container, { height }]}>
-      <Mapbox.MapView ref={mapRef} style={styles.map} logoEnabled={false} attributionEnabled={false} compassEnabled={true} zoomEnabled={true} rotateEnabled={true} onPress={handleMapPress}>
+      <Mapbox.MapView ref={mapRef} style={styles.map} styleURL={mapStyle} logoEnabled={false} attributionEnabled={false} compassEnabled={true} zoomEnabled={true} rotateEnabled={true} onPress={handleMapPress}>
         {/* Without a real location the camera sits on the department center, so it frames it at the department's configured zoom rather than a hardcoded one. */}
         <Mapbox.Camera
           ref={cameraRef}

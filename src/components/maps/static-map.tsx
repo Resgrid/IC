@@ -1,4 +1,3 @@
-import { useColorScheme } from 'nativewind';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, StyleSheet, View } from 'react-native';
@@ -6,10 +5,11 @@ import { Platform, StyleSheet, View } from 'react-native';
 import Mapbox from '@/components/maps/mapbox';
 import { Box } from '@/components/ui/box';
 import { Text } from '@/components/ui/text';
-import { Env } from '@/lib/env';
+import { useDepartmentMapStyle } from '@/lib/map-style';
+import { getMapboxAccessToken } from '@/lib/mapbox-token';
 
 // Ensure Mapbox access token is set before using any Mapbox components
-Mapbox.setAccessToken(Env.IC_MAPBOX_PUBKEY);
+Mapbox.setAccessToken(getMapboxAccessToken());
 
 interface StaticMapProps {
   latitude: number;
@@ -22,10 +22,8 @@ interface StaticMapProps {
 
 const StaticMap: React.FC<StaticMapProps> = ({ latitude, longitude, address, zoom = 15, height = 200, showUserLocation = false }) => {
   const { t } = useTranslation();
-  const { colorScheme } = useColorScheme();
-
-  // Get map style based on current theme
-  const mapStyle = colorScheme === 'dark' ? Mapbox.StyleURL.Dark : Mapbox.StyleURL.Street;
+  // Department base map style for the current theme
+  const mapStyle = useDepartmentMapStyle();
 
   if (!latitude || !longitude) {
     return (
