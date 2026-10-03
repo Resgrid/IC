@@ -28,4 +28,6 @@ export class GetConfigResultData {
   public MapNightStyleUrl: string = '';
   /** Mapbox public token for this app (department's own or the server's per-app token); '' keeps the built-in token. */
   public AppMapboxAccessToken: string = '';
+  /** True when the department's own Mapbox account (token and custom style) is in effect; its style then waits for that token. */
+  public IsDepartmentMapOverride: boolean = false;
 }
