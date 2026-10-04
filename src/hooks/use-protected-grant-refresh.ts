@@ -11,7 +11,8 @@ export const GRANT_EXPIRY_MARGIN_MS = 1000;
  * store (expiry is checked at the moment of use, see getGrantHeaders), so watching the token alone never sees an expiry and
  * revealed values would stay on screen.
  *
- * Not on mount: the panel's own first fetch covers that. Pass a stable `refresh` (useCallback).
+ * The panel's own first fetch covers mount unless a held grant has already expired: its cache may still contain
+ * revealed values, so force a refresh then. Pass a stable `refresh` (useCallback).
  */
 export const useProtectedGrantRefresh = (refresh: () => void): void => {
   const grantToken = dataProtectionStore((state) => state.grantToken);
@@ -26,9 +27,13 @@ export const useProtectedGrantRefresh = (refresh: () => void): void => {
   }, [grantToken, refresh]);
 
   React.useEffect(() => {
+    if (!grantToken) {
+      return undefined;
+    }
     const remaining = stepUpExpiresAt == null ? 0 : stepUpExpiresAt - Date.now();
-    // Already lapsed when this ran: the fetch that went with it (mount or token change) carried no grant.
-    if (!grantToken || remaining <= 0) {
+    if (remaining <= 0) {
+      // A remounted panel may reuse data revealed before expiry; its ordinary fetch can skip that cache.
+      refresh();
       return undefined;
     }
     const timer = setTimeout(refresh, remaining + GRANT_EXPIRY_MARGIN_MS);

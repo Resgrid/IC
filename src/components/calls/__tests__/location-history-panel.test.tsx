@@ -200,18 +200,20 @@ describe('LocationHistoryPanel', () => {
     unmount();
   });
 
-  it('does not schedule an expiry re-fetch for a grant that had already lapsed', async () => {
+  it('refreshes immediately for an expired grant and does not schedule another expiry re-fetch', async () => {
     jest.useFakeTimers();
     dataProtectionStore.setState({ grantToken: 'grant', stepUpExpiresAt: Date.now() - 1 });
-    mockCallHistory.mockResolvedValueOnce({ Data: baseHistory } as never);
+    mockCallHistory.mockResolvedValueOnce({ Data: baseHistory } as never).mockResolvedValueOnce({ Data: { ...baseHistory, Calls: [] } } as never);
 
     const { unmount } = render(<LocationHistoryPanel source={{ kind: 'call', id: '42' }} />);
-    await waitFor(() => expect(screen.getByTestId('location-history-call-9012')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('location-history-empty')).toBeTruthy());
+    expect(screen.queryByText('Structure fire')).toBeNull();
+    expect(mockCallHistory).toHaveBeenCalledTimes(2);
 
     act(() => {
       jest.advanceTimersByTime(10_000);
     });
-    expect(mockCallHistory).toHaveBeenCalledTimes(1);
+    expect(mockCallHistory).toHaveBeenCalledTimes(2);
     unmount();
   });
 

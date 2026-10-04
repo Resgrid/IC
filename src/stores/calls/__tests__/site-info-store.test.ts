@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { getCallSiteInfo } from '@/api/calls/callSiteInfo';
-import { type CallSiteInfoData } from '@/models/v4/calls/callSiteInfoResult';
-
-import { useSiteInfoStore } from '../site-info-store';
+import { type CallSiteInfoData, CallSiteInfoResult } from '@/models/v4/calls/callSiteInfoResult';
+import { useSiteInfoStore } from '@/stores/calls/site-info-store';
 
 jest.mock('@/api/calls/callSiteInfo');
 jest.mock('@/lib/logging', () => ({
@@ -31,12 +30,20 @@ const makeSiteInfo = (callId: string): CallSiteInfoData => ({
   ],
 });
 
+const makeResult = (data: CallSiteInfoData | null): CallSiteInfoResult => {
+  const result = new CallSiteInfoResult();
+  result.Data = data;
+  return result;
+};
+
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((r) => {
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((r, fail) => {
     resolve = r;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 };
 
 describe('useSiteInfoStore', () => {
@@ -54,7 +61,7 @@ describe('useSiteInfoStore', () => {
   });
 
   it('fetches and stores the site info for a call', async () => {
-    mockGetCallSiteInfo.mockResolvedValue({ Data: makeSiteInfo('42') } as any);
+    mockGetCallSiteInfo.mockResolvedValue(makeResult(makeSiteInfo('42')));
 
     await useSiteInfoStore.getState().fetchSiteInfo('42');
 
@@ -67,7 +74,7 @@ describe('useSiteInfoStore', () => {
   });
 
   it('stores null site info when the server returns no Data', async () => {
-    mockGetCallSiteInfo.mockResolvedValue({ Data: undefined } as any);
+    mockGetCallSiteInfo.mockResolvedValue(makeResult(null));
 
     await useSiteInfoStore.getState().fetchSiteInfo('42');
 
@@ -87,14 +94,14 @@ describe('useSiteInfoStore', () => {
   });
 
   it('ignores a stale response after a different call is requested', async () => {
-    const first = deferred<any>();
+    const first = deferred<CallSiteInfoResult>();
     mockGetCallSiteInfo.mockImplementationOnce(() => first.promise);
-    mockGetCallSiteInfo.mockResolvedValueOnce({ Data: makeSiteInfo('43') } as any);
+    mockGetCallSiteInfo.mockResolvedValueOnce(makeResult(makeSiteInfo('43')));
 
     const firstFetch = useSiteInfoStore.getState().fetchSiteInfo('42');
     await useSiteInfoStore.getState().fetchSiteInfo('43');
 
-    first.resolve({ Data: makeSiteInfo('42') });
+    first.resolve(makeResult(makeSiteInfo('42')));
     await firstFetch;
 
     const state = useSiteInfoStore.getState();
@@ -103,14 +110,14 @@ describe('useSiteInfoStore', () => {
   });
 
   it('ignores a stale error after a different call is requested', async () => {
-    const first = deferred<any>();
+    const first = deferred<CallSiteInfoResult>();
     mockGetCallSiteInfo.mockImplementationOnce(() => first.promise);
-    mockGetCallSiteInfo.mockResolvedValueOnce({ Data: makeSiteInfo('43') } as any);
+    mockGetCallSiteInfo.mockResolvedValueOnce(makeResult(makeSiteInfo('43')));
 
     const firstFetch = useSiteInfoStore.getState().fetchSiteInfo('42');
     await useSiteInfoStore.getState().fetchSiteInfo('43');
 
-    first.resolve(Promise.reject(new Error('late failure')));
+    first.reject(new Error('late failure'));
     await firstFetch;
 
     expect(useSiteInfoStore.getState().error).toBeNull();
@@ -118,7 +125,7 @@ describe('useSiteInfoStore', () => {
   });
 
   it('drops the previous site info while a re-fetch loads, so values revealed under an old grant are not left on screen', async () => {
-    mockGetCallSiteInfo.mockResolvedValueOnce({ Data: makeSiteInfo('42') } as any);
+    mockGetCallSiteInfo.mockResolvedValueOnce(makeResult(makeSiteInfo('42')));
     mockGetCallSiteInfo.mockImplementationOnce(() => new Promise(() => undefined));
     await useSiteInfoStore.getState().fetchSiteInfo('42');
 
@@ -130,26 +137,26 @@ describe('useSiteInfoStore', () => {
   });
 
   it('keeps the newest answer when an older one for the same call lands after it', async () => {
-    const first = deferred<any>();
+    const first = deferred<CallSiteInfoResult>();
     mockGetCallSiteInfo.mockImplementationOnce(() => first.promise);
-    mockGetCallSiteInfo.mockResolvedValueOnce({ Data: { ...makeSiteInfo('42'), IsProtected: true } } as any);
+    mockGetCallSiteInfo.mockResolvedValueOnce(makeResult({ ...makeSiteInfo('42'), IsProtected: true }));
 
     const firstFetch = useSiteInfoStore.getState().fetchSiteInfo('42');
     await useSiteInfoStore.getState().fetchSiteInfo('42');
 
-    first.resolve({ Data: makeSiteInfo('42') });
+    first.resolve(makeResult(makeSiteInfo('42')));
     await firstFetch;
 
     expect(useSiteInfoStore.getState().siteInfo?.IsProtected).toBe(true);
   });
 
   it('ignores an answer still in flight after reset', async () => {
-    const pending = deferred<any>();
+    const pending = deferred<CallSiteInfoResult>();
     mockGetCallSiteInfo.mockImplementationOnce(() => pending.promise);
 
     const request = useSiteInfoStore.getState().fetchSiteInfo('42');
     useSiteInfoStore.getState().reset();
-    pending.resolve({ Data: makeSiteInfo('42') });
+    pending.resolve(makeResult(makeSiteInfo('42')));
     await request;
 
     expect(useSiteInfoStore.getState().siteInfo).toBeNull();
@@ -157,7 +164,7 @@ describe('useSiteInfoStore', () => {
   });
 
   it('reset clears everything', async () => {
-    mockGetCallSiteInfo.mockResolvedValue({ Data: makeSiteInfo('42') } as any);
+    mockGetCallSiteInfo.mockResolvedValue(makeResult(makeSiteInfo('42')));
     await useSiteInfoStore.getState().fetchSiteInfo('42');
 
     useSiteInfoStore.getState().reset();

@@ -1,8 +1,7 @@
 import { act, renderHook } from '@testing-library/react-native';
 
+import { GRANT_EXPIRY_MARGIN_MS, useProtectedGrantRefresh } from '@/hooks/use-protected-grant-refresh';
 import { dataProtectionStore } from '@/stores/data-protection/store';
-
-import { GRANT_EXPIRY_MARGIN_MS, useProtectedGrantRefresh } from '../use-protected-grant-refresh';
 
 jest.mock('@/stores/data-protection/store', () => {
   const { create } = jest.requireActual('zustand');
@@ -63,15 +62,45 @@ describe('useProtectedGrantRefresh', () => {
     unmount();
   });
 
-  it('schedules nothing for a grant that had already lapsed', () => {
-    dataProtectionStore.setState({ grantToken: 'grant', stepUpExpiresAt: Date.now() - 1 });
+  it.each([-1, 0])('refreshes immediately for a grant that expires %i ms from mount', (remaining) => {
+    dataProtectionStore.setState({ grantToken: 'grant', stepUpExpiresAt: Date.now() + remaining });
+    const refresh = jest.fn();
+    const { unmount } = renderHook(() => useProtectedGrantRefresh(refresh));
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    act(() => {
+      jest.advanceTimersByTime(10 * 60_000);
+    });
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it('refreshes cached data when a panel remounts after its grant expired while unmounted', () => {
+    dataProtectionStore.setState({ grantToken: 'grant', stepUpExpiresAt: Date.now() + 60_000 });
+    const refresh = jest.fn();
+    const mounted = renderHook(() => useProtectedGrantRefresh(refresh));
+    mounted.unmount();
+
+    act(() => {
+      jest.advanceTimersByTime(60_000 + GRANT_EXPIRY_MARGIN_MS);
+    });
+    expect(refresh).not.toHaveBeenCalled();
+
+    const remounted = renderHook(() => useProtectedGrantRefresh(refresh));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(dataProtectionStore.getState().grantToken).toBe('grant');
+    remounted.unmount();
+  });
+
+  it('does not refresh or schedule an expiry without a grant token', () => {
+    dataProtectionStore.setState({ grantToken: null, stepUpExpiresAt: Date.now() - 1 });
     const refresh = jest.fn();
     const { unmount } = renderHook(() => useProtectedGrantRefresh(refresh));
 
     act(() => {
       jest.advanceTimersByTime(10 * 60_000);
     });
-
     expect(refresh).not.toHaveBeenCalled();
     unmount();
   });
