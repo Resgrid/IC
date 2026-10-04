@@ -1,6 +1,22 @@
 import { format, isValid } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { BuildingIcon, ClockIcon, FileTextIcon, ImageIcon, InfoIcon, LoaderIcon, MessageSquareIcon, PaperclipIcon, RouteIcon, ShieldCheckIcon, TimerIcon, UserIcon, UsersIcon, VideoIcon } from 'lucide-react-native';
+import {
+  BuildingIcon,
+  ClockIcon,
+  FileTextIcon,
+  HistoryIcon,
+  ImageIcon,
+  InfoIcon,
+  LoaderIcon,
+  MessageSquareIcon,
+  PaperclipIcon,
+  RouteIcon,
+  ShieldCheckIcon,
+  TimerIcon,
+  UserIcon,
+  UsersIcon,
+  VideoIcon,
+} from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -8,6 +24,7 @@ import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { getCommandForCall } from '@/api/incidentCommand/incidentCommand';
 import { VideoFeedTabContent } from '@/components/call-video-feeds/video-feed-tab-content';
 import { CallSiteInfoTabPanel } from '@/components/calls/call-site-info-tab-panel';
+import { LocationHistoryPanel } from '@/components/calls/location-history-panel';
 import { UnitReadinessPanel } from '@/components/calls/unit-readiness-panel';
 import { CheckInTabContent } from '@/components/check-in-timers/check-in-tab-content';
 import { MessageCommanderSheet } from '@/components/command/message-commander-sheet';
@@ -531,6 +548,14 @@ export default function CallDetail() {
       title: t('call_detail.tabs.site'),
       icon: <BuildingIcon size={16} />,
       content: <CallSiteInfoTabPanel callId={call.CallId} />,
+    });
+
+    // History tab: previous calls at this location (address however it was typed) or with the same contacts.
+    tabs.push({
+      key: 'history',
+      title: t('call_detail.tabs.history'),
+      icon: <HistoryIcon size={16} />,
+      content: <LocationHistoryPanel source={{ kind: 'call', id: call.CallId }} />,
     });
 
     // Unit readiness: the committed units' recent apparatus checks and open work orders (Checklists).

@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.resgrid.command",
+      "sha256_cert_fingerprints": [
+        "8C:69:F3:F0:A4:7F:9B:27:4A:2F:73:FE:8F:2B:9E:4F:97:79:65:3C:B9:1E:3B:02:19:0C:23:C4:FA:31:C2:5C",
+        "16:22:87:7B:8B:EB:33:B6:1E:96:10:F6:24:D4:31:93:69:BE:C2:41:4B:91:19:65:D6:9C:AD:BC:25:12:A9:5A"
+      ]
+    }
+  }
+]

@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { ScrollView } from 'react-native';
 
 import { ContactFilesList } from '@/components/contacts/contact-files-list';
+import { useProtectedGrantRefresh } from '@/hooks/use-protected-grant-refresh';
 import { useContactPreplanStore } from '@/stores/contacts/preplan-store';
-import { dataProtectionStore } from '@/stores/data-protection/store';
 
 interface ContactFilesPanelProps {
   contactId: string;
@@ -11,13 +11,12 @@ interface ContactFilesPanelProps {
 
 /**
  * Files tab of the contact details sheet (Contacts plan Phase A): site documents, pre-plans, floor plans,
- * photos and drawings. Fetches once per contact and again when the Protected Data Grant changes.
+ * photos and drawings. Fetches once per contact and again when the Protected Data Grant changes or expires.
  */
 export const ContactFilesPanel: React.FC<ContactFilesPanelProps> = ({ contactId }) => {
   const files = useContactPreplanStore((state) => state.files);
   const loadingFiles = useContactPreplanStore((state) => state.loadingFiles);
   const fetchFiles = useContactPreplanStore((state) => state.fetchFiles);
-  const grantToken = dataProtectionStore((state) => state.grantToken);
 
   React.useEffect(() => {
     if (contactId) {
@@ -25,15 +24,12 @@ export const ContactFilesPanel: React.FC<ContactFilesPanelProps> = ({ contactId 
     }
   }, [contactId, fetchFiles]);
 
-  const previousGrant = React.useRef(grantToken);
-  React.useEffect(() => {
-    if (previousGrant.current !== grantToken) {
-      previousGrant.current = grantToken;
-      if (contactId) {
-        fetchFiles(contactId, true);
-      }
+  const refreshForGrant = useCallback(() => {
+    if (contactId) {
+      fetchFiles(contactId, true);
     }
-  }, [grantToken, contactId, fetchFiles]);
+  }, [contactId, fetchFiles]);
+  useProtectedGrantRefresh(refreshForGrant);
 
   const hasFetched = Object.prototype.hasOwnProperty.call(files, contactId);
 

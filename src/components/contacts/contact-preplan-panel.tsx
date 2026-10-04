@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView } from 'react-native';
 
@@ -6,8 +6,8 @@ import { PreplanSummary } from '@/components/contacts/preplan-summary';
 import { Box } from '@/components/ui/box';
 import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
+import { useProtectedGrantRefresh } from '@/hooks/use-protected-grant-refresh';
 import { useContactPreplanStore } from '@/stores/contacts/preplan-store';
-import { dataProtectionStore } from '@/stores/data-protection/store';
 
 interface ContactPreplanPanelProps {
   contactId: string;
@@ -15,14 +15,13 @@ interface ContactPreplanPanelProps {
 
 /**
  * Pre-Plan tab of the contact details sheet (Contacts plan Phase A). Fetches once per contact and again
- * whenever the Protected Data Grant changes, so a step-up replaces REDACTED values in place.
+ * whenever the Protected Data Grant changes or expires, so a step-up replaces REDACTED values and an expiry puts them back.
  */
 export const ContactPreplanPanel: React.FC<ContactPreplanPanelProps> = ({ contactId }) => {
   const { t } = useTranslation();
   const preplans = useContactPreplanStore((state) => state.preplans);
   const loadingPreplan = useContactPreplanStore((state) => state.loadingPreplan);
   const fetchPreplan = useContactPreplanStore((state) => state.fetchPreplan);
-  const grantToken = dataProtectionStore((state) => state.grantToken);
 
   React.useEffect(() => {
     if (contactId) {
@@ -30,16 +29,13 @@ export const ContactPreplanPanel: React.FC<ContactPreplanPanelProps> = ({ contac
     }
   }, [contactId, fetchPreplan]);
 
-  // A new grant (or its loss) changes what the server will decrypt: refetch, do not reuse the cache.
-  const previousGrant = React.useRef(grantToken);
-  React.useEffect(() => {
-    if (previousGrant.current !== grantToken) {
-      previousGrant.current = grantToken;
-      if (contactId) {
-        fetchPreplan(contactId, true);
-      }
+  // A new grant (or its loss or expiry) changes what the server will decrypt: refetch, do not reuse the cache.
+  const refreshForGrant = useCallback(() => {
+    if (contactId) {
+      fetchPreplan(contactId, true);
     }
-  }, [grantToken, contactId, fetchPreplan]);
+  }, [contactId, fetchPreplan]);
+  useProtectedGrantRefresh(refreshForGrant);
 
   const isLoading = !!loadingPreplan[contactId];
   const hasFetched = Object.prototype.hasOwnProperty.call(preplans, contactId);
