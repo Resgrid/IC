@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { runSessionCleanup } from '@/lib/auth/session-cleanup';
+import { runSignOutHooks } from '@/lib/auth/sign-out-hooks';
 import { cacheManager } from '@/lib/cache/cache-manager';
 import { clearCacheScope, getCacheScope, setCacheScope } from '@/lib/cache/cache-scope';
 import { logger } from '@/lib/logging';
@@ -307,6 +308,17 @@ const useAuthStore = create<AuthState>()(
         }
 
         logoutInFlight = (async () => {
+          // Whatever must still reach the server as this session (this device's web push token) goes
+          // first: the token is cleared just below. Bounded, so a dead server never holds sign-out up.
+          try {
+            await runSignOutHooks(get().accessToken);
+          } catch (error) {
+            logger.warn({
+              message: 'A sign-out hook failed',
+              context: { error },
+            });
+          }
+
           // Clear any pending refresh timer to prevent stacked timeouts
           const existingTimeoutId = get().refreshTimeoutId;
           if (existingTimeoutId !== null) {

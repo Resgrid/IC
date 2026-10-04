@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, Notification, nativeTheme, Menu, protocol, 
 const { isSafeExternalUrl } = require('./external-links');
 const { registerSsoLoopback } = require('./sso-loopback');
 const { registerLegacySso } = require('./legacy-sso');
+const { registerPushReceiver } = require('./push-receiver');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -26,6 +27,11 @@ protocol.registerSchemesAsPrivileged([
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
   app.quit();
+}
+
+// Windows shows a toast only for the AppUserModelID the installer registered, which electron-builder sets to the appId.
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.resgrid.command');
 }
 
 let mainWindow = null;
@@ -223,6 +229,56 @@ ipcMain.handle('show-notification', async (event, { title, body, data }) => {
   notification.show();
   return true;
 });
+
+// Desktop push (push-receiver.js): this process receives the person's pushes and shows them natively.
+// Notifications are held until clicked or closed: one that is garbage collected loses its click handler.
+const activePushNotifications = new Set();
+
+const pushReceiver = registerPushReceiver(ipcMain, {
+  storePath: path.join(app.getPath('userData'), 'push-receiver.json'),
+  appName: 'Resgrid IC',
+  notify: (payload, onClick) => {
+    if (!Notification.isSupported()) {
+      return false;
+    }
+
+    const isCall = payload.category === 'calls';
+    const notification = new Notification({
+      title: payload.title,
+      body: payload.body,
+      silent: false,
+      icon: path.join(__dirname, '../assets/icon.png'),
+      urgency: isCall ? 'critical' : 'normal',
+      timeoutType: isCall ? 'never' : 'default',
+    });
+    const release = () => activePushNotifications.delete(notification);
+    activePushNotifications.add(notification);
+    notification.on('click', () => {
+      release();
+      onClick();
+    });
+    notification.on('close', release);
+    notification.show();
+    return true;
+  },
+  isWindowFocused: () => !!mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused(),
+  send: (channel, payload) => {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isLoading()) {
+      return false;
+    }
+    mainWindow.webContents.send(channel, payload);
+    return true;
+  },
+  focus: () => {
+    if (mainWindow) {
+      focusMainWindow();
+    } else if (app.isReady()) {
+      createWindow();
+    }
+  },
+});
+
+app.on('before-quit', () => pushReceiver.stop());
 
 // Brokered SSO returns to a one-time loopback listener; the provider opens in the member's own browser.
 registerSsoLoopback(ipcMain, {

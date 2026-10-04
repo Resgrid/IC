@@ -79,6 +79,7 @@ jest.mock('@/stores/toast/store', () => ({
 import { api } from '@/api/common/client';
 import { enforceCommandAppAccess } from '@/lib/auth/command-app-access';
 import { registerSessionCleanupHandler } from '@/lib/auth/session-cleanup';
+import { _clearSignOutHooks, registerSignOutHook } from '@/lib/auth/sign-out-hooks';
 
 import useAuthStore from '../store';
 
@@ -157,6 +158,32 @@ describe('auth store logout paths', () => {
     signIn();
     await useAuthStore.getState().logout();
     expect(mockCleanup).toHaveBeenCalledTimes(2);
+  });
+
+  it('runs the sign-out hooks once, with the session still signed in, before anything is cleared', async () => {
+    const seen: { token: string | null; status: string }[] = [];
+    registerSignOutHook(async (token) => {
+      seen.push({ token, status: useAuthStore.getState().status });
+    });
+    signIn();
+
+    await Promise.all([useAuthStore.getState().logout(), useAuthStore.getState().logout()]);
+
+    expect(seen).toEqual([{ token: 'access', status: 'signedIn' }]);
+    expectFullySignedOut();
+    _clearSignOutHooks();
+  });
+
+  it('still signs out fully when a sign-out hook fails', async () => {
+    registerSignOutHook(async () => {
+      throw new Error('server unreachable');
+    });
+    signIn();
+
+    await useAuthStore.getState().logout();
+
+    expectFullySignedOut();
+    _clearSignOutHooks();
   });
 
   it('still removes the stored tokens and signs out when the reset itself fails', async () => {
