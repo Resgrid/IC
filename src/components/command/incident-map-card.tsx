@@ -19,6 +19,7 @@ import { useCommandMapOverlay } from '@/hooks/use-command-map-overlay';
 import { useMapGeolocationUpdates, withLiveLocationsSince } from '@/hooks/use-map-geolocation-updates';
 import { useMapSignalRUpdates } from '@/hooks/use-map-signalr-updates';
 import { logger } from '@/lib/logging';
+import { useDepartmentMapStyle } from '@/lib/map-style';
 import { type IncidentCommand, type IncidentMapAnnotation } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { type MapMakerInfoData } from '@/models/v4/mapping/getMapDataAndMarkersData';
 
@@ -39,6 +40,7 @@ export const IncidentMapCard: React.FC<IncidentMapCardProps> = ({ callId, comman
   const { t } = useTranslation();
   const [pins, setPins] = useState<MapMakerInfoData[]>([]);
   const commandOverlay = useCommandMapOverlay();
+  const mapStyle = useDepartmentMapStyle();
 
   const hasSavedView = Boolean(command.MapZoomLevel && command.MapCenterLatitude && command.MapCenterLongitude);
 
@@ -105,7 +107,7 @@ export const IncidentMapCard: React.FC<IncidentMapCardProps> = ({ callId, comman
   const mapPreview = (
     <Pressable onPress={openFullscreen} accessibilityLabel={t('command.incident_map_open')} testID="incident-map-open">
       <View style={[styles.mapContainer, embedded ? styles.mapContainerEmbedded : undefined]} pointerEvents="none">
-        <Mapbox.MapView style={styles.map} scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false} logoEnabled={false} attributionEnabled={false} compassEnabled={false}>
+        <Mapbox.MapView style={styles.map} styleURL={mapStyle} scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false} logoEnabled={false} attributionEnabled={false} compassEnabled={false}>
           <Mapbox.Camera centerCoordinate={[parseFloat(command.MapCenterLongitude ?? '0'), parseFloat(command.MapCenterLatitude ?? '0')]} zoomLevel={parseFloat(command.MapZoomLevel ?? '12')} animationDuration={0} />
           <AnnotationLayers annotations={annotations} />
           <IncidentLocationMarkers command={command} />

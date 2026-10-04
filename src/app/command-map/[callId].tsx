@@ -23,6 +23,7 @@ import { useMapGeolocationUpdates, withLiveLocationsSince } from '@/hooks/use-ma
 import { useMapSignalRUpdates } from '@/hooks/use-map-signalr-updates';
 import { logger } from '@/lib/logging';
 import { useDepartmentMapCenter } from '@/lib/map-center';
+import { useDepartmentMapStyle } from '@/lib/map-style';
 import { IncidentMapAnnotationType } from '@/models/v4/incidentCommand/incidentCommandEnums';
 import { type MapMakerInfoData } from '@/models/v4/mapping/getMapDataAndMarkersData';
 import { useCommandStore } from '@/stores/command/store';
@@ -50,6 +51,7 @@ export default function CommandMapScreen() {
   const showToast = useToastStore((state) => state.showToast);
   // Reactive: department config can land after this screen mounts.
   const departmentCenter = useDepartmentMapCenter();
+  const mapStyle = useDepartmentMapStyle();
 
   const boardState = boards[callId];
   const command = boardState?.board?.Command ?? null;
@@ -292,7 +294,7 @@ export default function CommandMapScreen() {
       <Stack.Screen options={{ title: namedMap?.Name ?? t('command.incident_map_title'), headerShown: true }} />
       <FocusAwareStatusBar />
 
-      <Mapbox.MapView style={styles.map} onPress={handleMapPress} onCameraChanged={handleCameraChanged} testID="command-map-view">
+      <Mapbox.MapView style={styles.map} styleURL={mapStyle} onPress={handleMapPress} onCameraChanged={handleCameraChanged} testID="command-map-view">
         <Mapbox.Camera ref={cameraRef} defaultSettings={initialCamera} />
         <AnnotationLayers annotations={annotations} onAnnotationPress={(annotationId) => (mode === 'none' ? setPendingDeleteId(annotationId) : undefined)} />
         <IncidentLocationMarkers command={command} />

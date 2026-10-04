@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { getConfig } from '@/api/config';
 import { logger } from '@/lib/logging';
+import { applyServerMapboxToken } from '@/lib/mapbox-token';
 import { zustandStorage } from '@/lib/storage';
 import { getActiveCallId, setActiveCallId } from '@/lib/storage/app';
 import { type CallPriorityResultData } from '@/models/v4/callPriorities/callPriorityResultData';
@@ -132,6 +133,11 @@ export const useCoreStore = create<CoreState>()(
       fetchConfig: async () => {
         try {
           const config = await getConfig(Env.APP_KEY);
+          // Adopt (or drop) the server-supplied Mapbox token. Fire and forget: it verifies with Mapbox in the
+          // background and never throws, so it cannot hold up or fail initialization.
+          if (config?.Data) {
+            void applyServerMapboxToken(config.Data.AppMapboxAccessToken);
+          }
           // Only update if config actually changed to prevent unnecessary re-renders
           const current = get().config;
           if (!current || JSON.stringify(current) !== JSON.stringify(config.Data)) {

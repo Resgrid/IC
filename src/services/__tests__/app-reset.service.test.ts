@@ -16,6 +16,11 @@ jest.mock('@/lib/storage', () => ({
   },
 }));
 
+// The real token store persists through @/lib/storage, which is mocked above without zustandStorage.
+jest.mock('@/lib/mapbox-token', () => ({
+  clearMapboxToken: jest.fn(),
+}));
+
 // Mock storage/app functions
 jest.mock('@/lib/storage/app', () => ({
   BASE_API_URL_STORAGE_KEY: 'baseUrl',
@@ -494,10 +499,13 @@ describe('app-reset.service', () => {
       const { useCallsStore } = jest.requireMock('@/stores/calls/store');
       const { useUnitsStore } = jest.requireMock('@/stores/units/store');
       const { featureFlagsStore } = jest.requireMock('@/stores/feature-flags/store');
+      const { clearMapboxToken } = jest.requireMock('@/lib/mapbox-token');
 
       await resetAllStores();
 
       expect(useCoreStore.setState).toHaveBeenCalledWith(INITIAL_CORE_STATE);
+      // The previous session's server-supplied Mapbox token must not outlive it.
+      expect(clearMapboxToken).toHaveBeenCalled();
       expect(useCallsStore.setState).toHaveBeenCalledWith(INITIAL_CALLS_STATE);
       expect(useUnitsStore.setState).toHaveBeenCalledWith(INITIAL_UNITS_STATE);
       // Logout must clear in-memory flags and identity so the next session fails closed.

@@ -14,12 +14,14 @@ import { HStack } from '@/components/ui/hstack';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { useDepartmentMapStyle } from '@/lib/map-style';
 import { type CustomMapLayerResultData } from '@/models/v4/mapping/customMapResultData';
 import { useMapsStore } from '@/stores/maps/store';
 
 export default function CustomMapViewer(): React.JSX.Element {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const mapStyle = useDepartmentMapStyle();
   const currentCustomMap = useMapsStore((state) => state.currentCustomMap);
   const isLoading = useMapsStore((state) => state.isLoading);
   const error = useMapsStore((state) => state.error);
@@ -171,7 +173,7 @@ export default function CustomMapViewer(): React.JSX.Element {
     <View className="flex-1 bg-gray-50 dark:bg-gray-900">
       {/* Map */}
       <View className="flex-1">
-        <Mapbox.MapView style={{ flex: 1 }} styleURL={Mapbox.StyleURL.Street} logoEnabled={false} attributionEnabled={false}>
+        <Mapbox.MapView style={{ flex: 1 }} styleURL={mapStyle} logoEnabled={false} attributionEnabled={false}>
           <Mapbox.Camera zoomLevel={currentCustomMap.ZoomLevel || 14} centerCoordinate={[currentCustomMap.CenterLongitude, currentCustomMap.CenterLatitude]} animationMode="flyTo" animationDuration={1000} />
 
           {visibleLayers.map(renderLayer)}

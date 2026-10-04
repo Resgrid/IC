@@ -17,12 +17,14 @@ import { Icon } from '@/components/ui/icon';
 import { Input, InputField, InputIcon, InputSlot } from '@/components/ui/input';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { useDepartmentMapStyle } from '@/lib/map-style';
 import { type IndoorMapFloorResultData } from '@/models/v4/mapping/indoorMapResultData';
 import { useMapsStore } from '@/stores/maps/store';
 
 export default function IndoorMapViewer(): React.JSX.Element {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const mapStyle = useDepartmentMapStyle();
   const currentIndoorMap = useMapsStore((state) => state.currentIndoorMap);
   const currentFloor = useMapsStore((state) => state.currentFloor);
   const currentFloorId = useMapsStore((state) => state.currentFloorId);
@@ -158,7 +160,7 @@ export default function IndoorMapViewer(): React.JSX.Element {
             <Loading text={t('common.loading')} />
           </View>
         ) : (
-          <Mapbox.MapView style={{ flex: 1 }} styleURL={Mapbox.StyleURL.Street} logoEnabled={false} attributionEnabled={false}>
+          <Mapbox.MapView style={{ flex: 1 }} styleURL={mapStyle} logoEnabled={false} attributionEnabled={false}>
             <Mapbox.Camera zoomLevel={currentIndoorMap.BoundsNELatitude ? 18 : 16} centerCoordinate={[currentIndoorMap.CenterLongitude, currentIndoorMap.CenterLatitude]} animationMode="flyTo" animationDuration={800} />
 
             {/* Floor plan image overlay */}

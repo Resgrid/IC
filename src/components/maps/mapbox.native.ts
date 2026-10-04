@@ -4,6 +4,15 @@
  */
 import Mapbox from '@rnmapbox/maps';
 
+import { onMapboxAccessTokenChange } from '@/lib/mapbox-token';
+
+// Keep the SDK on the token in use: the built-in one, or the server-supplied one once Mapbox has verified
+// it. Registered once, here, because every native map goes through this module. The listener runs inside the
+// token store's state change, before React re-renders a map with a style that needs the new token.
+onMapboxAccessTokenChange((token) => {
+  void Mapbox.setAccessToken(token);
+});
+
 // Re-export all Mapbox components for native platforms
 export const MapView = Mapbox.MapView;
 export const Camera = Mapbox.Camera;

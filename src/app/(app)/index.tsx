@@ -19,10 +19,11 @@ import { useAppLifecycle } from '@/hooks/use-app-lifecycle';
 import { useCommandMapOverlay } from '@/hooks/use-command-map-overlay';
 import { useMapGeolocationUpdates, withLiveLocationsSince } from '@/hooks/use-map-geolocation-updates';
 import { useMapSignalRUpdates } from '@/hooks/use-map-signalr-updates';
-import { Env } from '@/lib/env';
 import { logger } from '@/lib/logging';
 import { useDepartmentMapCenter } from '@/lib/map-center';
 import { getPinEntityId } from '@/lib/map-pin-ids';
+import { useDepartmentMapStyle } from '@/lib/map-style';
+import { getMapboxAccessToken } from '@/lib/mapbox-token';
 import { type MapMakerInfoData } from '@/models/v4/mapping/getMapDataAndMarkersData';
 import { locationService } from '@/services/location';
 import { useCoreStore } from '@/stores/app/core-store';
@@ -31,7 +32,7 @@ import { useMapsStore } from '@/stores/maps/store';
 import { useToastStore } from '@/stores/toast/store';
 import { useWeatherAlertsStore } from '@/stores/weather-alerts/store';
 
-Mapbox.setAccessToken(Env.IC_MAPBOX_PUBKEY);
+Mapbox.setAccessToken(getMapboxAccessToken());
 
 export default function Map() {
   const { t } = useTranslation();
@@ -84,12 +85,8 @@ function MapContent() {
   const fetchActiveLayers = useMapsStore((state) => state.fetchActiveLayers);
   const fetchLayerGeoJSON = useMapsStore((state) => state.fetchLayerGeoJSON);
 
-  // Get map style based on current theme
-  const getMapStyle = useCallback(() => {
-    return colorScheme === 'dark' ? Mapbox.StyleURL.Dark : Mapbox.StyleURL.Street;
-  }, [colorScheme]);
-
-  const [styleURL, setStyleURL] = useState({ styleURL: getMapStyle() });
+  // Department base map style for the current theme. Reactive: follows config landing and theme flips.
+  const mapStyle = useDepartmentMapStyle();
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const requestMapRefresh = useMapSignalRUpdates(setMapPins);
@@ -157,12 +154,6 @@ function MapContent() {
       }
     });
   }, [activeLayers, layerToggles, cachedGeoJSON, fetchLayerGeoJSON]);
-
-  // Update map style when theme changes
-  useEffect(() => {
-    const newStyle = getMapStyle();
-    setStyleURL({ styleURL: newStyle });
-  }, [getMapStyle]);
 
   // Handle navigation focus - reset map state when user navigates back to map page
   useFocusEffect(
@@ -470,7 +461,7 @@ function MapContent() {
         <FocusAwareStatusBar />
         <Mapbox.MapView
           ref={mapRef}
-          styleURL={styleURL.styleURL}
+          styleURL={mapStyle}
           style={styles.map}
           onCameraChanged={onCameraChanged}
           onDidFinishLoadingMap={() => setIsMapReady(true)}

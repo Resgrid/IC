@@ -9,11 +9,12 @@ import Mapbox from '@/components/maps/mapbox';
 import { Box } from '@/components/ui/box';
 import { Button, ButtonText } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
-import { Env } from '@/lib/env';
 import { useDepartmentMapCenter } from '@/lib/map-center';
+import { useDepartmentMapStyle } from '@/lib/map-style';
+import { getMapboxAccessToken } from '@/lib/mapbox-token';
 
 // Ensure Mapbox access token is set before using any Mapbox components
-Mapbox.setAccessToken(Env.IC_MAPBOX_PUBKEY);
+Mapbox.setAccessToken(getMapboxAccessToken());
 
 // Falls back to the department's configured map center rather than a hardcoded point, so a
 // department outside the US does not open every picker on the middle of Kansas.
@@ -36,6 +37,7 @@ const FullScreenLocationPicker: React.FC<FullScreenLocationPickerProps> = ({ ini
   const mapRef = useRef<React.ElementRef<typeof Mapbox.MapView>>(null);
   const cameraRef = useRef<any>(null); // Using any due to imperative handle
   const departmentCenter = useDepartmentMapCenter();
+  const mapStyle = useDepartmentMapStyle();
   // Always start with a location - either initial, or default
   const [currentLocation, setCurrentLocation] = useState<{
     latitude: number;
@@ -186,7 +188,7 @@ const FullScreenLocationPicker: React.FC<FullScreenLocationPickerProps> = ({ ini
 
   return (
     <Box style={styles.container}>
-      <Mapbox.MapView ref={mapRef} style={styles.map} logoEnabled={false} attributionEnabled={true} compassEnabled={true} zoomEnabled={true} rotateEnabled={true} onPress={handleMapPress}>
+      <Mapbox.MapView ref={mapRef} style={styles.map} styleURL={mapStyle} logoEnabled={false} attributionEnabled={true} compassEnabled={true} zoomEnabled={true} rotateEnabled={true} onPress={handleMapPress}>
         {/* Without a real location the camera sits on the department center, so it frames it at the department's configured zoom rather than a hardcoded one. */}
         <Mapbox.Camera
           ref={cameraRef}

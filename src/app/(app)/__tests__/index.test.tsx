@@ -18,6 +18,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import Map from '../index';
 import { useAppLifecycle } from '@/hooks/use-app-lifecycle';
+import { FALLBACK_DAY_MAP_STYLE } from '@/lib/map-style';
+import { useCoreStore } from '@/stores/app/core-store';
 import { useLocationStore } from '@/stores/app/location-store';
 import { locationService } from '@/services/location';
 
@@ -129,6 +131,12 @@ const mockUseLocationStore = useLocationStore as jest.MockedFunction<typeof useL
 const mockLocationService = locationService as jest.Mocked<typeof locationService>;
 const mockUseColorScheme = useColorScheme as jest.MockedFunction<typeof useColorScheme>;
 
+// The department's map style rides on core-store config; the mocked store hands back one mutable state object.
+const coreState = useCoreStore.getState() as unknown as { config: { MapDayStyleUrl: string; MapNightStyleUrl: string } | null };
+const DEPARTMENT_DAY_STYLE = 'mapbox://styles/mapbox/satellite-v9';
+const DEPARTMENT_NIGHT_STYLE = 'mapbox://styles/mapbox/navigation-night-v1';
+const departmentStyleConfig = { MapDayStyleUrl: DEPARTMENT_DAY_STYLE, MapNightStyleUrl: DEPARTMENT_NIGHT_STYLE };
+
 // Create stable reference objects to prevent infinite re-renders
 const defaultLocationState = {
   latitude: 40.7128,
@@ -160,6 +168,8 @@ describe('Map Component - App Lifecycle', () => {
 
     mockLocationService.startLocationUpdates = jest.fn().mockResolvedValue(undefined);
     mockLocationService.stopLocationUpdates = jest.fn();
+
+    coreState.config = null;
   });
 
   afterEach(() => {
@@ -274,43 +284,55 @@ describe('Map Component - App Lifecycle', () => {
     unmount();
   });
 
-  it('should use light theme map style when in light mode', async () => {
+  it('should use the department day map style when in light mode', async () => {
+    coreState.config = departmentStyleConfig;
     mockUseColorScheme.mockReturnValue({
       colorScheme: 'light',
       setColorScheme: jest.fn(),
       toggleColorScheme: jest.fn(),
     });
 
-    const { unmount } = render(<Map />, { wrapper: TestWrapper });
+    const { getByTestId, unmount } = render(<Map />, { wrapper: TestWrapper });
 
     await waitFor(() => {
       expect(mockLocationService.startLocationUpdates).toHaveBeenCalled();
     });
 
-    // The map should use the light style
-    // Since we can't directly test the MapView props, we test that the component renders without errors
+    expect(getByTestId('map-view').props.styleURL).toBe(DEPARTMENT_DAY_STYLE);
     unmount();
   });
 
-  it('should use dark theme map style when in dark mode', async () => {
+  it('should use the department night map style when in dark mode', async () => {
+    coreState.config = departmentStyleConfig;
     mockUseColorScheme.mockReturnValue({
       colorScheme: 'dark',
       setColorScheme: jest.fn(),
       toggleColorScheme: jest.fn(),
     });
 
-    const { unmount } = render(<Map />, { wrapper: TestWrapper });
+    const { getByTestId, unmount } = render(<Map />, { wrapper: TestWrapper });
 
     await waitFor(() => {
       expect(mockLocationService.startLocationUpdates).toHaveBeenCalled();
     });
 
-    // The map should use the dark style
-    // Since we can't directly test the MapView props, we test that the component renders without errors
+    expect(getByTestId('map-view').props.styleURL).toBe(DEPARTMENT_NIGHT_STYLE);
     unmount();
   });
 
-  it('should handle theme changes gracefully', async () => {
+  it('should fall back to the Streets style before config loads', async () => {
+    const { getByTestId, unmount } = render(<Map />, { wrapper: TestWrapper });
+
+    await waitFor(() => {
+      expect(mockLocationService.startLocationUpdates).toHaveBeenCalled();
+    });
+
+    expect(getByTestId('map-view').props.styleURL).toBe(FALLBACK_DAY_MAP_STYLE);
+    unmount();
+  });
+
+  it('should switch to the department night style when the theme changes', async () => {
+    coreState.config = departmentStyleConfig;
     // Start with light theme
     const setColorScheme = jest.fn();
     const toggleColorScheme = jest.fn();
@@ -321,7 +343,9 @@ describe('Map Component - App Lifecycle', () => {
       toggleColorScheme,
     });
 
-    const { rerender, unmount } = render(<Map />, { wrapper: TestWrapper });
+    const { getByTestId, rerender, unmount } = render(<Map />, { wrapper: TestWrapper });
+
+    expect(getByTestId('map-view').props.styleURL).toBe(DEPARTMENT_DAY_STYLE);
 
     // Change to dark theme
     mockUseColorScheme.mockReturnValue({
@@ -336,7 +360,7 @@ describe('Map Component - App Lifecycle', () => {
       expect(mockLocationService.startLocationUpdates).toHaveBeenCalled();
     });
 
-    // Component should handle theme changes without errors
+    expect(getByTestId('map-view').props.styleURL).toBe(DEPARTMENT_NIGHT_STYLE);
     unmount();
   });
 

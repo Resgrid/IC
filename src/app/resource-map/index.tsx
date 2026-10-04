@@ -1,5 +1,4 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useColorScheme } from 'nativewind';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
@@ -8,14 +7,15 @@ import Mapbox from '@/components/maps/mapbox';
 import { Box } from '@/components/ui/box';
 import { FocusAwareStatusBar } from '@/components/ui/focus-aware-status-bar';
 import { Text } from '@/components/ui/text';
-import { Env } from '@/lib/env';
+import { useDepartmentMapStyle } from '@/lib/map-style';
+import { getMapboxAccessToken } from '@/lib/mapbox-token';
 
-Mapbox.setAccessToken(Env.IC_MAPBOX_PUBKEY);
+Mapbox.setAccessToken(getMapboxAccessToken());
 
 /** Fullscreen single-resource map: one marker at the resource's last known position. */
 export default function ResourceMapScreen() {
   const { t } = useTranslation();
-  const { colorScheme } = useColorScheme();
+  const mapStyle = useDepartmentMapStyle();
   const params = useLocalSearchParams<{ latitude?: string; longitude?: string; title?: string; color?: string }>();
 
   const first = (value?: string | string[]) => (Array.isArray(value) ? value[0] : value);
@@ -41,7 +41,7 @@ export default function ResourceMapScreen() {
     <Box className="flex-1">
       <Stack.Screen options={{ title, headerShown: true }} />
       <FocusAwareStatusBar />
-      <Mapbox.MapView style={styles.map} styleURL={colorScheme === 'dark' ? Mapbox.StyleURL.Dark : Mapbox.StyleURL.Street} logoEnabled={false} attributionEnabled={false} compassEnabled={true}>
+      <Mapbox.MapView style={styles.map} styleURL={mapStyle} logoEnabled={false} attributionEnabled={false} compassEnabled={true}>
         <Mapbox.Camera zoomLevel={15} centerCoordinate={[longitude, latitude]} animationMode="flyTo" animationDuration={800} />
         <Mapbox.MarkerView id="resourcePosition" coordinate={[longitude, latitude]} anchor={{ x: 0.5, y: 1.0 }} allowOverlap={true}>
           <View style={styles.markerContainer}>
