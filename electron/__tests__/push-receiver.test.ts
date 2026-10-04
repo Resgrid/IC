@@ -122,7 +122,10 @@ describe('push:start', () => {
 
     const saved = JSON.parse(fs.readFileSync(storePath, 'utf8'));
     expect(saved.credentials).toEqual({ fcm: { token: 'token-1' } });
-    expect(fs.statSync(storePath).mode & 0o777).toBe(0o600);
+    // Windows has no POSIX permission bits (stat reports 0o666 whatever the mode was); the user profile's ACL guards it there.
+    if (process.platform !== 'win32') {
+      expect(fs.statSync(storePath).mode & 0o777).toBe(0o600);
+    }
 
     // A restart reuses the saved credentials, so the token the server holds stays valid.
     const restarted = setup({ storePath });

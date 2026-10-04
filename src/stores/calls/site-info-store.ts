@@ -14,27 +14,34 @@ interface SiteInfoState {
   reset: () => void;
 }
 
+// Only the newest request may write: a different call's late answer, or for the same call an answer from before a grant
+// change or expiry (revealed or REDACTED), must never land after the newer one. reset() drops whatever is in flight.
+let latestRequest = 0;
+
 /**
  * Site Info tab state (Contacts plan Phase A): the pre-plans, hazards, alert notes and files of the
  * contacts linked to the call being viewed. One call at a time; the tab re-fetches after a step-up so
- * REDACTED values are replaced by the revealed ones.
+ * REDACTED values are replaced by the revealed ones, and after the grant expires so they go back.
  */
-export const useSiteInfoStore = create<SiteInfoState>((set, get) => ({
+export const useSiteInfoStore = create<SiteInfoState>((set) => ({
   callId: null,
   siteInfo: null,
   isLoading: false,
   error: null,
 
   fetchSiteInfo: async (callId: string) => {
-    set({ isLoading: true, error: null, callId });
+    const request = ++latestRequest;
+    // The previous answer is dropped, not kept on screen while loading: it may hold values revealed under a grant that
+    // no longer applies.
+    set({ isLoading: true, error: null, callId, siteInfo: null });
     try {
       const result = await getCallSiteInfo(callId);
-      if (get().callId !== callId) {
-        return; // stale response — a different call is being viewed now
+      if (request !== latestRequest) {
+        return;
       }
       set({ siteInfo: result.Data ?? null, isLoading: false });
     } catch (error) {
-      if (get().callId !== callId) {
+      if (request !== latestRequest) {
         return;
       }
       logger.error({
@@ -49,5 +56,8 @@ export const useSiteInfoStore = create<SiteInfoState>((set, get) => ({
     }
   },
 
-  reset: () => set({ callId: null, siteInfo: null, isLoading: false, error: null }),
+  reset: () => {
+    latestRequest++;
+    set({ callId: null, siteInfo: null, isLoading: false, error: null });
+  },
 }));

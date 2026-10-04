@@ -117,6 +117,45 @@ describe('useSiteInfoStore', () => {
     expect(useSiteInfoStore.getState().siteInfo?.CallId).toBe('43');
   });
 
+  it('drops the previous site info while a re-fetch loads, so values revealed under an old grant are not left on screen', async () => {
+    mockGetCallSiteInfo.mockResolvedValueOnce({ Data: makeSiteInfo('42') } as any);
+    mockGetCallSiteInfo.mockImplementationOnce(() => new Promise(() => undefined));
+    await useSiteInfoStore.getState().fetchSiteInfo('42');
+
+    void useSiteInfoStore.getState().fetchSiteInfo('42');
+
+    const state = useSiteInfoStore.getState();
+    expect(state.siteInfo).toBeNull();
+    expect(state.isLoading).toBe(true);
+  });
+
+  it('keeps the newest answer when an older one for the same call lands after it', async () => {
+    const first = deferred<any>();
+    mockGetCallSiteInfo.mockImplementationOnce(() => first.promise);
+    mockGetCallSiteInfo.mockResolvedValueOnce({ Data: { ...makeSiteInfo('42'), IsProtected: true } } as any);
+
+    const firstFetch = useSiteInfoStore.getState().fetchSiteInfo('42');
+    await useSiteInfoStore.getState().fetchSiteInfo('42');
+
+    first.resolve({ Data: makeSiteInfo('42') });
+    await firstFetch;
+
+    expect(useSiteInfoStore.getState().siteInfo?.IsProtected).toBe(true);
+  });
+
+  it('ignores an answer still in flight after reset', async () => {
+    const pending = deferred<any>();
+    mockGetCallSiteInfo.mockImplementationOnce(() => pending.promise);
+
+    const request = useSiteInfoStore.getState().fetchSiteInfo('42');
+    useSiteInfoStore.getState().reset();
+    pending.resolve({ Data: makeSiteInfo('42') });
+    await request;
+
+    expect(useSiteInfoStore.getState().siteInfo).toBeNull();
+    expect(useSiteInfoStore.getState().callId).toBeNull();
+  });
+
   it('reset clears everything', async () => {
     mockGetCallSiteInfo.mockResolvedValue({ Data: makeSiteInfo('42') } as any);
     await useSiteInfoStore.getState().fetchSiteInfo('42');

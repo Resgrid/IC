@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import React from 'react';
 
@@ -6,6 +6,7 @@ import { getCallLocationHistory } from '@/api/calls/callLocationHistory';
 import { getContactCallHistory } from '@/api/contacts/contactCallHistory';
 import { type LocationHistoryData } from '@/models/v4/calls/locationHistoryResult';
 import { useLocationHistoryStore } from '@/stores/calls/location-history-store';
+import { dataProtectionStore } from '@/stores/data-protection/store';
 
 import { LocationHistoryPanel } from '../location-history-panel';
 
@@ -16,7 +17,7 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 
 jest.mock('@/stores/data-protection/store', () => {
   const { create } = jest.requireActual('zustand');
-  return { dataProtectionStore: create(() => ({ grantToken: null })) };
+  return { dataProtectionStore: create(() => ({ grantToken: null, stepUpExpiresAt: null })) };
 });
 
 const mockTrackEvent = jest.fn();
@@ -45,6 +46,13 @@ jest.mock('react-i18next', () => ({
 
 const mockCallHistory = getCallLocationHistory as jest.MockedFunction<typeof getCallLocationHistory>;
 const mockContactHistory = getContactCallHistory as jest.MockedFunction<typeof getContactCallHistory>;
+
+/** What the panel should show for a UTC timestamp: the device's local clock, not the UTC clock fields. */
+const localStamp = (utc: string) => {
+  const date = new Date(utc);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
 
 const baseHistory: LocationHistoryData = {
   AddressMatchingAvailable: true,
@@ -88,6 +96,11 @@ describe('LocationHistoryPanel', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     useLocationHistoryStore.setState({ entries: {} });
+    dataProtectionStore.setState({ grantToken: null, stepUpExpiresAt: null });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('lists previous calls with their match reasons and expands notes and closing notes', async () => {
@@ -148,6 +161,58 @@ describe('LocationHistoryPanel', () => {
 
     await waitFor(() => expect(screen.getByTestId('location-history-address-matching-off')).toBeTruthy());
     expect(screen.getByTestId('location-history-empty')).toBeTruthy();
+  });
+
+  it('shows UTC timestamps in local time, zone-less ones included, when the department-formatted time is absent', async () => {
+    const history: LocationHistoryData = {
+      ...baseHistory,
+      Calls: [{ ...baseHistory.Calls[0], LoggedOn: null, Notes: [{ CallNoteId: '1', FullName: 'Taylor Reed', Note: 'Gate code changed.', TimestampUtc: '2026-10-01T14:20:00' }] }],
+    };
+    mockCallHistory.mockResolvedValueOnce({ Data: history } as never);
+
+    render(<LocationHistoryPanel source={{ kind: 'call', id: '42' }} />);
+
+    await waitFor(() => expect(screen.getByText(localStamp('2026-10-01T14:14:09Z'))).toBeTruthy());
+    fireEvent.press(screen.getByTestId('location-history-notes-toggle-9012'));
+    expect(screen.getByText(`${localStamp('2026-10-01T14:20:00Z')} · Taylor Reed`)).toBeTruthy();
+  });
+
+  it('re-fetches when the protected-data grant expires, dropping the revealed history while it loads', async () => {
+    jest.useFakeTimers();
+    dataProtectionStore.setState({ grantToken: 'grant', stepUpExpiresAt: Date.now() + 60_000 });
+    mockCallHistory.mockResolvedValueOnce({ Data: baseHistory } as never).mockReturnValueOnce(new Promise(() => undefined));
+
+    const { unmount } = render(<LocationHistoryPanel source={{ kind: 'call', id: '42' }} />);
+    await waitFor(() => expect(screen.getByTestId('location-history-call-9012')).toBeTruthy());
+    expect(mockCallHistory).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      jest.advanceTimersByTime(59_000);
+    });
+    expect(mockCallHistory).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      jest.advanceTimersByTime(2_000);
+    });
+    expect(mockCallHistory).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId('location-history-call-9012')).toBeNull();
+    expect(screen.getByTestId('location-history-loading')).toBeTruthy();
+    unmount();
+  });
+
+  it('does not schedule an expiry re-fetch for a grant that had already lapsed', async () => {
+    jest.useFakeTimers();
+    dataProtectionStore.setState({ grantToken: 'grant', stepUpExpiresAt: Date.now() - 1 });
+    mockCallHistory.mockResolvedValueOnce({ Data: baseHistory } as never);
+
+    const { unmount } = render(<LocationHistoryPanel source={{ kind: 'call', id: '42' }} />);
+    await waitFor(() => expect(screen.getByTestId('location-history-call-9012')).toBeTruthy());
+
+    act(() => {
+      jest.advanceTimersByTime(10_000);
+    });
+    expect(mockCallHistory).toHaveBeenCalledTimes(1);
+    unmount();
   });
 
   it('shows the load error when the request fails', async () => {

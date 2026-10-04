@@ -278,6 +278,35 @@ describe('browser', () => {
     expect(mockFirebaseDeleteToken).toHaveBeenCalledTimes(1);
   });
 
+  it('waits for a registration still in progress at sign-out, then takes that one off the server', async () => {
+    permission = 'granted';
+    let finishRegister!: () => void;
+    mockRegisterDevice.mockImplementationOnce(() => new Promise((resolve) => (finishRegister = () => resolve({}))));
+    const { push, hooks } = load();
+
+    const sync = push.syncWebPush();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(mockRegisterDevice).toHaveBeenCalledTimes(1);
+
+    const signOut = hooks.runSignOutHooks('access-token');
+    finishRegister();
+    await Promise.all([sync, signOut]);
+
+    expect(globals.fetch).toHaveBeenCalledWith('https://api.test/api/v4/Devices/UnRegisterWebPush', expect.objectContaining({ body: JSON.stringify({ Token: 'browser-token', Prefix: 'DEPT', Source: 'IC' }) }));
+    expect(mockFirebaseDeleteToken).toHaveBeenCalledTimes(1);
+    expect(push.pushNotificationService.getPushToken()).toBeNull();
+  });
+
+  it('registers nothing, without throwing, in a browser that has no Notification at all', async () => {
+    delete globals.Notification;
+    const { push } = load();
+
+    await expect(push.syncWebPush()).resolves.toBeUndefined();
+
+    expect(mockFirebaseGetToken).not.toHaveBeenCalled();
+    expect(mockRegisterDevice).not.toHaveBeenCalled();
+  });
+
 });
 
 describe('desktop', () => {

@@ -12,11 +12,11 @@ import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { useAnalytics } from '@/hooks/use-analytics';
+import { useProtectedGrantRefresh } from '@/hooks/use-protected-grant-refresh';
 import { ProtectedFieldIds } from '@/lib/data-protection/redacted';
-import { formatDateForDisplay, parseDateISOString } from '@/lib/utils';
+import { formatDateForDisplay, parseUtcMs } from '@/lib/utils';
 import { type LocationHistoryCallData, type LocationHistoryMatch } from '@/models/v4/calls/locationHistoryResult';
 import { locationHistoryKey, type LocationHistorySource, useLocationHistoryStore } from '@/stores/calls/location-history-store';
-import { dataProtectionStore } from '@/stores/data-protection/store';
 
 interface LocationHistoryPanelProps {
   source: LocationHistorySource;
@@ -31,15 +31,10 @@ const MATCH_STYLES: Record<LocationHistoryMatch, { box: string; text: string; ke
   SameContact: { box: 'bg-green-100 dark:bg-green-900/40', text: 'text-green-800 dark:text-green-200', key: 'location_history.match.same_contact' },
 };
 
-const formatTimestamp = (value?: string | null): string => {
-  if (!value) {
-    return '';
-  }
-  try {
-    return formatDateForDisplay(parseDateISOString(value), 'yyyy-MM-dd HH:mm');
-  } catch {
-    return '';
-  }
+/** A server UTC timestamp (zone-less ones included) in the device's local time. */
+const formatUtcTimestamp = (value?: string | null): string => {
+  const ms = parseUtcMs(value);
+  return ms == null ? '' : formatDateForDisplay(new Date(ms), 'yyyy-MM-dd HH:mm');
 };
 
 interface HistoryCallCardProps {
@@ -51,11 +46,13 @@ const HistoryCallCard: React.FC<HistoryCallCardProps> = ({ call, onOpenCall }) =
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const hasNotes = call.Notes.length > 0 || !!call.CompletedNotes;
-  const loggedOn = call.LoggedOn || formatTimestamp(call.LoggedOnUtc);
+  const loggedOn = call.LoggedOn || formatUtcTimestamp(call.LoggedOnUtc);
+  const handleOpen = useCallback(() => onOpenCall(call.CallId), [onOpenCall, call.CallId]);
+  const toggleNotes = useCallback(() => setExpanded((value) => !value), []);
 
   return (
     <Box className="mb-3 rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900" testID={`location-history-call-${call.CallId}`}>
-      <Pressable onPress={() => onOpenCall(call.CallId)} className="p-3" testID={`location-history-open-${call.CallId}`}>
+      <Pressable onPress={handleOpen} className="p-3" testID={`location-history-open-${call.CallId}`}>
         <HStack space="sm" className="items-start">
           <VStack className="flex-1">
             <HStack space="xs" className="flex-wrap items-center">
@@ -97,7 +94,7 @@ const HistoryCallCard: React.FC<HistoryCallCardProps> = ({ call, onOpenCall }) =
 
       {hasNotes ? (
         <Box className="border-t border-gray-100 dark:border-gray-800">
-          <Pressable onPress={() => setExpanded((value) => !value)} className="px-3 py-2" testID={`location-history-notes-toggle-${call.CallId}`}>
+          <Pressable onPress={toggleNotes} className="px-3 py-2" testID={`location-history-notes-toggle-${call.CallId}`}>
             <HStack space="xs" className="items-center">
               {expanded ? <ChevronUpIcon size={16} color="#6366F1" /> : <ChevronDownIcon size={16} color="#6366F1" />}
               <Text className="text-sm text-primary-600 dark:text-primary-400">{expanded ? t('location_history.hide_notes') : t('location_history.show_notes', { count: call.Notes.length })}</Text>
@@ -114,7 +111,7 @@ const HistoryCallCard: React.FC<HistoryCallCardProps> = ({ call, onOpenCall }) =
               {call.Notes.map((note) => (
                 <Box key={note.CallNoteId} className="rounded-md bg-gray-50 p-2 dark:bg-gray-800">
                   <Text className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatTimestamp(note.TimestampUtc)} · {note.FullName || t('location_history.unknown_user')}
+                    {formatUtcTimestamp(note.TimestampUtc)} · {note.FullName || t('location_history.unknown_user')}
                   </Text>
                   <ProtectedText value={note.Note} fieldId={ProtectedFieldIds.callNote} size="sm" className="text-sm text-gray-800 dark:text-gray-200" />
                 </Box>
@@ -131,7 +128,8 @@ const HistoryCallCard: React.FC<HistoryCallCardProps> = ({ call, onOpenCall }) =
  * Previous calls at a location: on the call detail screen, other calls at the same address (however it was typed), nearby
  * calls without a street address and calls with the same contacts; on the contact sheet, calls linked to the contact and
  * calls at every occupancy it is linked to. Newest first, with notes and closing notes so a crew sees what happened before.
- * Re-fetches when the Protected Data Grant changes so a step-up replaces REDACTED values.
+ * Re-fetches when the Protected Data Grant changes so a step-up replaces REDACTED values, and when it expires so revealed
+ * values go back to REDACTED.
  */
 export const LocationHistoryPanel: React.FC<LocationHistoryPanelProps> = ({ source, onOpenCall }) => {
   const { t } = useTranslation();
@@ -140,7 +138,6 @@ export const LocationHistoryPanel: React.FC<LocationHistoryPanelProps> = ({ sour
   const entry = useLocationHistoryStore((state) => state.entries[key]);
   const fetchHistory = useLocationHistoryStore((state) => state.fetchHistory);
   const clear = useLocationHistoryStore((state) => state.clear);
-  const grantToken = dataProtectionStore((state) => state.grantToken);
   const { kind, id } = source;
 
   React.useEffect(() => {
@@ -152,15 +149,12 @@ export const LocationHistoryPanel: React.FC<LocationHistoryPanelProps> = ({ sour
     };
   }, [kind, id, fetchHistory, clear]);
 
-  const previousGrant = React.useRef(grantToken);
-  React.useEffect(() => {
-    if (previousGrant.current !== grantToken) {
-      previousGrant.current = grantToken;
-      if (id) {
-        fetchHistory({ kind, id });
-      }
+  const refreshForGrant = useCallback(() => {
+    if (id) {
+      fetchHistory({ kind, id });
     }
-  }, [grantToken, kind, id, fetchHistory]);
+  }, [kind, id, fetchHistory]);
+  useProtectedGrantRefresh(refreshForGrant);
 
   const history = entry?.history ?? null;
   React.useEffect(() => {

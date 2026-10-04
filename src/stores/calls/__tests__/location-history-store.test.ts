@@ -68,6 +68,21 @@ describe('useLocationHistoryStore', () => {
     expect(useLocationHistoryStore.getState().entries['call:42'].history?.Calls[0].CallId).toBe('new');
   });
 
+  it('drops the previous history while a re-fetch loads, so values revealed under an old grant are not left on screen', async () => {
+    mockCallHistory.mockResolvedValueOnce({ Data: history(['revealed']) } as never).mockReturnValueOnce(new Promise(() => undefined));
+
+    await act(async () => {
+      await useLocationHistoryStore.getState().fetchHistory({ kind: 'call', id: '42' });
+    });
+    expect(useLocationHistoryStore.getState().entries['call:42'].history?.Calls).toHaveLength(1);
+
+    act(() => {
+      void useLocationHistoryStore.getState().fetchHistory({ kind: 'call', id: '42' });
+    });
+
+    expect(useLocationHistoryStore.getState().entries['call:42']).toEqual({ history: null, isLoading: true, error: null });
+  });
+
   it('records an error and clears the history when the request fails', async () => {
     mockCallHistory.mockRejectedValueOnce(new Error('boom'));
 

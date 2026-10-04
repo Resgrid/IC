@@ -287,7 +287,8 @@ async function runSync(): Promise<void> {
   }
 
   const desktop = getDesktopBridge();
-  if (!desktop && Notification.permission !== 'granted') {
+  // Checked first: some browsers (iOS Safari outside an installed web app) have no Notification global at all.
+  if (!desktop && (!browserCanPush() || Notification.permission !== 'granted')) {
     notify();
     return;
   }
@@ -356,7 +357,7 @@ export function askForPermissionOnce(): void {
   document.addEventListener('click', ask, true);
 }
 
-registerSignOutHook(async (accessToken) => {
+async function signOut(accessToken: string | null): Promise<void> {
   const stored = readRegistration();
   writeRegistration(null);
 
@@ -379,6 +380,14 @@ registerSignOutHook(async (accessToken) => {
   }
 
   notify();
+}
+
+// Queued behind any sync in progress: one that finished after this read would leave a live token registered past
+// sign-out. runSignOutHooks still caps how long sign-out waits; past that the cleanup runs once the sync is done.
+registerSignOutHook((accessToken) => {
+  const run = syncQueue.then(() => signOut(accessToken));
+  syncQueue = run.catch(() => undefined);
+  return run;
 });
 
 // --- Incoming pushes ---

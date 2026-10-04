@@ -1,5 +1,5 @@
 import { BuildingIcon, LockIcon, MapPinIcon, PhoneIcon, ShieldAlertIcon, UserIcon } from 'lucide-react-native';
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Linking, ScrollView } from 'react-native';
 
@@ -13,10 +13,10 @@ import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { useAnalytics } from '@/hooks/use-analytics';
+import { useProtectedGrantRefresh } from '@/hooks/use-protected-grant-refresh';
 import { isRedactedValue } from '@/lib/data-protection/redacted';
 import { type CallSiteContactData } from '@/models/v4/calls/callSiteInfoResult';
 import { useSiteInfoStore } from '@/stores/calls/site-info-store';
-import { dataProtectionStore } from '@/stores/data-protection/store';
 
 interface CallSiteInfoTabPanelProps {
   callId: string;
@@ -96,7 +96,8 @@ const SiteContactCard: React.FC<SiteContactCardProps> = ({ site, callId }) => {
 /**
  * Site Info tab of the call detail screen (Contacts plan Phase A, decision 3d): every contact linked to
  * the call with its pre-plan, hazards, alert notes and files from one GetCallSiteInfo round trip.
- * Re-fetches whenever the Protected Data Grant changes so a step-up replaces REDACTED values.
+ * Re-fetches whenever the Protected Data Grant changes so a step-up replaces REDACTED values, and when it expires so revealed
+ * values go back to REDACTED.
  */
 export const CallSiteInfoTabPanel: React.FC<CallSiteInfoTabPanelProps> = ({ callId }) => {
   const { t } = useTranslation();
@@ -106,7 +107,6 @@ export const CallSiteInfoTabPanel: React.FC<CallSiteInfoTabPanelProps> = ({ call
   const error = useSiteInfoStore((state) => state.error);
   const fetchSiteInfo = useSiteInfoStore((state) => state.fetchSiteInfo);
   const reset = useSiteInfoStore((state) => state.reset);
-  const grantToken = dataProtectionStore((state) => state.grantToken);
 
   React.useEffect(() => {
     if (callId) {
@@ -117,15 +117,12 @@ export const CallSiteInfoTabPanel: React.FC<CallSiteInfoTabPanelProps> = ({ call
     };
   }, [callId, fetchSiteInfo, reset]);
 
-  const previousGrant = React.useRef(grantToken);
-  React.useEffect(() => {
-    if (previousGrant.current !== grantToken) {
-      previousGrant.current = grantToken;
-      if (callId) {
-        fetchSiteInfo(callId);
-      }
+  const refreshForGrant = useCallback(() => {
+    if (callId) {
+      fetchSiteInfo(callId);
     }
-  }, [grantToken, callId, fetchSiteInfo]);
+  }, [callId, fetchSiteInfo]);
+  useProtectedGrantRefresh(refreshForGrant);
 
   React.useEffect(() => {
     if (siteInfo) {

@@ -20,9 +20,24 @@ interface ContactPreplanState {
   reset: () => void;
 }
 
+// Only the newest request per contact may write. Panels force a re-fetch when the protected-data grant changes or expires,
+// so an answer from before that (revealed or REDACTED) must never land after the newer one. invalidate() and reset() drop
+// whatever is in flight.
+let latestPreplanRequests: Record<string, number> = {};
+let latestFilesRequests: Record<string, number> = {};
+let sequence = 0;
+
+const without = <T>(record: Record<string, T>, key: string): Record<string, T> => {
+  const copy = { ...record };
+  delete copy[key];
+  return copy;
+};
+
 /**
  * Pre-plan and site-file cache for the contact details sheet (Contacts plan Phase A). Cached per contact
- * for the life of the sheet; `force` re-fetches after a step-up so REDACTED values are replaced.
+ * for the life of the sheet; `force` re-fetches after a step-up or a grant expiry so REDACTED values are
+ * replaced (or put back). A forced re-fetch drops the cached answer rather than showing it while loading:
+ * it may hold values revealed under a grant that no longer applies.
  */
 export const useContactPreplanStore = create<ContactPreplanState>((set, get) => ({
   preplans: {},
@@ -35,14 +50,18 @@ export const useContactPreplanStore = create<ContactPreplanState>((set, get) => 
     if (!contactId) return;
     if (!force && Object.prototype.hasOwnProperty.call(get().preplans, contactId)) return;
 
-    set((state) => ({ loadingPreplan: { ...state.loadingPreplan, [contactId]: true }, error: null }));
+    const request = ++sequence;
+    latestPreplanRequests[contactId] = request;
+    set((state) => ({ preplans: without(state.preplans, contactId), loadingPreplan: { ...state.loadingPreplan, [contactId]: true }, error: null }));
     try {
       const result = await getContactPreplan(contactId);
+      if (latestPreplanRequests[contactId] !== request) return;
       set((state) => ({
         preplans: { ...state.preplans, [contactId]: result.Data ?? null },
         loadingPreplan: { ...state.loadingPreplan, [contactId]: false },
       }));
     } catch (error) {
+      if (latestPreplanRequests[contactId] !== request) return;
       logger.error({ message: 'Failed to fetch contact pre-plan', context: { error, contactId } });
       set((state) => ({
         loadingPreplan: { ...state.loadingPreplan, [contactId]: false },
@@ -55,14 +74,18 @@ export const useContactPreplanStore = create<ContactPreplanState>((set, get) => 
     if (!contactId) return;
     if (!force && Object.prototype.hasOwnProperty.call(get().files, contactId)) return;
 
-    set((state) => ({ loadingFiles: { ...state.loadingFiles, [contactId]: true }, error: null }));
+    const request = ++sequence;
+    latestFilesRequests[contactId] = request;
+    set((state) => ({ files: without(state.files, contactId), loadingFiles: { ...state.loadingFiles, [contactId]: true }, error: null }));
     try {
       const result = await getContactFiles(contactId, false);
+      if (latestFilesRequests[contactId] !== request) return;
       set((state) => ({
         files: { ...state.files, [contactId]: result.Data ?? [] },
         loadingFiles: { ...state.loadingFiles, [contactId]: false },
       }));
     } catch (error) {
+      if (latestFilesRequests[contactId] !== request) return;
       logger.error({ message: 'Failed to fetch contact files', context: { error, contactId } });
       set((state) => ({
         loadingFiles: { ...state.loadingFiles, [contactId]: false },
@@ -71,14 +94,20 @@ export const useContactPreplanStore = create<ContactPreplanState>((set, get) => 
     }
   },
 
-  invalidate: (contactId: string) =>
-    set((state) => {
-      const preplans = { ...state.preplans };
-      const files = { ...state.files };
-      delete preplans[contactId];
-      delete files[contactId];
-      return { preplans, files };
-    }),
+  invalidate: (contactId: string) => {
+    latestPreplanRequests[contactId] = ++sequence;
+    latestFilesRequests[contactId] = sequence;
+    set((state) => ({
+      preplans: without(state.preplans, contactId),
+      files: without(state.files, contactId),
+      loadingPreplan: { ...state.loadingPreplan, [contactId]: false },
+      loadingFiles: { ...state.loadingFiles, [contactId]: false },
+    }));
+  },
 
-  reset: () => set({ preplans: {}, files: {}, loadingPreplan: {}, loadingFiles: {}, error: null }),
+  reset: () => {
+    latestPreplanRequests = {};
+    latestFilesRequests = {};
+    set({ preplans: {}, files: {}, loadingPreplan: {}, loadingFiles: {}, error: null });
+  },
 }));
