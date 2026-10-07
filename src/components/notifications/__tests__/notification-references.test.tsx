@@ -48,6 +48,15 @@ describe('inbox chat references', () => {
     }
   });
 
+  it('opens the call from a closed-call notice (NC:{callId}) and ignores ids that could steer the router', () => {
+    for (const eventCode of ['NC:1234', 'nc:1234']) {
+      expect(toNotificationPayload(item({ eventCode }))).toEqual(expect.objectContaining({ referenceType: 'call', referenceId: '1234' }));
+    }
+    expect(toNotificationPayload(item({ eventCode: 'NC:../chat/9' })).referenceType).toBeUndefined();
+    // An explicit reference still wins over the event code
+    expect(toNotificationPayload(item({ eventCode: 'NC:1234', referenceType: 'call', referenceId: '5678' })).referenceId).toBe('5678');
+  });
+
   it('keeps call codes and ignores chat ids that could steer the router', () => {
     expect(toNotificationPayload(item({ eventCode: 'C1234' }))).toEqual(expect.objectContaining({ referenceType: 'call', referenceId: '1234' }));
     expect(toNotificationPayload(item({ eventCode: 'g:../call/9' })).referenceType).toBeUndefined();

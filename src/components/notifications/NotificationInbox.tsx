@@ -48,9 +48,13 @@ export const toNotificationPayload = (item: NovuNotification): NotificationPaylo
       referenceId = referenceId ?? eventId ?? eventCode.slice(1);
     } else {
       // Same rule as the push modal's "View chat": a chat code with an id that cannot steer the router.
-      // A generic notification (N{id}) is title and body only — it gets no reference to open.
+      // A closed-call notice (NC:{callId}) still opens its call; a generic notification (N{id}) is title
+      // and body only — it gets no reference to open.
       const parsed = parseNotificationData({ eventCode });
-      if ((parsed.type === 'chat' || parsed.type === 'group-chat') && isSafeRouteId(parsed.id)) {
+      if (parsed.type === 'call' && isSafeRouteId(parsed.id)) {
+        referenceType = 'call';
+        referenceId = parsed.id;
+      } else if ((parsed.type === 'chat' || parsed.type === 'group-chat') && isSafeRouteId(parsed.id)) {
         referenceType = 'chat';
         referenceId = parsed.id;
       }

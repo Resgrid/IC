@@ -273,8 +273,8 @@ describe('Command Store (server-backed)', () => {
       expect(mockAddEvent).not.toHaveBeenCalled();
     });
 
-    it('skips the call close when the server does not close the command', async () => {
-      mockCloseCommand.mockRejectedValue(axiosFailure({ status: 500 }));
+    it('skips the call close when the server refuses to close the command', async () => {
+      mockCloseCommand.mockRejectedValue(axiosFailure({ status: 403 }));
 
       let result;
       await act(async () => {
@@ -286,6 +286,22 @@ describe('Command Store (server-backed)', () => {
       // The command close is still retried from the queue, as before; nothing queues the call close.
       expect(mockAddEvent).toHaveBeenCalledTimes(1);
       expect(mockAddEvent).toHaveBeenCalledWith('close_command', { callId: '101', incidentCommandId: 'cmd-101' });
+    });
+
+    it('queues the call close behind a command close retried after a server error', async () => {
+      mockCloseCommand.mockRejectedValue(axiosFailure({ status: 500 }));
+
+      let result;
+      await act(async () => {
+        result = await useCommandStore.getState().endCommand('101', closeCallOptions);
+      });
+
+      expect(result).toEqual({ command: 'failed', call: 'queued' });
+      expect(mockCloseCall).not.toHaveBeenCalled();
+      expect(mockAddEvent.mock.calls).toEqual([
+        ['close_command', { callId: '101', incidentCommandId: 'cmd-101' }],
+        ['close_call', { callId: '101', type: 3, notes: 'Nothing found', sendNotification: true }],
+      ]);
     });
 
     it('reports the server reason when the call close is refused, keeping the command closed', async () => {
@@ -343,6 +359,19 @@ describe('Command Store (server-backed)', () => {
 
       expect(result).toEqual({ command: 'closed', call: 'queued' });
       expect(mockAddEvent).toHaveBeenCalledWith('close_call', { callId: '101', type: 1, notes: '', sendNotification: false });
+    });
+
+    it.each([408, 429, 503])('queues the call close for retry when it fails with a retryable %i after the command closed', async (status) => {
+      mockCloseCall.mockRejectedValue(axiosFailure({ status }));
+
+      let result;
+      await act(async () => {
+        result = await useCommandStore.getState().endCommand('101', closeCallOptions);
+      });
+
+      expect(result).toEqual({ command: 'closed', call: 'queued' });
+      expect(mockAddEvent).toHaveBeenCalledTimes(1);
+      expect(mockAddEvent).toHaveBeenCalledWith('close_call', { callId: '101', type: 3, notes: 'Nothing found', sendNotification: true });
     });
   });
 

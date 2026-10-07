@@ -1,4 +1,4 @@
-import { CALL_CLOSE_TYPES, DEFAULT_CALL_CLOSE_TYPE, getCallCloseErrorMessage, isCallCloseRejection, isNetworkFailure } from '@/lib/call-close';
+import { CALL_CLOSE_TYPES, DEFAULT_CALL_CLOSE_TYPE, getCallCloseErrorMessage, isCallCloseRejection, isNetworkFailure, isServerRejection } from '@/lib/call-close';
 
 const axiosError = (response?: { status: number; data?: unknown }) => Object.assign(new Error(response ? `Request failed with status code ${response.status}` : 'Network Error'), { isAxiosError: true, response });
 
@@ -34,6 +34,9 @@ describe('call close helpers', () => {
     expect(isCallCloseRejection(axiosError({ status: 429 }))).toBe(false);
     expect(isCallCloseRejection(axiosError({ status: 503 }))).toBe(false);
     expect(isCallCloseRejection(axiosError())).toBe(false);
+    expect(isServerRejection(new Error('boom'))).toBe(false);
+    // The command close in End Command is judged by the same rule
+    expect(isCallCloseRejection).toBe(isServerRejection);
 
     expect(isNetworkFailure(axiosError())).toBe(true);
     expect(isNetworkFailure(axiosError({ status: 400 }))).toBe(false);

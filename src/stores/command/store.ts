@@ -43,7 +43,7 @@ import { assignIncidentRole, removeIncidentRole } from '@/api/incidentCommand/in
 import { closeIncidentChannels, createIncidentChannel, getChannelsForCall, getTransmissionLog, logTransmission } from '@/api/incidentCommand/incidentVoice';
 import { getSyncBundle } from '@/api/incidentCommand/sync';
 import { type LaneLimits } from '@/components/command/add-lane-sheet';
-import { getCallCloseErrorMessage, isNetworkFailure } from '@/lib/call-close';
+import { getCallCloseErrorMessage, isCallCloseRejection, isNetworkFailure, isServerRejection } from '@/lib/call-close';
 import { logger } from '@/lib/logging';
 import { zustandStorage } from '@/lib/storage';
 import { uuidv4 } from '@/lib/utils';
@@ -100,9 +100,9 @@ export interface EndCommandResult {
    */
   command: 'closed' | 'queued' | 'failed';
   /**
-   * not_requested: the call was left alone; closed: closed on the server; queued: replayed after the
-   * command close once the connection returns; skipped: not attempted because the command close failed;
-   * failed: the server refused it (callError carries its reason when it gave one).
+   * not_requested: the call was left alone; closed: closed on the server; queued: replayed from the offline
+   * queue (behind the command close when that was queued too); skipped: not attempted because the server
+   * refused the command close; failed: the server refused it (callError carries its reason when it gave one).
    */
   call: 'not_requested' | 'closed' | 'queued' | 'skipped' | 'failed';
   callError?: string | null;
@@ -323,17 +323,42 @@ const fetchNeedListSafe = async <T>(label: string, incidentNeedId: string, loade
 };
 
 /**
- * The "also close the call" half of End Command, run after the command close: never when the command close
- * failed (the server refuses to close a call whose incident command is still active), queued behind the
- * CLOSE_COMMAND when that was queued, otherwise sent now — and queued if it gets no answer.
+ * The command half of End Command. A close that did not go through is queued for retry either way: no answer
+ * at all is the offline case (queued); an answer means the server did not close it (failed), and `refused` marks
+ * an answer its retry will get again.
  */
-const closeCallAfterCommand = async (callId: string, command: EndCommandResult['command'], closeCallOptions: EndCommandCloseCall): Promise<EndCommandResult> => {
-  if (command === 'failed') {
+const closeCommandForEnd = async (callId: string, incidentCommandId: string): Promise<{ command: EndCommandResult['command']; refused: boolean }> => {
+  if (isOffline()) {
+    queueEvent(QueuedEventType.CLOSE_COMMAND, { callId, incidentCommandId });
+    return { command: 'queued', refused: false };
+  }
+
+  try {
+    await closeCommand(incidentCommandId);
+    return { command: 'closed', refused: false };
+  } catch (error) {
+    logger.warn({
+      message: 'CloseCommand failed — queueing for retry',
+      context: { error, callId, incidentCommandId },
+    });
+    queueEvent(QueuedEventType.CLOSE_COMMAND, { callId, incidentCommandId });
+    return { command: isNetworkFailure(error) ? 'queued' : 'failed', refused: isServerRejection(error) };
+  }
+};
+
+/**
+ * The "also close the call" half of End Command, run after the command close: never when the server refused
+ * the command close outright (it refuses to close a call whose incident command is still active, and the
+ * retried command close gets the same refusal); queued behind the CLOSE_COMMAND when that was queued — offline,
+ * or retrying after a server error; otherwise sent now, and queued unless the server refuses it.
+ */
+const closeCallAfterCommand = async (callId: string, command: EndCommandResult['command'], commandRefused: boolean, closeCallOptions: EndCommandCloseCall): Promise<EndCommandResult> => {
+  if (commandRefused) {
     return { command, call: 'skipped' };
   }
 
   const closeCallEvent = { callId, type: closeCallOptions.type, notes: closeCallOptions.notes ?? '', sendNotification: closeCallOptions.sendNotification };
-  if (command === 'queued' || isOffline()) {
+  if (command !== 'closed' || isOffline()) {
     // Queued after the CLOSE_COMMAND; the replay holds it until that command close has run.
     queueEvent(QueuedEventType.CLOSE_CALL, closeCallEvent);
     return { command, call: 'queued' };
@@ -343,13 +368,14 @@ const closeCallAfterCommand = async (callId: string, command: EndCommandResult['
     await closeCall({ callId, type: closeCallEvent.type, note: closeCallEvent.notes, sendNotification: closeCallEvent.sendNotification });
     return { command, call: 'closed' };
   } catch (error) {
-    if (isNetworkFailure(error)) {
-      logger.warn({ message: 'CloseCall after ending the command got no answer — queueing for retry', context: { error, callId } });
-      queueEvent(QueuedEventType.CLOSE_CALL, closeCallEvent);
-      return { command, call: 'queued' };
+    if (isCallCloseRejection(error)) {
+      logger.warn({ message: 'CloseCall after ending the command was refused', context: { error, callId } });
+      return { command, call: 'failed', callError: getCallCloseErrorMessage(error) };
     }
-    logger.warn({ message: 'CloseCall after ending the command was refused', context: { error, callId } });
-    return { command, call: 'failed', callError: getCallCloseErrorMessage(error) };
+    // No answer, a timeout, a rate limit or a server error: sending it again may still work.
+    logger.warn({ message: 'CloseCall after ending the command did not go through — queueing for retry', context: { error, callId } });
+    queueEvent(QueuedEventType.CLOSE_CALL, closeCallEvent);
+    return { command, call: 'queued' };
   }
 };
 
@@ -415,26 +441,7 @@ export const useCommandStore = create<CommandState>()(
         const entry = get().boards[callId];
         const incidentCommandId = entry?.board?.Command?.IncidentCommandId;
         // A provisional board that never reached the server just gets dropped locally.
-        let command: EndCommandResult['command'] = 'closed';
-
-        if (incidentCommandId && !entry?.isProvisional) {
-          if (isOffline()) {
-            queueEvent(QueuedEventType.CLOSE_COMMAND, { callId, incidentCommandId });
-            command = 'queued';
-          } else {
-            try {
-              await closeCommand(incidentCommandId);
-            } catch (error) {
-              logger.warn({
-                message: 'CloseCommand failed — queueing for retry',
-                context: { error, callId, incidentCommandId },
-              });
-              queueEvent(QueuedEventType.CLOSE_COMMAND, { callId, incidentCommandId });
-              // No answer at all is the offline case; an answer means the server did not close it.
-              command = isNetworkFailure(error) ? 'queued' : 'failed';
-            }
-          }
-        }
+        const { command, refused } = incidentCommandId && !entry?.isProvisional ? await closeCommandForEnd(callId, incidentCommandId) : { command: 'closed' as const, refused: false };
 
         const boards = { ...get().boards };
         delete boards[callId];
@@ -444,7 +451,7 @@ export const useCommandStore = create<CommandState>()(
         set({ boards, activeCallId: nextActive });
         await useCoreStore.getState().setActiveCall(nextActive);
 
-        return options?.closeCall ? closeCallAfterCommand(callId, command, options.closeCall) : { command, call: 'not_requested' };
+        return options?.closeCall ? closeCallAfterCommand(callId, command, refused, options.closeCall) : { command, call: 'not_requested' };
       },
 
       refreshBoard: async (callId: string) => {

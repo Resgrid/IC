@@ -486,7 +486,7 @@
     "channel_preset_tactical": "Taktik",
     "chat_load_failed": "Couldn't load this incident's chat channels. Tap again to retry.",
     "close_call_failed": "Die Einsatzleitung wurde beendet, der Anruf konnte jedoch nicht geschlossen werden.",
-    "close_call_queued": "Der Anruf wird geschlossen, sobald die Verbindung wieder besteht.",
+    "close_call_queued": "Das Schließen des Anrufs ist in der Warteschlange und wird automatisch gesendet.",
     "close_call_skipped": "Der Anruf bleibt offen, weil die Einsatzleitung nicht beendet wurde.",
     "close_channels": "Alle schließen",
     "command_chat": "Command chat",

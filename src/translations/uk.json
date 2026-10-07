@@ -486,7 +486,7 @@
     "channel_preset_tactical": "Тактичний",
     "chat_load_failed": "Couldn't load this incident's chat channels. Tap again to retry.",
     "close_call_failed": "Командування завершено, але виклик закрити не вдалося.",
-    "close_call_queued": "Виклик буде закрито, коли з'єднання відновиться.",
+    "close_call_queued": "Закриття виклику поставлено в чергу, його буде надіслано автоматично.",
     "close_call_skipped": "Виклик залишено відкритим, бо командування не завершено.",
     "close_channels": "Закрити всі",
     "command_chat": "Command chat",

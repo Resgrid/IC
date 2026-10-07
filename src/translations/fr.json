@@ -486,7 +486,7 @@
     "channel_preset_tactical": "Tactique",
     "chat_load_failed": "Couldn't load this incident's chat channels. Tap again to retry.",
     "close_call_failed": "Le commandement est terminé, mais l'appel n'a pas pu être clôturé.",
-    "close_call_queued": "L'appel sera clôturé au retour de la connexion.",
+    "close_call_queued": "La clôture de l'appel est en file d'attente et sera envoyée automatiquement.",
     "close_call_skipped": "L'appel reste ouvert car le commandement n'a pas été clôturé.",
     "close_channels": "Tout fermer",
     "command_chat": "Command chat",

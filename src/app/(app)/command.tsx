@@ -302,6 +302,7 @@ export default function CommandBoard() {
   const handleOpenCommandDetails = useCallback(() => setIsCommandDetailsOpen(true), []);
   const handleOpenTransfer = useCallback(() => setIsTransferSheetOpen(true), []);
   const handleOpenEndConfirm = useCallback(() => setIsEndConfirmOpen(true), []);
+  const handleCloseEndConfirm = useCallback(() => setIsEndConfirmOpen(false), []);
 
   /** One toast per outcome: the command close, then (when asked for) the call close that follows it. */
   const reportEndCommand = useCallback(
@@ -340,7 +341,7 @@ export default function CommandBoard() {
       if (!activeBoardCallId) {
         return;
       }
-      // The call close, when asked for, runs inside endCommand after the command close succeeds.
+      // The call close, when asked for, runs inside endCommand after the command close (or is queued behind it).
       const result = closeCall ? await endCommand(activeBoardCallId, { closeCall }) : await endCommand(activeBoardCallId);
       if (result) {
         reportEndCommand(result);
@@ -1142,7 +1143,7 @@ export default function CommandBoard() {
 
       {/* End-command confirmation — ending closes the command server-side and drops the local board;
           a member who can close calls may close the call in the same step */}
-      <EndCommandDialog isOpen={isEndConfirmOpen} onClose={() => setIsEndConfirmOpen(false)} canCloseCall={canCloseCall} onConfirm={(closeCall) => void handleEndCommand(closeCall)} />
+      <EndCommandDialog isOpen={isEndConfirmOpen} onClose={handleCloseEndConfirm} canCloseCall={canCloseCall} onConfirm={handleEndCommand} />
 
       {/* "Already assigned to another lane" confirmation */}
       <AlertDialog isOpen={moveConflict !== null} onClose={() => setMoveConflict(null)}>

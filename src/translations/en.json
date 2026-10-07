@@ -486,7 +486,7 @@
     "channel_preset_tactical": "Tactical",
     "chat_load_failed": "Couldn't load this incident's chat channels. Tap again to retry.",
     "close_call_failed": "The command was ended, but the call could not be closed.",
-    "close_call_queued": "The call will be closed when the connection returns.",
+    "close_call_queued": "The call close is queued and will be sent automatically.",
     "close_call_skipped": "The call was left open because the command did not close.",
     "close_channels": "Close All",
     "command_chat": "Command chat",

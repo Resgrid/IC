@@ -486,7 +486,7 @@
     "channel_preset_tactical": "تكتيكي",
     "chat_load_failed": "Couldn't load this incident's chat channels. Tap again to retry.",
     "close_call_failed": "انتهت القيادة، لكن تعذّر إغلاق المكالمة.",
-    "close_call_queued": "ستُغلق المكالمة عند عودة الاتصال.",
+    "close_call_queued": "تمت إضافة إغلاق المكالمة إلى قائمة الانتظار وسيُرسل تلقائيًا.",
     "close_call_skipped": "تُركت المكالمة مفتوحة لأن القيادة لم تُغلق.",
     "close_channels": "إغلاق الكل",
     "command_chat": "Command chat",

@@ -486,7 +486,7 @@
     "channel_preset_tactical": "Taktisk",
     "chat_load_failed": "Couldn't load this incident's chat channels. Tap again to retry.",
     "close_call_failed": "Ledningen avslutades, men samtalet kunde inte stängas.",
-    "close_call_queued": "Samtalet stängs när anslutningen är tillbaka.",
+    "close_call_queued": "Stängningen av samtalet ligger i kö och skickas automatiskt.",
     "close_call_skipped": "Samtalet lämnades öppet eftersom ledningen inte avslutades.",
     "close_channels": "Stäng alla",
     "command_chat": "Command chat",

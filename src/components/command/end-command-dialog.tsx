@@ -21,6 +21,25 @@ interface EndCommandDialogProps {
   onConfirm: (closeCall: EndCommandCloseCall | null) => void;
 }
 
+interface CloseTypeOptionProps {
+  value: number;
+  label: string;
+  isSelected: boolean;
+  onSelect: (value: number) => void;
+}
+
+const CloseTypeOption: React.FC<CloseTypeOptionProps> = React.memo(({ value, label, isSelected, onSelect }) => {
+  const handlePress = useCallback(() => onSelect(value), [onSelect, value]);
+
+  return (
+    <Button size="xs" variant={isSelected ? 'solid' : 'outline'} className="mb-1" onPress={handlePress} accessibilityState={{ selected: isSelected }} testID={`end-command-close-type-${value}`}>
+      <ButtonText>{label}</ButtonText>
+    </Button>
+  );
+});
+
+CloseTypeOption.displayName = 'CloseTypeOption';
+
 /**
  * End-command confirmation. Ending closes the command server-side and drops the local board; a member who
  * can close calls may also close the call in the same step (close type, note, and whether to notify
@@ -76,17 +95,7 @@ export const EndCommandDialog: React.FC<EndCommandDialogProps> = ({ isOpen, onCl
                   <Text className="text-sm font-medium text-gray-600 dark:text-gray-300">{t('call_detail.close_call_type')}</Text>
                   <HStack space="xs" className="flex-wrap">
                     {CALL_CLOSE_TYPES.map((option) => (
-                      <Button
-                        key={option.value}
-                        size="xs"
-                        variant={closeType === option.value ? 'solid' : 'outline'}
-                        className="mb-1"
-                        onPress={() => setCloseType(option.value)}
-                        accessibilityState={{ selected: closeType === option.value }}
-                        testID={`end-command-close-type-${option.value}`}
-                      >
-                        <ButtonText>{t(option.labelKey)}</ButtonText>
-                      </Button>
+                      <CloseTypeOption key={option.value} value={option.value} label={t(option.labelKey)} isSelected={closeType === option.value} onSelect={setCloseType} />
                     ))}
                   </HStack>
                 </VStack>

@@ -514,7 +514,7 @@ describe('PushNotificationModal', () => {
         body: 'Your shift starts in 30 minutes',
       },
     };
-    (usePushNotificationModalStore as unknown as jest.Mock).mockImplementation((selector: any) => (typeof selector === 'function' ? selector(state) : state));
+    (usePushNotificationModalStore as unknown as jest.Mock).mockImplementation((selector?: (storeState: typeof state) => unknown) => (typeof selector === 'function' ? selector(state) : state));
 
     render(<PushNotificationModal />);
 

@@ -24,13 +24,16 @@ const MAX_SERVER_MESSAGE_LENGTH = 500;
 export const isNetworkFailure = (error: unknown): boolean => isAxiosError(error) && !error.response;
 
 /**
- * The server answered a call close with a refusal that sending it again cannot change: a 4xx other than a
- * timeout or rate limit, e.g. 400 "This call has an active incident command".
+ * The server answered with a refusal that sending the same request again cannot change: a 4xx other than a
+ * timeout or rate limit. No answer, a timeout, a rate limit or a 5xx may still go through on a retry.
  */
-export const isCallCloseRejection = (error: unknown): boolean => {
+export const isServerRejection = (error: unknown): boolean => {
   const status = isAxiosError(error) ? error.response?.status : undefined;
   return typeof status === 'number' && status >= 400 && status < 500 && status !== 408 && status !== 429;
 };
+
+/** A call close the server refused for good, e.g. 400 "This call has an active incident command". */
+export const isCallCloseRejection = isServerRejection;
 
 /**
  * The reason the server gave for refusing a call close, when it gave one. The v4 controller answers a refused

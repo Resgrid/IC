@@ -486,7 +486,7 @@
     "channel_preset_tactical": "Taktyczny",
     "chat_load_failed": "Couldn't load this incident's chat channels. Tap again to retry.",
     "close_call_failed": "Dowodzenie zostało zakończone, ale nie udało się zamknąć zgłoszenia.",
-    "close_call_queued": "Zgłoszenie zostanie zamknięte po przywróceniu połączenia.",
+    "close_call_queued": "Zamknięcie zgłoszenia zostało dodane do kolejki i zostanie wysłane automatycznie.",
     "close_call_skipped": "Zgłoszenie pozostało otwarte, ponieważ dowodzenie nie zostało zakończone.",
     "close_channels": "Zamknij wszystkie",
     "command_chat": "Command chat",
