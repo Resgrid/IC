@@ -9,11 +9,13 @@ import { FormControl, FormControlLabel, FormControlLabelText } from '@/component
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Select, SelectBackdrop, SelectContent, SelectIcon, SelectInput, SelectItem, SelectPortal, SelectTrigger } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Text } from '@/components/ui/text';
 import { Textarea, TextareaInput } from '@/components/ui/textarea';
 import { VStack } from '@/components/ui/vstack';
 import { useAnalytics } from '@/hooks/use-analytics';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
+import { CALL_CLOSE_TYPES, getCallCloseErrorMessage } from '@/lib/call-close';
 import { useCallDetailStore } from '@/stores/calls/detail-store';
 import { useCallsStore } from '@/stores/calls/store';
 import { useToastStore } from '@/stores/toast/store';
@@ -35,6 +37,8 @@ export const CloseCallBottomSheet: React.FC<CloseCallBottomSheetProps> = ({ isOp
   const fetchCalls = useCallsStore((state) => state.fetchCalls);
   const [closeCallType, setCloseCallType] = useState('');
   const [closeCallNote, setCloseCallNote] = useState('');
+  // Alert everyone on the call (personnel, groups, roles, units, command team) that it closed — on by default.
+  const [sendNotification, setSendNotification] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Track when close call bottom sheet is opened/rendered
@@ -50,6 +54,7 @@ export const CloseCallBottomSheet: React.FC<CloseCallBottomSheetProps> = ({ isOp
   const handleClose = React.useCallback(() => {
     setCloseCallType('');
     setCloseCallNote('');
+    setSendNotification(true);
     onClose();
   }, [onClose]);
 
@@ -66,6 +71,7 @@ export const CloseCallBottomSheet: React.FC<CloseCallBottomSheetProps> = ({ isOp
         callId,
         type: parseInt(closeCallType),
         note: closeCallNote,
+        sendNotification,
       });
 
       // Show success toast
@@ -79,12 +85,12 @@ export const CloseCallBottomSheet: React.FC<CloseCallBottomSheetProps> = ({ isOp
       await fetchCalls();
     } catch (error) {
       console.error('Error closing call:', error);
-      // Show error toast
-      showToast('error', t('call_detail.close_call_error'));
+      // Show the server's reason when it gave one (e.g. the call still has an active incident command)
+      showToast('error', getCallCloseErrorMessage(error) ?? t('call_detail.close_call_error'));
     } finally {
       setIsSubmitting(false);
     }
-  }, [closeCallType, showToast, t, callId, closeCallNote, handleClose, fetchCalls, router, closeCall]);
+  }, [closeCallType, showToast, t, callId, closeCallNote, sendNotification, handleClose, fetchCalls, router, closeCall]);
 
   const isButtonDisabled = isLoading || isSubmitting;
 
@@ -122,13 +128,9 @@ export const CloseCallBottomSheet: React.FC<CloseCallBottomSheetProps> = ({ isOp
                   <SelectPortal>
                     <SelectBackdrop />
                     <SelectContent className="max-h-[60vh] bg-white pb-20 dark:bg-gray-900">
-                      <SelectItem label={t('call_detail.close_call_types.closed')} value="1" />
-                      <SelectItem label={t('call_detail.close_call_types.cancelled')} value="2" />
-                      <SelectItem label={t('call_detail.close_call_types.unfounded')} value="3" />
-                      <SelectItem label={t('call_detail.close_call_types.founded')} value="4" />
-                      <SelectItem label={t('call_detail.close_call_types.minor')} value="5" />
-                      <SelectItem label={t('call_detail.close_call_types.transferred')} value="6" />
-                      <SelectItem label={t('call_detail.close_call_types.false_alarm')} value="7" />
+                      {CALL_CLOSE_TYPES.map((closeType) => (
+                        <SelectItem key={closeType.value} label={t(closeType.labelKey)} value={String(closeType.value)} />
+                      ))}
                     </SelectContent>
                   </SelectPortal>
                 </Select>
@@ -140,6 +142,14 @@ export const CloseCallBottomSheet: React.FC<CloseCallBottomSheetProps> = ({ isOp
                   <TextareaInput placeholder={t('call_detail.close_call_note_placeholder')} value={closeCallNote} onChangeText={setCloseCallNote} testID="close-call-note-input" />
                 </Textarea>
               </VStack>
+
+              <HStack space="sm" className="items-center justify-between">
+                <VStack className="flex-1">
+                  <Text className="font-medium">{t('call_detail.close_call_notify')}</Text>
+                  <Text className="text-xs text-gray-500 dark:text-gray-400">{t('call_detail.close_call_notify_hint')}</Text>
+                </VStack>
+                <Switch value={sendNotification} onValueChange={setSendNotification} accessibilityLabel={t('call_detail.close_call_notify')} testID="close-call-notify-switch" />
+              </HStack>
 
               <HStack space="sm" className="mt-4 justify-between">
                 <Button variant="outline" className="flex-1" onPress={handleClose} isDisabled={isButtonDisabled}>

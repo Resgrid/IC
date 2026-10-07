@@ -143,6 +143,20 @@ describe('OfflineQueueStore', () => {
       const state = useOfflineQueueStore.getState();
       expect(state.queuedEvents[0].retryCount).toBe(3);
     });
+
+    it('gives up at once on a permanent failure, keeping the event and its reason listed as failed', () => {
+      const store = useOfflineQueueStore.getState();
+
+      store.updateEventStatus(eventId, QueuedEventStatus.FAILED, 'This call has an active incident command.', { permanent: true });
+
+      const state = useOfflineQueueStore.getState();
+      expect(state.queuedEvents[0].status).toBe(QueuedEventStatus.FAILED);
+      expect(state.queuedEvents[0].retryCount).toBe(state.queuedEvents[0].maxRetries);
+      expect(state.queuedEvents[0].nextRetryAt).toBeUndefined();
+      expect(state.queuedEvents[0].error).toBe('This call has an active incident command.');
+      expect(state.getPendingEvents()).toEqual([]);
+      expect(state.getFailedEvents()).toHaveLength(1);
+    });
   });
 
   describe('removeEvent', () => {

@@ -36,6 +36,7 @@ import { type AssignableResourceOption, AssignResourceSheet } from '@/components
 import { IncidentAssistantSheet } from '@/components/command/assistant-sheet';
 import { CommandDetailsSheet } from '@/components/command/command-details-sheet';
 import { CommandSection } from '@/components/command/command-section';
+import { EndCommandDialog } from '@/components/command/end-command-dialog';
 import { IncidentFilesSection } from '@/components/command/incident-files-section';
 import { IncidentWeatherSection } from '@/components/command/incident-weather-section';
 import { LandscapeStructureBoard } from '@/components/command/landscape-structure-board';
@@ -76,9 +77,10 @@ import { type IncidentNeedStatus, type ResourceAssignment, ResourceAssignmentKin
 import { useCoreStore } from '@/stores/app/core-store';
 import { useCallsStore } from '@/stores/calls/store';
 import { useChatStore } from '@/stores/chat/store';
-import { type AssignmentOutcome } from '@/stores/command/store';
+import { type AssignmentOutcome, type EndCommandCloseCall, type EndCommandResult } from '@/stores/command/store';
 import { useCommandStore } from '@/stores/command/store';
 import { useRolesStore } from '@/stores/roles/store';
+import { securityStore } from '@/stores/security/store';
 import { useToastStore } from '@/stores/toast/store';
 import { useUnitsStore } from '@/stores/units/store';
 
@@ -149,6 +151,8 @@ export default function CommandBoard() {
   const unitCurrentStatuses = useUnitsStore((state) => state.unitCurrentStatuses);
   const fetchUnits = useUnitsStore((state) => state.fetchUnits);
   const showToast = useToastStore((state) => state.showToast);
+  // Closing the call alongside the command needs the same right as the call screen's Close Call.
+  const canCloseCall = securityStore((state) => !!state.rights?.CanCreateCalls);
 
   // Advisory requirement violations warn; forced ones were rejected server-side and error.
   const notifyAssignmentOutcome = useCallback(
@@ -299,12 +303,51 @@ export default function CommandBoard() {
   const handleOpenTransfer = useCallback(() => setIsTransferSheetOpen(true), []);
   const handleOpenEndConfirm = useCallback(() => setIsEndConfirmOpen(true), []);
 
-  const handleEndCommand = useCallback(() => {
-    setIsEndConfirmOpen(false);
-    if (activeBoardCallId) {
-      endCommand(activeBoardCallId);
-    }
-  }, [activeBoardCallId, endCommand]);
+  /** One toast per outcome: the command close, then (when asked for) the call close that follows it. */
+  const reportEndCommand = useCallback(
+    (result: EndCommandResult) => {
+      if (result.command === 'closed') {
+        showToast('success', t('command.end_command_success'));
+      } else if (result.command === 'queued') {
+        showToast('info', t('command.end_command_queued'));
+      } else {
+        showToast('error', t('command.end_command_failed'));
+      }
+
+      if (result.call === 'closed') {
+        showToast('success', t('call_detail.close_call_success'));
+        // The closed call drops off the active list
+        void fetchCalls();
+      } else if (result.call === 'queued') {
+        showToast('info', t('command.close_call_queued'));
+      } else if (result.call === 'skipped') {
+        showToast('warning', t('command.close_call_skipped'));
+      } else if (result.call === 'failed') {
+        // The command stays closed; show the server's reason (e.g. still an active incident command) when it gave one.
+        if (result.callError) {
+          showToast('error', result.callError, t('command.close_call_failed'));
+        } else {
+          showToast('error', t('command.close_call_failed'));
+        }
+      }
+    },
+    [showToast, t, fetchCalls]
+  );
+
+  const handleEndCommand = useCallback(
+    async (closeCall: EndCommandCloseCall | null) => {
+      setIsEndConfirmOpen(false);
+      if (!activeBoardCallId) {
+        return;
+      }
+      // The call close, when asked for, runs inside endCommand after the command close succeeds.
+      const result = closeCall ? await endCommand(activeBoardCallId, { closeCall }) : await endCommand(activeBoardCallId);
+      if (result) {
+        reportEndCommand(result);
+      }
+    },
+    [activeBoardCallId, endCommand, reportEndCommand]
+  );
 
   const handleSaveCommandInfo = useCallback(
     async (info: Parameters<typeof updateCommandInfoEntry>[1]) => {
@@ -1097,26 +1140,9 @@ export default function CommandBoard() {
         </VStack>
       </CustomBottomSheet>
 
-      {/* End-command confirmation — ending closes the command server-side and drops the local board */}
-      <AlertDialog isOpen={isEndConfirmOpen} onClose={() => setIsEndConfirmOpen(false)}>
-        <AlertDialogBackdrop />
-        <AlertDialogContent testID="end-command-dialog">
-          <AlertDialogHeader>
-            <Heading size="md">{t('command.end_command_confirm_title')}</Heading>
-          </AlertDialogHeader>
-          <AlertDialogBody>
-            <Text className="text-gray-700 dark:text-gray-300">{t('command.end_command_confirm_message')}</Text>
-          </AlertDialogBody>
-          <AlertDialogFooter>
-            <Button variant="outline" onPress={() => setIsEndConfirmOpen(false)} testID="end-command-cancel">
-              <ButtonText>{t('common.cancel')}</ButtonText>
-            </Button>
-            <Button action="negative" onPress={handleEndCommand} testID="end-command-confirm">
-              <ButtonText>{t('command.end_command')}</ButtonText>
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* End-command confirmation — ending closes the command server-side and drops the local board;
+          a member who can close calls may close the call in the same step */}
+      <EndCommandDialog isOpen={isEndConfirmOpen} onClose={() => setIsEndConfirmOpen(false)} canCloseCall={canCloseCall} onConfirm={(closeCall) => void handleEndCommand(closeCall)} />
 
       {/* "Already assigned to another lane" confirmation */}
       <AlertDialog isOpen={moveConflict !== null} onClose={() => setMoveConflict(null)}>

@@ -89,6 +89,10 @@ jest.mock('@/api/incidentCommand/sync', () => ({
   getSyncBundle: jest.fn(),
 }));
 
+jest.mock('@/api/calls/calls', () => ({
+  closeCall: jest.fn(),
+}));
+
 import { QueuedEventType } from '@/models/offline-queue/queued-event';
 import { IncidentNeedCategory, IncidentNeedStatus, TacticalObjectiveStatus } from '@/models/v4/incidentCommand/incidentCommandModels';
 

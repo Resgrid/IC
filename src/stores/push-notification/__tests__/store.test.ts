@@ -146,6 +146,23 @@ describe('usePushNotificationModalStore', () => {
       });
     });
 
+    it('should show a generic N notification as a notification, not an unknown type', async () => {
+      const store = usePushNotificationModalStore.getState();
+      await store.showNotificationModal({ eventCode: 'N4321', title: 'Shift reminder', body: 'Your shift starts in 30 minutes' });
+
+      const state = usePushNotificationModalStore.getState();
+      expect(state.isOpen).toBe(true);
+      expect(state.notification).toEqual({
+        type: 'notification',
+        id: '4321',
+        eventCode: 'N4321',
+        title: 'Shift reminder',
+        body: 'Your shift starts in 30 minutes',
+        data: undefined,
+      });
+      expect(notificationSoundService.playNotificationSound).toHaveBeenCalledWith('notification');
+    });
+
     it('should handle unknown notification type', async () => {
       const unknownData = {
         eventCode: 'X9999',
@@ -299,6 +316,10 @@ describe('usePushNotificationModalStore', () => {
       ['G:1121', 'group-chat', '1121'],
       ['G1121', 'group-chat', '1121'],
       ['g:B7EE41BE-6DBD-4CA7-90BC-3ECC79C0BEF7', 'group-chat', 'B7EE41BE-6DBD-4CA7-90BC-3ECC79C0BEF7'],
+      // Generic notifications ("N{id}") — title and body only
+      ['N4321', 'notification', '4321'],
+      ['n4321', 'notification', '4321'],
+      ['N:4321', 'notification', '4321'],
     ])('should parse event code %s as type %s with id %s', (eventCode, type, id) => {
       const store = usePushNotificationModalStore.getState();
       const parsed = store.parseNotification({

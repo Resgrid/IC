@@ -25,7 +25,11 @@ interface OfflineQueueState {
   // Actions
   initializeNetworkListener: () => void;
   addEvent: (type: QueuedEventType, data: Record<string, any>, maxRetries?: number) => string;
-  updateEventStatus: (eventId: string, status: QueuedEventStatus, error?: string) => void;
+  /**
+   * `permanent` (FAILED only) gives up on the event at once — the server refused it in a way a resend
+   * cannot change — so it is not retried automatically but stays listed, with its error, as exhausted.
+   */
+  updateEventStatus: (eventId: string, status: QueuedEventStatus, error?: string, options?: { permanent?: boolean }) => void;
   removeEvent: (eventId: string) => void;
   getEventById: (eventId: string) => QueuedEvent | undefined;
   getEventsByType: (type: QueuedEventType) => QueuedEvent[];
@@ -113,7 +117,7 @@ export const useOfflineQueueStore = create<OfflineQueueState>()(
       },
 
       // Update event status
-      updateEventStatus: (eventId: string, status: QueuedEventStatus, error?: string) => {
+      updateEventStatus: (eventId: string, status: QueuedEventStatus, error?: string, options?: { permanent?: boolean }) => {
         set((state) => ({
           queuedEvents: state.queuedEvents.map((event) => {
             if (event.id === eventId) {
@@ -124,8 +128,12 @@ export const useOfflineQueueStore = create<OfflineQueueState>()(
                 error,
               };
 
-              // Calculate next retry time if this is a failed attempt
-              if (status === QueuedEventStatus.FAILED && event.retryCount < event.maxRetries) {
+              if (status === QueuedEventStatus.FAILED && options?.permanent) {
+                // Refused for good: exhaust the retries so the processor stops picking it up
+                updatedEvent.retryCount = Math.max(event.retryCount, event.maxRetries);
+                updatedEvent.nextRetryAt = undefined;
+              } else if (status === QueuedEventStatus.FAILED && event.retryCount < event.maxRetries) {
+                // Calculate next retry time if this is a failed attempt
                 const delay = RETRY_DELAY_BASE * Math.pow(2, event.retryCount); // Exponential backoff
                 updatedEvent.nextRetryAt = Date.now() + delay;
                 updatedEvent.retryCount = event.retryCount + 1;

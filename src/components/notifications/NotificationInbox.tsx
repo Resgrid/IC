@@ -29,7 +29,8 @@ type NovuNotification = NonNullable<ReturnType<typeof useNotifications>['notific
 /**
  * Maps a Novu inbox notification to our display payload. Reference info comes from the trigger
  * payload (`data`): either explicit referenceType/referenceId, or the eventCode prefix scheme
- * the server uses (C{callId} = call, N/M{messageId} = message/notification, t:/g:{channelId} = chat).
+ * the server uses (C{callId} = call, including "call closed"; t:/g:{channelId} = chat;
+ * M{messageId} = message and N{id} = generic notification, neither of which links anywhere).
  * The Novu bridge puts eventCode in the in-app `data`, the only custom field the inbox receives.
  */
 export const toNotificationPayload = (item: NovuNotification): NotificationPayload => {
@@ -47,6 +48,7 @@ export const toNotificationPayload = (item: NovuNotification): NotificationPaylo
       referenceId = referenceId ?? eventId ?? eventCode.slice(1);
     } else {
       // Same rule as the push modal's "View chat": a chat code with an id that cannot steer the router.
+      // A generic notification (N{id}) is title and body only — it gets no reference to open.
       const parsed = parseNotificationData({ eventCode });
       if ((parsed.type === 'chat' || parsed.type === 'group-chat') && isSafeRouteId(parsed.id)) {
         referenceType = 'chat';

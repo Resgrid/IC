@@ -68,6 +68,9 @@ export const PushNotificationModal: React.FC = () => {
         return t('push_notifications.types.chat');
       case 'group-chat':
         return t('push_notifications.types.group_chat');
+      // A generic notification (N{id}) and anything unrecognized both read as "Notification";
+      // only 'unknown' also gets the warning below.
+      case 'notification':
       default:
         return t('push_notifications.types.notification');
     }

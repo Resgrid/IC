@@ -38,6 +38,16 @@ describe('inbox chat references', () => {
     expect(group.referenceId).toBe('7f1c');
   });
 
+  it('treats a generic N notification as title and body only, with nothing to open', () => {
+    for (const eventCode of ['N4321', 'n4321', 'N:4321']) {
+      const payload = toNotificationPayload(item({ eventCode }));
+      expect(payload.referenceType).toBeUndefined();
+      expect(payload.referenceId).toBeUndefined();
+      expect(payload.title).toBe('Jane in Engine 6');
+      expect(payload.body).toBe('On scene');
+    }
+  });
+
   it('keeps call codes and ignores chat ids that could steer the router', () => {
     expect(toNotificationPayload(item({ eventCode: 'C1234' }))).toEqual(expect.objectContaining({ referenceType: 'call', referenceId: '1234' }));
     expect(toNotificationPayload(item({ eventCode: 'g:../call/9' })).referenceType).toBeUndefined();

@@ -1,7 +1,8 @@
 import { AppState } from 'react-native';
 
 import { saveCallImage } from '@/api/calls/callFiles';
-import { getCommandBoard, saveObjective } from '@/api/incidentCommand/incidentCommand';
+import { closeCall } from '@/api/calls/calls';
+import { closeCommand, getCommandBoard, saveObjective } from '@/api/incidentCommand/incidentCommand';
 import { setUnitLocation } from '@/api/units/unitLocation';
 import { saveUnitStatus } from '@/api/units/unitStatuses';
 import { QueuedEventStatus, QueuedEventType } from '@/models/offline-queue/queued-event';
@@ -38,6 +39,10 @@ jest.mock('@/api/incidentCommand/incidentCommand', () => ({
   closeCommand: jest.fn(),
   getCommandBoard: jest.fn(),
   saveObjective: jest.fn(),
+}));
+
+jest.mock('@/api/calls/calls', () => ({
+  closeCall: jest.fn(),
 }));
 
 jest.mock('@/api/incidentCommand/incidentResources', () => ({
@@ -460,6 +465,101 @@ describe('OfflineEventManager', () => {
       expect(saveObjective).toHaveBeenCalled();
       expect(mockRefreshBoard).toHaveBeenCalledWith('42');
       expect(completedBeforeRefresh).toEqual([true]);
+    });
+  });
+
+  describe('call close queued behind an offline End Command', () => {
+    const axiosFailure = (response?: { status: number; data?: unknown }) => Object.assign(new Error(response ? `Request failed with status code ${response.status}` : 'Network Error'), { isAxiosError: true, response });
+
+    const queuedEvent = (id: string, type: QueuedEventType, data: Record<string, unknown>) => ({ id, type, status: QueuedEventStatus.PENDING, data, retryCount: 0, maxRetries: 3, createdAt: Date.now() }) as any;
+
+    let queue: any[];
+
+    /** A working stand-in for the queue store: pending selection, status updates and retry bookkeeping. */
+    const useQueue = (events: any[]) => {
+      queue = events;
+      mockStoreState.queuedEvents = queue;
+      mockStoreState.getPendingEvents.mockImplementation(() =>
+        queue.filter((e) => e.status === QueuedEventStatus.PENDING || (e.status === QueuedEventStatus.FAILED && e.retryCount < e.maxRetries && (!e.nextRetryAt || e.nextRetryAt <= Date.now())))
+      );
+      mockStoreState.updateEventStatus.mockImplementation((id: string, status: QueuedEventStatus, error?: string, options?: { permanent?: boolean }) => {
+        const event = queue.find((e) => e.id === id);
+        event.status = status;
+        event.error = error;
+        if (status === QueuedEventStatus.FAILED) {
+          if (options?.permanent) {
+            event.retryCount = event.maxRetries;
+          } else {
+            event.retryCount += 1;
+            event.nextRetryAt = Date.now() + 60000;
+          }
+        }
+      });
+    };
+
+    const closeCommandEvent = () => queuedEvent('cmd-evt', QueuedEventType.CLOSE_COMMAND, { callId: '101', incidentCommandId: 'cmd-101' });
+    const closeCallEvent = () => queuedEvent('call-evt', QueuedEventType.CLOSE_CALL, { callId: '101', type: 3, notes: 'Nothing found', sendNotification: true });
+
+    beforeEach(() => {
+      (offlineEventManager as any).isProcessing = false;
+      (closeCommand as jest.Mock).mockResolvedValue({});
+      (closeCall as jest.Mock).mockResolvedValue({});
+    });
+
+    it('replays the call close only after the command close it was queued behind', async () => {
+      useQueue([closeCommandEvent(), closeCallEvent()]);
+
+      await (offlineEventManager as any).processQueuedEvents();
+
+      expect(closeCommand).toHaveBeenCalledWith('cmd-101');
+      expect(closeCall).toHaveBeenCalledWith({ callId: '101', type: 3, note: 'Nothing found', sendNotification: true });
+      expect((closeCommand as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan((closeCall as jest.Mock).mock.invocationCallOrder[0]);
+      expect(queue.map((e) => e.status)).toEqual([QueuedEventStatus.COMPLETED, QueuedEventStatus.COMPLETED]);
+    });
+
+    it('holds the call close while the command close is waiting to retry', async () => {
+      (closeCommand as jest.Mock).mockRejectedValue(axiosFailure({ status: 503 }));
+      useQueue([closeCommandEvent(), closeCallEvent()]);
+
+      await (offlineEventManager as any).processQueuedEvents();
+
+      expect(closeCommand).toHaveBeenCalledTimes(1);
+      expect(closeCall).not.toHaveBeenCalled();
+      expect(queue[1].status).toBe(QueuedEventStatus.PENDING);
+    });
+
+    it('does not hold a call close for a command close on a different call', async () => {
+      const otherCallCommand = queuedEvent('other-cmd', QueuedEventType.CLOSE_COMMAND, { callId: '202', incidentCommandId: 'cmd-202' });
+      (closeCommand as jest.Mock).mockReturnValue(new Promise(() => undefined));
+      useQueue([otherCallCommand, closeCallEvent()]);
+
+      void (offlineEventManager as any).processQueuedEvents();
+      await Promise.resolve();
+
+      expect(closeCall).toHaveBeenCalledTimes(1);
+      (offlineEventManager as any).isProcessing = false;
+    });
+
+    it('gives up on a call close the server refuses (400), keeping its reason', async () => {
+      const reason = 'This call has an active incident command. Close the incident command first, then close the call.';
+      (closeCall as jest.Mock).mockRejectedValue(axiosFailure({ status: 400, data: reason }));
+      useQueue([closeCallEvent()]);
+
+      await (offlineEventManager as any).processQueuedEvents();
+
+      expect(mockStoreState.updateEventStatus).toHaveBeenCalledWith('call-evt', QueuedEventStatus.FAILED, reason, { permanent: true });
+      expect(queue[0].retryCount).toBe(queue[0].maxRetries);
+      expect(mockStoreState.getPendingEvents()).toEqual([]);
+    });
+
+    it('retries a call close that failed without a refusal (server error)', async () => {
+      (closeCall as jest.Mock).mockRejectedValue(axiosFailure({ status: 502 }));
+      useQueue([closeCallEvent()]);
+
+      await (offlineEventManager as any).processQueuedEvents();
+
+      expect(mockStoreState.updateEventStatus).toHaveBeenCalledWith('call-evt', QueuedEventStatus.FAILED, 'Request failed with status code 502');
+      expect(queue[0].retryCount).toBe(1);
     });
   });
 
