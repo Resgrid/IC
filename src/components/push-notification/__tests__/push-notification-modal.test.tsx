@@ -498,6 +498,31 @@ describe('PushNotificationModal', () => {
     // Check if Bell icon is rendered for unknown types
     const iconContainer = screen.getAllByTestId('notification-icon')[0];
     expect(iconContainer).toBeTruthy();
+    // An unrecognized code still carries the warning
+    expect(screen.getByText('push_notifications.unknown_type_warning')).toBeTruthy();
+  });
+
+  it('shows a generic N notification with its title and body, no warning and no deep link', () => {
+    const state = {
+      ...mockStore,
+      isOpen: true,
+      notification: {
+        type: 'notification' as const,
+        id: '4321',
+        eventCode: 'N4321',
+        title: 'Shift reminder',
+        body: 'Your shift starts in 30 minutes',
+      },
+    };
+    (usePushNotificationModalStore as unknown as jest.Mock).mockImplementation((selector?: (storeState: typeof state) => unknown) => (typeof selector === 'function' ? selector(state) : state));
+
+    render(<PushNotificationModal />);
+
+    expect(screen.getByText('push_notifications.types.notification')).toBeTruthy();
+    expect(screen.getByText('Shift reminder')).toBeTruthy();
+    expect(screen.getByText('Your shift starts in 30 minutes')).toBeTruthy();
+    expect(screen.queryByText('push_notifications.unknown_type_warning')).toBeNull();
+    expect(screen.queryByText('View call')).toBeNull();
   });
 
   it('should handle notification without title', () => {

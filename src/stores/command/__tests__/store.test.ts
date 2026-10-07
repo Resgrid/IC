@@ -101,6 +101,15 @@ jest.mock('@/api/incidentCommand/sync', () => ({
   getSyncBundle: (...args: unknown[]) => mockGetSyncBundle(...args),
 }));
 
+const mockCloseCall = jest.fn();
+
+jest.mock('@/api/calls/calls', () => ({
+  closeCall: (...args: unknown[]) => mockCloseCall(...args),
+}));
+
+/** An axios-shaped failure: no response = never reached the server; with one = the server answered. */
+const axiosFailure = (response?: { status: number; data?: unknown }) => Object.assign(new Error(response ? `Request failed with status code ${response.status}` : 'Network Error'), { isAxiosError: true, response });
+
 import { CommandNodeType, IncidentRoleType, ResourceAssignmentKind, TacticalObjectiveStatus, TacticalObjectiveType } from '@/models/v4/incidentCommand/incidentCommandModels';
 
 import { useCommandStore } from '../store';
@@ -226,6 +235,144 @@ describe('Command Store (server-backed)', () => {
     expect(mockAddEvent).toHaveBeenCalledWith('close_command', { callId: '101', incidentCommandId: 'cmd-101' });
     expect(useCommandStore.getState().boards['101']).toBeUndefined();
     expect(mockSetActiveCall).toHaveBeenLastCalledWith(null);
+  });
+
+  describe('endCommand with "also close the call"', () => {
+    const closeCallOptions = { closeCall: { type: 3, notes: 'Nothing found', sendNotification: true } };
+
+    beforeEach(async () => {
+      await act(async () => {
+        await useCommandStore.getState().startCommand('101');
+      });
+      jest.clearAllMocks();
+      mockCloseCall.mockResolvedValue({ Id: '101' });
+      mockCloseCommand.mockResolvedValue({ Data: serverBoard(101).Command });
+    });
+
+    it('leaves the call alone when not asked and reports the command closed', async () => {
+      let result;
+      await act(async () => {
+        result = await useCommandStore.getState().endCommand('101');
+      });
+
+      expect(result).toEqual({ command: 'closed', call: 'not_requested' });
+      expect(mockCloseCommand).toHaveBeenCalledWith('cmd-101');
+      expect(mockCloseCall).not.toHaveBeenCalled();
+    });
+
+    it('closes the command first, then the call with the chosen type, note and notify flag', async () => {
+      let result;
+      await act(async () => {
+        result = await useCommandStore.getState().endCommand('101', closeCallOptions);
+      });
+
+      expect(result).toEqual({ command: 'closed', call: 'closed' });
+      expect(mockCloseCall).toHaveBeenCalledWith({ callId: '101', type: 3, note: 'Nothing found', sendNotification: true });
+      expect(mockCloseCommand.mock.invocationCallOrder[0]).toBeLessThan(mockCloseCall.mock.invocationCallOrder[0]);
+      expect(useCommandStore.getState().boards['101']).toBeUndefined();
+      expect(mockAddEvent).not.toHaveBeenCalled();
+    });
+
+    it('skips the call close when the server refuses to close the command', async () => {
+      mockCloseCommand.mockRejectedValue(axiosFailure({ status: 403 }));
+
+      let result;
+      await act(async () => {
+        result = await useCommandStore.getState().endCommand('101', closeCallOptions);
+      });
+
+      expect(result).toEqual({ command: 'failed', call: 'skipped' });
+      expect(mockCloseCall).not.toHaveBeenCalled();
+      // The command close is still retried from the queue, as before; nothing queues the call close.
+      expect(mockAddEvent).toHaveBeenCalledTimes(1);
+      expect(mockAddEvent).toHaveBeenCalledWith('close_command', { callId: '101', incidentCommandId: 'cmd-101' });
+    });
+
+    it('queues the call close behind a command close retried after a server error', async () => {
+      mockCloseCommand.mockRejectedValue(axiosFailure({ status: 500 }));
+
+      let result;
+      await act(async () => {
+        result = await useCommandStore.getState().endCommand('101', closeCallOptions);
+      });
+
+      expect(result).toEqual({ command: 'failed', call: 'queued' });
+      expect(mockCloseCall).not.toHaveBeenCalled();
+      expect(mockAddEvent.mock.calls).toEqual([
+        ['close_command', { callId: '101', incidentCommandId: 'cmd-101' }],
+        ['close_call', { callId: '101', type: 3, notes: 'Nothing found', sendNotification: true }],
+      ]);
+    });
+
+    it('reports the server reason when the call close is refused, keeping the command closed', async () => {
+      const reason = 'This call has an active incident command. Close the incident command first, then close the call.';
+      mockCloseCall.mockRejectedValue(axiosFailure({ status: 400, data: reason }));
+
+      let result;
+      await act(async () => {
+        result = await useCommandStore.getState().endCommand('101', closeCallOptions);
+      });
+
+      expect(result).toEqual({ command: 'closed', call: 'failed', callError: reason });
+      expect(mockCloseCommand).toHaveBeenCalledWith('cmd-101');
+      expect(mockAddEvent).not.toHaveBeenCalled();
+      expect(useCommandStore.getState().boards['101']).toBeUndefined();
+    });
+
+    it('offline: queues the command close, then the call close behind it', async () => {
+      mockOnline = false;
+
+      let result;
+      await act(async () => {
+        result = await useCommandStore.getState().endCommand('101', closeCallOptions);
+      });
+
+      expect(result).toEqual({ command: 'queued', call: 'queued' });
+      expect(mockCloseCommand).not.toHaveBeenCalled();
+      expect(mockCloseCall).not.toHaveBeenCalled();
+      expect(mockAddEvent.mock.calls).toEqual([
+        ['close_command', { callId: '101', incidentCommandId: 'cmd-101' }],
+        ['close_call', { callId: '101', type: 3, notes: 'Nothing found', sendNotification: true }],
+      ]);
+    });
+
+    it('a command close that never reached the server queues the call close behind it', async () => {
+      mockCloseCommand.mockRejectedValue(axiosFailure());
+
+      let result;
+      await act(async () => {
+        result = await useCommandStore.getState().endCommand('101', closeCallOptions);
+      });
+
+      expect(result).toEqual({ command: 'queued', call: 'queued' });
+      expect(mockCloseCall).not.toHaveBeenCalled();
+      expect(mockAddEvent.mock.calls.map((call) => (call as unknown[])[0])).toEqual(['close_command', 'close_call']);
+    });
+
+    it('queues the call close when it gets no answer after the command closed', async () => {
+      mockCloseCall.mockRejectedValue(axiosFailure());
+
+      let result;
+      await act(async () => {
+        result = await useCommandStore.getState().endCommand('101', { closeCall: { type: 1, sendNotification: false } });
+      });
+
+      expect(result).toEqual({ command: 'closed', call: 'queued' });
+      expect(mockAddEvent).toHaveBeenCalledWith('close_call', { callId: '101', type: 1, notes: '', sendNotification: false });
+    });
+
+    it.each([408, 429, 503])('queues the call close for retry when it fails with a retryable %i after the command closed', async (status) => {
+      mockCloseCall.mockRejectedValue(axiosFailure({ status }));
+
+      let result;
+      await act(async () => {
+        result = await useCommandStore.getState().endCommand('101', closeCallOptions);
+      });
+
+      expect(result).toEqual({ command: 'closed', call: 'queued' });
+      expect(mockAddEvent).toHaveBeenCalledTimes(1);
+      expect(mockAddEvent).toHaveBeenCalledWith('close_call', { callId: '101', type: 3, notes: 'Nothing found', sendNotification: true });
+    });
   });
 
   it('assignRole calls the IncidentRoles API and refreshes the board', async () => {

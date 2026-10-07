@@ -50,6 +50,7 @@ jest.mock('@/api/incidentCommand/incidentResources', () => ({
 jest.mock('@/api/incidentCommand/incidentRoles', () => ({}));
 jest.mock('@/api/incidentCommand/incidentVoice', () => ({}));
 jest.mock('@/api/incidentCommand/sync', () => ({}));
+jest.mock('@/api/calls/calls', () => ({}));
 
 import { type IncidentCommandBoard } from '@/models/v4/incidentCommand/incidentCommandModels';
 

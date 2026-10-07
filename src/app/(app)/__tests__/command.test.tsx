@@ -166,10 +166,23 @@ jest.mock('@/stores/roles/store', () => ({
   useRolesStore: jest.fn(),
 }));
 
+let mockCanCreateCalls = false;
+jest.mock('@/stores/security/store', () => ({
+  securityStore: (selector: (state: unknown) => unknown) => selector({ rights: { CanCreateCalls: mockCanCreateCalls } }),
+}));
+
+jest.mock('@/components/ui/switch', () => ({
+  Switch: ({ value, onValueChange, testID }: any) => {
+    const { Switch: RNSwitch } = require('react-native');
+    return <RNSwitch value={value} onValueChange={onValueChange} testID={testID} />;
+  },
+}));
+
 import { useCoreStore } from '@/stores/app/core-store';
 import { useCallsStore } from '@/stores/calls/store';
 import { useCommandStore } from '@/stores/command/store';
 import { useRolesStore } from '@/stores/roles/store';
+import { useToastStore } from '@/stores/toast/store';
 
 import CommandBoard from '../command';
 
@@ -185,6 +198,7 @@ const mockRemoveRole = jest.fn();
 const mockMoveResourceAssignment = jest.fn();
 const mockReleaseResourceAssignment = jest.fn();
 const mockFetchTimeline = jest.fn();
+const mockFetchCalls = jest.fn(() => Promise.resolve());
 
 const serverBoard = (callId: string, overrides: Record<string, unknown> = {}) => ({
   callId,
@@ -236,7 +250,7 @@ const setupStores = ({ boards = {} as Record<string, unknown>, activeCallId = nu
   const coreState = { activeCall: null, activePriority: null };
   mockUseCoreStore.mockImplementation((selector: any) => (selector ? selector(coreState) : coreState));
 
-  const callsState = { calls };
+  const callsState = { calls, fetchCalls: mockFetchCalls };
   mockUseCallsStore.mockImplementation((selector: any) => (selector ? selector(callsState) : callsState));
 
   const rolesState = { users, roles: [] as any[], fetchUsers: jest.fn() };
@@ -246,6 +260,14 @@ const setupStores = ({ boards = {} as Record<string, unknown>, activeCallId = nu
 describe('CommandBoard', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockCanCreateCalls = false;
+    useToastStore.setState({ toasts: [] });
+  });
+
+  afterEach(() => {
+    // removeToast also clears each toast's auto-dismiss timer, so none outlive the test
+    const { toasts, removeToast } = useToastStore.getState();
+    toasts.forEach((toast) => removeToast(toast.id));
   });
 
   it('renders the zero state with a link to calls when no board is open', () => {
@@ -491,6 +513,146 @@ describe('CommandBoard', () => {
     expect(mockRefreshBoard).toHaveBeenCalledWith('101');
 
     unmount();
+  });
+
+  describe('End Command → also close the call', () => {
+    const fireCall = [{ CallId: '101', Number: '26-14', Name: 'Fire', Address: '', Nature: '', LoggedOnUtc: '2026-07-19T10:00:00Z' }];
+    const toastMessages = () => useToastStore.getState().toasts.map((toast) => [toast.type, toast.message, toast.title]);
+
+    it('does not offer closing the call without the right to close calls', () => {
+      setupStores({ boards: { '101': serverBoard('101') }, activeCallId: '101', calls: fireCall });
+
+      const { getByTestId, queryByTestId, unmount } = render(<CommandBoard />);
+      fireEvent.press(getByTestId('command-end-command'));
+
+      expect(getByTestId('end-command-dialog')).toBeTruthy();
+      expect(queryByTestId('end-command-close-call-switch')).toBeNull();
+      expect(queryByTestId('end-command-close-call-options')).toBeNull();
+
+      unmount();
+    });
+
+    it('closes command and call with the chosen type, note and notify flag, and reports both', async () => {
+      mockCanCreateCalls = true;
+      mockEndCommand.mockResolvedValue({ command: 'closed', call: 'closed' });
+      setupStores({ boards: { '101': serverBoard('101') }, activeCallId: '101', calls: fireCall });
+
+      const { getByTestId, queryByTestId, getByText, unmount } = render(<CommandBoard />);
+      fireEvent.press(getByTestId('command-end-command'));
+
+      // Off by default: no picker until the commander asks to close the call too
+      expect(getByTestId('end-command-close-call-switch').props.value).toBe(false);
+      expect(queryByTestId('end-command-close-call-options')).toBeNull();
+
+      fireEvent(getByTestId('end-command-close-call-switch'), 'onValueChange', true);
+      expect(getByTestId('end-command-close-call-options')).toBeTruthy();
+      expect(getByTestId('end-command-notify-switch').props.value).toBe(true);
+      expect(getByText('command.end_command_and_close_call')).toBeTruthy();
+
+      fireEvent.press(getByTestId('end-command-close-type-7'));
+      fireEvent.changeText(getByTestId('end-command-close-call-note'), '  Detector fault  ');
+      fireEvent(getByTestId('end-command-notify-switch'), 'onValueChange', false);
+
+      await act(async () => {
+        fireEvent.press(getByTestId('end-command-confirm'));
+      });
+
+      expect(mockEndCommand).toHaveBeenCalledWith('101', { closeCall: { type: 7, notes: 'Detector fault', sendNotification: false } });
+      await waitFor(() => {
+        expect(toastMessages()).toEqual([
+          ['success', 'command.end_command_success', undefined],
+          ['success', 'call_detail.close_call_success', undefined],
+        ]);
+      });
+      expect(mockFetchCalls).toHaveBeenCalled();
+
+      unmount();
+    });
+
+    it('defaults to Closed with notification on', async () => {
+      mockCanCreateCalls = true;
+      mockEndCommand.mockResolvedValue({ command: 'closed', call: 'closed' });
+      setupStores({ boards: { '101': serverBoard('101') }, activeCallId: '101', calls: fireCall });
+
+      const { getByTestId, unmount } = render(<CommandBoard />);
+      fireEvent.press(getByTestId('command-end-command'));
+      fireEvent(getByTestId('end-command-close-call-switch'), 'onValueChange', true);
+
+      await act(async () => {
+        fireEvent.press(getByTestId('end-command-confirm'));
+      });
+
+      expect(mockEndCommand).toHaveBeenCalledWith('101', { closeCall: { type: 1, notes: '', sendNotification: true } });
+      unmount();
+    });
+
+    it('shows the server reason when the call close is refused, after confirming the command closed', async () => {
+      mockCanCreateCalls = true;
+      const reason = 'This call has an active incident command. Close the incident command first, then close the call.';
+      mockEndCommand.mockResolvedValue({ command: 'closed', call: 'failed', callError: reason });
+      setupStores({ boards: { '101': serverBoard('101') }, activeCallId: '101', calls: fireCall });
+
+      const { getByTestId, unmount } = render(<CommandBoard />);
+      fireEvent.press(getByTestId('command-end-command'));
+      fireEvent(getByTestId('end-command-close-call-switch'), 'onValueChange', true);
+
+      await act(async () => {
+        fireEvent.press(getByTestId('end-command-confirm'));
+      });
+
+      await waitFor(() => {
+        expect(toastMessages()).toEqual([
+          ['success', 'command.end_command_success', undefined],
+          ['error', reason, 'command.close_call_failed'],
+        ]);
+      });
+      expect(mockFetchCalls).not.toHaveBeenCalled();
+      unmount();
+    });
+
+    it('reports a failed command close and the call left open', async () => {
+      mockCanCreateCalls = true;
+      mockEndCommand.mockResolvedValue({ command: 'failed', call: 'skipped' });
+      setupStores({ boards: { '101': serverBoard('101') }, activeCallId: '101', calls: fireCall });
+
+      const { getByTestId, unmount } = render(<CommandBoard />);
+      fireEvent.press(getByTestId('command-end-command'));
+      fireEvent(getByTestId('end-command-close-call-switch'), 'onValueChange', true);
+
+      await act(async () => {
+        fireEvent.press(getByTestId('end-command-confirm'));
+      });
+
+      await waitFor(() => {
+        expect(toastMessages()).toEqual([
+          ['error', 'command.end_command_failed', undefined],
+          ['warning', 'command.close_call_skipped', undefined],
+        ]);
+      });
+      unmount();
+    });
+
+    it('reports both closes as queued when offline', async () => {
+      mockCanCreateCalls = true;
+      mockEndCommand.mockResolvedValue({ command: 'queued', call: 'queued' });
+      setupStores({ boards: { '101': serverBoard('101') }, activeCallId: '101', calls: fireCall });
+
+      const { getByTestId, unmount } = render(<CommandBoard />);
+      fireEvent.press(getByTestId('command-end-command'));
+      fireEvent(getByTestId('end-command-close-call-switch'), 'onValueChange', true);
+
+      await act(async () => {
+        fireEvent.press(getByTestId('end-command-confirm'));
+      });
+
+      await waitFor(() => {
+        expect(toastMessages()).toEqual([
+          ['info', 'command.end_command_queued', undefined],
+          ['info', 'command.close_call_queued', undefined],
+        ]);
+      });
+      unmount();
+    });
   });
 
   it('shows the provisional badge for a board established offline', () => {

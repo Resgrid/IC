@@ -1,6 +1,7 @@
 import { AppState, type AppStateStatus } from 'react-native';
 
 import { saveCallImage } from '@/api/calls/callFiles';
+import { closeCall } from '@/api/calls/calls';
 import { performCheckIn } from '@/api/check-in-timers/check-in-timers';
 import {
   assignResource,
@@ -22,12 +23,14 @@ import { createAdHocPersonnel, createAdHocUnit, releaseAdHocPersonnel, releaseAd
 import { assignIncidentRole, removeIncidentRole } from '@/api/incidentCommand/incidentRoles';
 import { setUnitLocation } from '@/api/units/unitLocation';
 import { saveUnitStatus } from '@/api/units/unitStatuses';
+import { getCallCloseErrorMessage, isCallCloseRejection } from '@/lib/call-close';
 import { logger } from '@/lib/logging';
 import {
   type QueuedAssignCommandResourceEvent,
   type QueuedAssignIncidentRoleEvent,
   type QueuedCallImageUploadEvent,
   type QueuedCheckInEvent,
+  type QueuedCloseCallEvent,
   type QueuedCloseCommandEvent,
   type QueuedCompleteObjectiveEvent,
   type QueuedCreateAdHocPersonnelEvent,
@@ -329,6 +332,45 @@ class OfflineEventManager {
     await closeCommand(event.data.incidentCommandId);
   }
 
+  private async processCloseCallEvent(event: QueuedCloseCallEvent): Promise<void> {
+    await closeCall({ callId: event.data.callId, type: event.data.type, note: event.data.notes ?? '', sendNotification: event.data.sendNotification });
+  }
+
+  /**
+   * Events that must not overtake an earlier queued event of the listed types for the same call. A call
+   * close replays only after the command close queued ahead of it: the server refuses to close a call that
+   * still has an active incident command.
+   */
+  private static readonly ORDERED_AFTER: Partial<Record<QueuedEventType, readonly QueuedEventType[]>> = {
+    [QueuedEventType.CLOSE_CALL]: [QueuedEventType.CLOSE_COMMAND],
+  };
+
+  /**
+   * True while an earlier event this one is ordered after is still going to run: pending, or failed with
+   * retries left. A predecessor that completed or exhausted its retries no longer holds it back (the server
+   * then decides — a call whose command is still open is refused, and that refusal is final). A PROCESSING
+   * predecessor is a leftover from a run the app was killed in (nothing is in flight when a batch is
+   * chosen) and never runs again, so it does not hold the event back either.
+   */
+  private isWaitingOnEarlierEvent(event: QueuedEvent): boolean {
+    const predecessors = OfflineEventManager.ORDERED_AFTER[event.type];
+    if (!predecessors) {
+      return false;
+    }
+
+    const queue = useOfflineQueueStore.getState().queuedEvents ?? [];
+    const index = queue.findIndex((queued) => queued.id === event.id);
+    const earlier = index >= 0 ? queue.slice(0, index) : queue;
+    const callId = String(event.data?.callId ?? '');
+
+    return earlier.some(
+      (queued) =>
+        predecessors.includes(queued.type) &&
+        String(queued.data?.callId ?? '') === callId &&
+        (queued.status === QueuedEventStatus.PENDING || (queued.status === QueuedEventStatus.FAILED && queued.retryCount < queued.maxRetries))
+    );
+  }
+
   private async processAssignIncidentRoleEvent(event: QueuedAssignIncidentRoleEvent): Promise<void> {
     const callId = parseInt(event.data.callId, 10);
     await assignIncidentRole({
@@ -494,7 +536,11 @@ class OfflineEventManager {
       return;
     }
 
-    const pendingEvents = store.getPendingEvents();
+    const allPendingEvents = store.getPendingEvents();
+    // Batches run concurrently, so an event ordered after another one (a call close behind its command
+    // close) waits for a later pass rather than racing it.
+    const pendingEvents = allPendingEvents.filter((event) => !this.isWaitingOnEarlierEvent(event));
+    const deferredEvents = allPendingEvents.filter((event) => !pendingEvents.includes(event));
     if (pendingEvents.length === 0) {
       return;
     }
@@ -504,7 +550,7 @@ class OfflineEventManager {
 
     logger.info({
       message: 'Processing queued events',
-      context: { eventCount: pendingEvents.length },
+      context: { eventCount: pendingEvents.length, deferredCount: deferredEvents.length },
     });
 
     // Process events in batches
@@ -521,6 +567,13 @@ class OfflineEventManager {
     } finally {
       this.isProcessing = false;
       store._setProcessing(false);
+    }
+
+    // The batch may have settled what a deferred event was waiting on (the command close completed):
+    // send it now instead of on the next interval tick. Only a predecessor settling re-runs the pass, and
+    // each one settles once, so this ends.
+    if (deferredEvents.some((event) => !this.isWaitingOnEarlierEvent(event))) {
+      await this.processQueuedEvents();
     }
   }
 
@@ -556,6 +609,9 @@ class OfflineEventManager {
           break;
         case QueuedEventType.CLOSE_COMMAND:
           await this.processCloseCommandEvent(event as QueuedCloseCommandEvent);
+          break;
+        case QueuedEventType.CLOSE_CALL:
+          await this.processCloseCallEvent(event as QueuedCloseCallEvent);
           break;
         case QueuedEventType.ASSIGN_INCIDENT_ROLE:
           await this.processAssignIncidentRoleEvent(event as QueuedAssignIncidentRoleEvent);
@@ -635,7 +691,13 @@ class OfflineEventManager {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-      store.updateEventStatus(event.id, QueuedEventStatus.FAILED, errorMessage);
+      if (event.type === QueuedEventType.CLOSE_CALL && isCallCloseRejection(error)) {
+        // The server refused the close (e.g. 400: the call's incident command is still active). Resending
+        // gets the same answer, so give up now; the queue screen keeps it with the server's reason.
+        store.updateEventStatus(event.id, QueuedEventStatus.FAILED, getCallCloseErrorMessage(error) ?? errorMessage, { permanent: true });
+      } else {
+        store.updateEventStatus(event.id, QueuedEventStatus.FAILED, errorMessage);
+      }
 
       logger.error({
         message: 'Failed to process event',

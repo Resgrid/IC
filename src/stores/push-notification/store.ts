@@ -10,7 +10,8 @@ export interface PushNotificationData {
   data?: Record<string, unknown>;
 }
 
-export type NotificationType = 'call' | 'message' | 'chat' | 'group-chat' | 'unknown';
+/** 'notification' is a generic alert (event code N{id}): title and body only, nothing to open. */
+export type NotificationType = 'call' | 'message' | 'chat' | 'group-chat' | 'notification' | 'unknown';
 
 export interface ParsedNotification {
   type: NotificationType;
@@ -29,13 +30,22 @@ interface PushNotificationModalState {
   parseNotification: (notificationData: PushNotificationData) => ParsedNotification;
 }
 
+// Whole event code prefixes, checked before the first-character map below.
+// "NC:{callId}": a call the unit or member was on has been closed. It leads with "n" so the server sends it as an
+// ordinary notification rather than a critical call alert; a tap still opens the call.
+const EVENT_CODE_TYPES: Record<string, NotificationType> = {
+  nc: 'call',
+};
+
 // First character of the event code prefix sent by the Resgrid backend, e.g.
-// "C:1234" call, "M:5678" message, "t:{channelId}" chat, "g:{channelId}" group chat.
+// "C:1234" call, "M:5678" message, "t:{channelId}" chat,
+// "g:{channelId}" group chat, "N:{id}" generic notification.
 const EVENT_CODE_PREFIXES: Record<string, NotificationType> = {
   c: 'call',
   m: 'message',
   t: 'chat',
   g: 'group-chat',
+  n: 'notification',
 };
 
 /**
@@ -57,7 +67,7 @@ export const parseNotificationData = (notificationData: PushNotificationData): P
     // Colon format ("C:1234", "t:{channelId}"): split on the FIRST colon only, so an
     // id that itself contains one survives intact.
     const lowerPrefix = eventCode.slice(0, separatorIndex).toLowerCase();
-    type = EVENT_CODE_PREFIXES[lowerPrefix.charAt(0)] ?? 'unknown';
+    type = EVENT_CODE_TYPES[lowerPrefix] ?? EVENT_CODE_PREFIXES[lowerPrefix.charAt(0)] ?? 'unknown';
     id = eventCode.slice(separatorIndex + 1);
   } else if (separatorIndex === -1 && eventCode.length > 1) {
     // Legacy no-colon format ("C1234"): first character is the type prefix, rest is the id.

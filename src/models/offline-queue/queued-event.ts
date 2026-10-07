@@ -24,6 +24,8 @@ export enum QueuedEventType {
   SET_NEED_STATUS = 'set_need_status',
   UPDATE_COMMAND_DETAILS = 'update_command_details',
   UPDATE_COMMAND_NODE = 'update_command_node',
+  // Call close queued behind an offline End Command; replayed only after that CLOSE_COMMAND settles
+  CLOSE_CALL = 'close_call',
 }
 
 export enum QueuedEventStatus {
@@ -117,6 +119,16 @@ export interface QueuedEstablishCommandEvent extends Omit<QueuedEvent, 'data'> {
 export interface QueuedCloseCommandEvent extends Omit<QueuedEvent, 'data'> {
   type: QueuedEventType.CLOSE_COMMAND;
   data: { callId: string; incidentCommandId: string };
+}
+
+/**
+ * Close the call itself (PUT Calls/CloseCall). Queued after the CLOSE_COMMAND for the same call when the
+ * command is ended offline with "also close the call": the server refuses to close a call whose incident
+ * command is still active, so the replay waits for that command close first.
+ */
+export interface QueuedCloseCallEvent extends Omit<QueuedEvent, 'data'> {
+  type: QueuedEventType.CLOSE_CALL;
+  data: { callId: string; type: number; notes?: string; sendNotification: boolean };
 }
 
 export interface QueuedAssignIncidentRoleEvent extends Omit<QueuedEvent, 'data'> {
