@@ -510,6 +510,25 @@ describe('useCallDetailStore - Notes', () => {
       expect(mockUpdateCall).toHaveBeenCalled();
     });
 
+    it('leaves the loaded call and no error behind when an update is refused', async () => {
+      // The edit screen swaps its form for an error view when `error` is set; a refused save (such as a
+      // 400 for the department's required call fields) must keep the form and what was typed into it.
+      const loadedCall = { CallId: 'call123', Name: 'Loaded Call' } as any;
+      useCallDetailStore.setState({ call: loadedCall, error: null, isLoading: false });
+      mockUpdateCall.mockRejectedValue(new Error('Required call fields are missing: note'));
+
+      const { result } = renderHook(() => useCallDetailStore());
+
+      await act(async () => {
+        await expect(result.current.updateCall({ callId: 'call123', name: 'Test Call', nature: 'Test Nature', priority: 1 })).rejects.toThrow('Required call fields are missing: note');
+      });
+
+      expect(result.current.error).toBeNull();
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.call).toBe(loadedCall);
+      expect(mockGetCall).not.toHaveBeenCalled();
+    });
+
     it('should handle partial update data', async () => {
       const partialData = {
         callId: 'call123',

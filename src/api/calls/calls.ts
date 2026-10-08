@@ -1,4 +1,5 @@
 import { cacheManager } from '@/lib/cache/cache-manager';
+import { formatGeolocation } from '@/lib/call-geolocation';
 import { type ActiveCallsResult } from '@/models/v4/calls/activeCallsResult';
 import { type CallExtraDataResult } from '@/models/v4/calls/callExtraDataResult';
 import { type CallResult } from '@/models/v4/calls/callResult';
@@ -48,6 +49,17 @@ export interface CreateCallRequest {
   type?: string;
   contactName?: string;
   contactInfo?: string;
+  /** External (e.g. CAD) call identifier. On update, blank keeps the stored value. */
+  externalId?: string;
+  /** Incident number. On update, blank keeps the stored value. */
+  incidentId?: string;
+  /** Reference number. On update, blank keeps the stored value. */
+  referenceId?: string;
+  /**
+   * Scheduled dispatch time, ISO 8601 UTC. Sent only when set: on create a time in the past dispatches at
+   * once; on update leaving it out keeps the stored schedule (the API cannot clear one).
+   */
+  dispatchOnUtc?: string;
   /** Primary Contact (premises/customer record) to link; the contact must belong to the department. */
   contactId?: string | null;
   /** Additional Contacts to link. On update, supplying either list replaces the existing links; omitting both leaves them alone. */
@@ -74,6 +86,17 @@ export interface UpdateCallRequest {
   type?: string;
   contactName?: string;
   contactInfo?: string;
+  /** External (e.g. CAD) call identifier. On update, blank keeps the stored value. */
+  externalId?: string;
+  /** Incident number. On update, blank keeps the stored value. */
+  incidentId?: string;
+  /** Reference number. On update, blank keeps the stored value. */
+  referenceId?: string;
+  /**
+   * Scheduled dispatch time, ISO 8601 UTC. Sent only when set: on create a time in the past dispatches at
+   * once; on update leaving it out keeps the stored schedule (the API cannot clear one).
+   */
+  dispatchOnUtc?: string;
   /** Primary Contact (premises/customer record) to link; the contact must belong to the department. */
   contactId?: string | null;
   /** Additional Contacts to link. On update, supplying either list replaces the existing links; omitting both leaves them alone. */
@@ -133,11 +156,15 @@ export const createCall = async (callData: CreateCallRequest) => {
     Note: callData.note || '',
     Address: callData.address || '',
     DestinationPoiId: callData.destinationPoiId ?? null,
-    Geolocation: `${callData.latitude?.toString() || ''},${callData.longitude?.toString() || ''}`,
+    Geolocation: formatGeolocation(callData.latitude, callData.longitude),
     Priority: callData.priority,
     Type: callData.type || '',
     ContactName: callData.contactName || '',
     ContactInfo: callData.contactInfo || '',
+    ExternalId: callData.externalId || '',
+    IncidentId: callData.incidentId || '',
+    ReferenceId: callData.referenceId || '',
+    ...(callData.dispatchOnUtc ? { DispatchOnUtc: callData.dispatchOnUtc } : {}),
     ...(callData.contactId !== undefined ? { ContactId: callData.contactId || '' } : {}),
     ...(callData.additionalContactIds !== undefined ? { AdditionalContactIds: callData.additionalContactIds } : {}),
     What3Words: callData.what3words || '',
@@ -168,11 +195,15 @@ export const updateCall = async (callData: UpdateCallRequest) => {
     Note: callData.note || '',
     Address: callData.address || '',
     DestinationPoiId: callData.destinationPoiId ?? null,
-    Geolocation: `${callData.latitude?.toString() || ''},${callData.longitude?.toString() || ''}`,
+    Geolocation: formatGeolocation(callData.latitude, callData.longitude),
     Priority: callData.priority,
     Type: callData.type || '',
     ContactName: callData.contactName || '',
     ContactInfo: callData.contactInfo || '',
+    ExternalId: callData.externalId || '',
+    IncidentId: callData.incidentId || '',
+    ReferenceId: callData.referenceId || '',
+    ...(callData.dispatchOnUtc ? { DispatchOnUtc: callData.dispatchOnUtc } : {}),
     ...(callData.contactId !== undefined ? { ContactId: callData.contactId || '' } : {}),
     ...(callData.additionalContactIds !== undefined ? { AdditionalContactIds: callData.additionalContactIds } : {}),
     What3Words: callData.what3words || '',

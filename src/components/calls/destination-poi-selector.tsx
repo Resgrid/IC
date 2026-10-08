@@ -16,10 +16,12 @@ interface DestinationPoiSelectorProps {
   poiTypes: PoiTypeResultData[];
   selectedPoiId: number | null;
   isLoading: boolean;
+  /** Marks the field as required by the department's call field policy. */
+  isRequired?: boolean;
   onChange: (poiId: number | null) => void;
 }
 
-export const DestinationPoiSelector: React.FC<DestinationPoiSelectorProps> = ({ destinationPois, poiTypes, selectedPoiId, isLoading, onChange }) => {
+export const DestinationPoiSelector: React.FC<DestinationPoiSelectorProps> = ({ destinationPois, poiTypes, selectedPoiId, isLoading, isRequired = false, onChange }) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = React.useState(false);
 
@@ -37,7 +39,10 @@ export const DestinationPoiSelector: React.FC<DestinationPoiSelectorProps> = ({ 
   return (
     <>
       <VStack space="xs">
-        <Text className="text-sm text-gray-500">{t('calls.destination_poi')}</Text>
+        <Text className="text-sm text-gray-500">
+          {t('calls.destination_poi')}
+          {isRequired ? ' *' : ''}
+        </Text>
         <Button variant="outline" onPress={() => setIsOpen(true)} className="w-full justify-start">
           <ButtonText className="flex-1 text-left" numberOfLines={2}>
             {selectedLabel}
