@@ -22,6 +22,13 @@ jest.mock('../../lib/logging', () => ({
   },
 }));
 
+// Mock expo-localization so each test controls the device region
+const mockGetLocales = jest.fn<() => { regionCode: string | null }[]>();
+
+jest.mock('expo-localization', () => ({
+  getLocales: () => mockGetLocales(),
+}));
+
 // Mock react-native-callkeep to ensure manual mock is used
 jest.mock('react-native-callkeep');
 
@@ -29,7 +36,7 @@ jest.mock('react-native-callkeep');
 import RNCallKeep from 'react-native-callkeep';
 
 // Import after mocks
-import { CallKeepService, callKeepService } from '../callkeep.service.ios';
+import { CallKeepService, callKeepService, isCallKitRestrictedRegion } from '../callkeep.service.ios';
 import { logger } from '../../lib/logging';
 
 const mockLogger = logger as jest.Mocked<typeof logger>;
@@ -40,6 +47,7 @@ describe('CallKeepService', () => {
     jest.clearAllMocks();
     // Reset platform to iOS for most tests
     (Platform as any).OS = 'ios';
+    mockGetLocales.mockReturnValue([{ regionCode: 'US' }]);
   });
 
   afterEach(() => {
@@ -333,6 +341,78 @@ describe('CallKeepService', () => {
       expect(mockLogger.debug).toHaveBeenCalledWith({
         message: 'No active call to end',
       });
+    });
+  });
+
+  describe('China Region Restriction', () => {
+    const config = {
+      appName: 'Test App',
+      maximumCallGroups: 1,
+      maximumCallsPerCallGroup: 1,
+      includesCallsInRecents: false,
+      supportsVideo: false,
+    };
+
+    it('should detect mainland China as a restricted region', () => {
+      mockGetLocales.mockReturnValue([{ regionCode: 'CN' }]);
+      expect(isCallKitRestrictedRegion()).toBe(true);
+
+      mockGetLocales.mockReturnValue([{ regionCode: 'CHN' }]);
+      expect(isCallKitRestrictedRegion()).toBe(true);
+    });
+
+    it('should not restrict other or unknown regions', () => {
+      mockGetLocales.mockReturnValue([{ regionCode: 'US' }]);
+      expect(isCallKitRestrictedRegion()).toBe(false);
+
+      // Hong Kong, Macau and Taiwan are separate regions and not covered by the MIIT request
+      mockGetLocales.mockReturnValue([{ regionCode: 'HK' }]);
+      expect(isCallKitRestrictedRegion()).toBe(false);
+
+      mockGetLocales.mockReturnValue([{ regionCode: null }]);
+      expect(isCallKitRestrictedRegion()).toBe(false);
+
+      mockGetLocales.mockReturnValue([]);
+      expect(isCallKitRestrictedRegion()).toBe(false);
+    });
+
+    it('should skip CallKit setup in China', async () => {
+      mockGetLocales.mockReturnValue([{ regionCode: 'CN' }]);
+
+      const service = CallKeepService.getInstance();
+      await service.setup(config);
+
+      expect(mockCallKeep.setup).not.toHaveBeenCalled();
+      expect(mockCallKeep.addEventListener).not.toHaveBeenCalled();
+      expect(mockLogger.info).toHaveBeenCalledWith({
+        message: 'CallKeep setup skipped - CallKit is unavailable in this region',
+        context: { regionCode: 'CN' },
+      });
+    });
+
+    it('should return without starting a CallKit call in China', async () => {
+      mockGetLocales.mockReturnValue([{ regionCode: 'CN' }]);
+
+      const service = CallKeepService.getInstance();
+      await service.setup(config);
+      const uuid = await service.startCall('emergency-channel');
+
+      expect(uuid).toBe('');
+      expect(mockCallKeep.startCall).not.toHaveBeenCalled();
+      expect(mockCallKeep.reportConnectingOutgoingCallWithUUID).not.toHaveBeenCalled();
+      expect(service.isCallActiveNow()).toBe(false);
+    });
+
+    it('should not start a CallKit call when the region changes to China after setup', async () => {
+      const service = CallKeepService.getInstance();
+      await service.setup(config);
+      expect(mockCallKeep.setup).toHaveBeenCalledTimes(1);
+
+      mockGetLocales.mockReturnValue([{ regionCode: 'CN' }]);
+      const uuid = await service.startCall('emergency-channel');
+
+      expect(uuid).toBe('');
+      expect(mockCallKeep.startCall).not.toHaveBeenCalled();
     });
   });
 
