@@ -1,22 +1,6 @@
 import { format, isValid } from 'date-fns';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import {
-  BuildingIcon,
-  ClockIcon,
-  FileTextIcon,
-  HistoryIcon,
-  ImageIcon,
-  InfoIcon,
-  LoaderIcon,
-  MessageSquareIcon,
-  PaperclipIcon,
-  RouteIcon,
-  ShieldCheckIcon,
-  TimerIcon,
-  UserIcon,
-  UsersIcon,
-  VideoIcon,
-} from 'lucide-react-native';
+import { BuildingIcon, ClockIcon, FileTextIcon, HistoryIcon, ImageIcon, InfoIcon, MessageSquareIcon, PaperclipIcon, RouteIcon, ShieldCheckIcon, TimerIcon, UserIcon, UsersIcon, VideoIcon } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -27,6 +11,7 @@ import { CallSiteInfoTabPanel } from '@/components/calls/call-site-info-tab-pane
 import { LocationHistoryPanel } from '@/components/calls/location-history-panel';
 import { UnitReadinessPanel } from '@/components/calls/unit-readiness-panel';
 import { CheckInTabContent } from '@/components/check-in-timers/check-in-tab-content';
+import { isOverdueCheckInStatus } from '@/components/check-in-timers/check-in-timer-card';
 import { MessageCommanderSheet } from '@/components/command/message-commander-sheet';
 import { ReopenCommandSheet } from '@/components/command/reopen-command-sheet';
 import { StartCommandSheet } from '@/components/command/start-command-sheet';
@@ -45,6 +30,7 @@ import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { HtmlRenderer } from '@/components/ui/html-renderer';
 import { SharedTabs, type TabItem } from '@/components/ui/shared-tabs';
+import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { useAnalytics } from '@/hooks/use-analytics';
@@ -488,10 +474,10 @@ export default function CallDetail() {
                   <Box key={index} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-700">
                     <Text className="font-semibold">{dispatched.Name}</Text>
                     <HStack className="mt-1">
-                      <Text className="mr-2 text-sm text-gray-600">
+                      <Text className="mr-2 text-sm text-gray-600 dark:text-gray-400">
                         {t('call_detail.group')}: {dispatched.Group}
                       </Text>
-                      <Text className="text-sm text-gray-600">
+                      <Text className="text-sm text-gray-600 dark:text-gray-400">
                         {t('call_detail.type')}: {dispatched.Type}
                       </Text>
                     </HStack>
@@ -518,7 +504,7 @@ export default function CallDetail() {
                     <Text className="font-semibold" style={{ color: event.StatusColor }}>
                       {event.StatusText}
                     </Text>
-                    <Text className="text-sm text-gray-600">
+                    <Text className="text-sm text-gray-600 dark:text-gray-400">
                       {event.Name} - {event.Group}
                     </Text>
                     <Text className="text-xs text-gray-500">{isValid(new Date(event.Timestamp)) ? new Date(event.Timestamp).toLocaleString() : ''}</Text>
@@ -570,7 +556,7 @@ export default function CallDetail() {
 
     // Conditionally add check-in tab
     if (call?.CheckInTimersEnabled) {
-      const overdueCount = timerStatuses.filter((t) => t.Status === 'Overdue').length;
+      const overdueCount = timerStatuses.filter((timer) => isOverdueCheckInStatus(timer.Status)).length;
       tabs.push({
         key: 'checkin',
         title: t('check_in.tab_title'),
@@ -635,7 +621,7 @@ export default function CallDetail() {
                 disabled={isSettingActive}
                 className={`${isSettingActive ? 'bg-primary-400 opacity-80' : 'bg-primary-500'} shadow-lg`}
               >
-                {isSettingActive ? <ButtonIcon as={LoaderIcon} className="mr-1 animate-spin text-white" /> : null}
+                {isSettingActive ? <Spinner size="small" className="mr-1 text-white" /> : null}
                 <ButtonText className="font-medium text-white">{isSettingActive ? t('command.starting') : hasCommandBoard ? t('command.open_board') : t('command.start_command')}</ButtonText>
               </Button>
             </HStack>

@@ -159,7 +159,7 @@ export const VoiceSection: React.FC<VoiceSectionProps> = ({ callId, channels, tr
                   <Text className="min-w-0 flex-1 font-medium text-gray-900 dark:text-white">{channel.Name}</Text>
                   {isConnected ? (
                     <Badge action="success" variant="solid">
-                      <BadgeText className="text-white">{t('command.channel_connected')}</BadgeText>
+                      <BadgeText>{t('command.channel_connected')}</BadgeText>
                     </Badge>
                   ) : null}
                 </HStack>

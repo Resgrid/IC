@@ -12,6 +12,7 @@ import { Text } from '@/components/ui/text';
 import { View } from '@/components/ui/view';
 import { VStack } from '@/components/ui/vstack';
 import { isWeb } from '@/lib/platform';
+import { readableTextColor } from '@/lib/utils';
 import type { PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
 import type { ActiveUnitRoleResultData } from '@/models/v4/unitRoles/activeUnitRoleResultData';
 import type { UnitResultData } from '@/models/v4/units/unitResultData';
@@ -27,7 +28,10 @@ const ServerColorBadge: React.FC<{ label: string; color?: string | null; testID?
   const hex = asHexColor(color);
   return (
     <Badge style={hex ? { backgroundColor: hex } : styles.badgeFallback} variant="solid" testID={testID}>
-      <BadgeText className="text-white">{label}</BadgeText>
+      {/* Status colours run from dark to pastel, so pick black or white text for each rather than a fixed white. */}
+      <BadgeText className="text-white" style={hex ? { color: readableTextColor(hex) ?? '#FFFFFF' } : undefined}>
+        {label}
+      </BadgeText>
     </Badge>
   );
 };
@@ -89,7 +93,7 @@ export const UnitResourceCard: React.FC<UnitResourceCardProps> = ({ name, unit, 
   return (
     <CardShell isLocal={isLocal} onView={onView} testID={testID} viewTestID={viewTestID}>
       <HStack className="items-center" space="sm">
-        <Box className="size-8 items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-950">
+        <Box className="size-8 items-center justify-center rounded-lg bg-primary-50">
           <Icon as={Truck} className="text-blue-600 dark:text-blue-400" size={16} />
         </Box>
         <VStack className="min-w-0 flex-1">
@@ -156,8 +160,8 @@ export const PersonnelResourceCard: React.FC<PersonnelResourceCardProps> = ({ na
   return (
     <CardShell isLocal={isLocal} onView={onView} testID={testID} viewTestID={viewTestID}>
       <HStack className="items-center" space="sm">
-        <Box className="size-8 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-950">
-          <Text className="text-xs font-bold text-primary-600 dark:text-primary-400">{initials}</Text>
+        <Box className="size-8 items-center justify-center rounded-full bg-primary-50">
+          <Text className="text-xs font-bold text-primary-600">{initials}</Text>
           {statusDot ? <View style={[styles.statusDot, { backgroundColor: statusDot }]} /> : null}
         </Box>
         <VStack className="min-w-0 flex-1">

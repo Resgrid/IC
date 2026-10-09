@@ -51,7 +51,9 @@ const messageOf = (error: unknown, fallback: string): string => {
   if (status === 404) {
     return 'not_found';
   }
-  return error instanceof Error && error.message ? error.message : fallback;
+  // Never the transport's own text ("Network Error", "Request failed with status code 500"): the
+  // result is used as a records.* translation key.
+  return fallback;
 };
 
 // Fetches can overlap (a screen's focus refresh and a connector run's re-read), and each answer would

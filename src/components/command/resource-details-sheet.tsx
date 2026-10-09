@@ -16,7 +16,7 @@ import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { View } from '@/components/ui/view';
 import { VStack } from '@/components/ui/vstack';
-import { parseUtcMs } from '@/lib/utils';
+import { parseUtcMs, readableTextColor } from '@/lib/utils';
 import type { MapMakerInfoData } from '@/models/v4/mapping/getMapDataAndMarkersData';
 import type { PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
 import type { ActiveUnitRoleResultData } from '@/models/v4/unitRoles/activeUnitRoleResultData';
@@ -51,7 +51,10 @@ const ColorBadge: React.FC<{ label: string; color?: string | null; testID?: stri
   const hex = asHexColor(color);
   return (
     <Badge style={hex ? { backgroundColor: hex } : styles.badgeFallback} variant="solid" testID={testID}>
-      <BadgeText className="text-white">{label}</BadgeText>
+      {/* Status colours run from dark to pastel, so pick black or white text for each rather than a fixed white. */}
+      <BadgeText className="text-white" style={hex ? { color: readableTextColor(hex) ?? '#FFFFFF' } : undefined}>
+        {label}
+      </BadgeText>
     </Badge>
   );
 };

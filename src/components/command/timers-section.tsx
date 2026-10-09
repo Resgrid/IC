@@ -102,16 +102,12 @@ export const TimersSection: React.FC<TimersSectionProps> = ({ timers, onStartTim
             const remainingSeconds = dueMs !== null ? Math.round((dueMs - nowMs) / 1000) : null;
             const isOverdue = remainingSeconds !== null && remainingSeconds <= 0;
             return (
-              <HStack
-                key={timer.IncidentTimerId}
-                className={`items-center justify-between rounded-lg px-3 py-2 ${isOverdue ? 'bg-error-50 dark:bg-error-950' : 'bg-gray-50 dark:bg-gray-900'}`}
-                testID={`timer-${timer.IncidentTimerId}`}
-              >
+              <HStack key={timer.IncidentTimerId} className={`items-center justify-between rounded-lg px-3 py-2 ${isOverdue ? 'bg-error-50' : 'bg-gray-50 dark:bg-gray-900'}`} testID={`timer-${timer.IncidentTimerId}`}>
                 <HStack space="sm" className="min-w-0 flex-1 items-center">
                   <AlarmClock className={isOverdue ? 'text-error-600' : 'text-gray-400'} size={18} />
                   <VStack className="min-w-0 flex-1">
                     <Text className="font-medium text-gray-900 dark:text-white">{timer.Name}</Text>
-                    <Text className={`text-xs ${isOverdue ? 'font-semibold text-error-600 dark:text-error-400' : 'text-gray-500 dark:text-gray-400'}`} testID={`timer-countdown-${timer.IncidentTimerId}`}>
+                    <Text className={`text-xs ${isOverdue ? 'font-semibold text-error-600' : 'text-gray-500 dark:text-gray-400'}`} testID={`timer-countdown-${timer.IncidentTimerId}`}>
                       {remainingSeconds === null ? '' : isOverdue ? t('command.timer_overdue_by', { time: formatClock(remainingSeconds) }) : t('command.timer_due_in', { time: formatClock(remainingSeconds) })}
                     </Text>
                   </VStack>
@@ -119,7 +115,7 @@ export const TimersSection: React.FC<TimersSectionProps> = ({ timers, onStartTim
                 <HStack space="sm" className="items-center">
                   {isOverdue ? (
                     <Badge action="error" variant="solid">
-                      <BadgeText className="text-white">{t('command.timer_overdue')}</BadgeText>
+                      <BadgeText>{t('command.timer_overdue')}</BadgeText>
                     </Badge>
                   ) : null}
                   <Button

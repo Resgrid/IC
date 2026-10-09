@@ -70,7 +70,7 @@ const Sidebar = ({ onClose }: SidebarProps) => {
 
         {menuItems.map((item) => (
           <Pressable key={item.key} testID={`sidebar-link-${item.key}`} className="flex-row items-center gap-3 rounded-lg px-3 py-3 active:bg-gray-100 dark:active:bg-gray-800" onPress={() => handleNavigate(item.href)}>
-            <Icon as={item.icon} size="lg" className="text-primary-500 dark:text-primary-400" />
+            <Icon as={item.icon} size="lg" className="text-primary-600" />
             <Text className="flex-1 text-base font-medium text-gray-900 dark:text-white">{t(item.labelKey)}</Text>
             <Icon as={ChevronRight} size="sm" className="text-gray-400 dark:text-gray-500" />
           </Pressable>

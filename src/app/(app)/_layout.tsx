@@ -400,7 +400,8 @@ export default function TabLayout() {
         zIndex: 100,
         backgroundColor: 'transparent',
         borderTopWidth: 0.5,
-        borderTopColor: 'rgba(0, 0, 0, 0.1)',
+        // Mid-gray rather than black-alpha so the divider still shows on the dark tab bar.
+        borderTopColor: 'rgba(127, 127, 127, 0.2)',
       },
     }),
     [isLandscape, insets.bottom, insets.top]
@@ -413,12 +414,12 @@ export default function TabLayout() {
   const handleCloseNotifications = useCallback(() => setIsNotificationsOpen(false), []);
 
   // Memoize per-screen tab bar icon renderers to prevent new functions every render
-  const mapIcon = useCallback(({ color }: { color: ColorValue }) => <Icon as={Map} stroke={color as string} className="text-primary-500 dark:text-primary-400" />, []);
-  const callsIcon = useCallback(({ color }: { color: ColorValue }) => <Icon as={Megaphone} stroke={color as string} className="text-primary-500 dark:text-primary-400" />, []);
-  const incidentsIcon = useCallback(({ color }: { color: ColorValue }) => <Icon as={LayoutDashboard} stroke={color as string} className="text-primary-500 dark:text-primary-400" />, []);
-  const commandIcon = useCallback(({ color }: { color: ColorValue }) => <Icon as={ClipboardList} stroke={color as string} className="text-primary-500 dark:text-primary-400" />, []);
-  const routesIcon = useCallback(({ color }: { color: ColorValue }) => <Icon as={Navigation} stroke={color as string} className="text-primary-500 dark:text-primary-400" />, []);
-  const weatherAlertsIcon = useCallback(({ color }: { color: ColorValue }) => <Icon as={CloudAlert} stroke={color as string} className="text-primary-500 dark:text-primary-400" />, []);
+  const mapIcon = useCallback(({ color }: { color: ColorValue }) => <Icon as={Map} stroke={color as string} className="text-primary-500" />, []);
+  const callsIcon = useCallback(({ color }: { color: ColorValue }) => <Icon as={Megaphone} stroke={color as string} className="text-primary-500" />, []);
+  const incidentsIcon = useCallback(({ color }: { color: ColorValue }) => <Icon as={LayoutDashboard} stroke={color as string} className="text-primary-500" />, []);
+  const commandIcon = useCallback(({ color }: { color: ColorValue }) => <Icon as={ClipboardList} stroke={color as string} className="text-primary-500" />, []);
+  const routesIcon = useCallback(({ color }: { color: ColorValue }) => <Icon as={Navigation} stroke={color as string} className="text-primary-500" />, []);
+  const weatherAlertsIcon = useCallback(({ color }: { color: ColorValue }) => <Icon as={CloudAlert} stroke={color as string} className="text-primary-500" />, []);
   const settingsIcon = useCallback(({ color }: { color: ColorValue }) => <Icon as={Settings} stroke={color as string} />, []);
 
   // Memoize header left/right renders
@@ -609,7 +610,7 @@ export default function TabLayout() {
 
       {/* Loading overlay during initialization — shown on top of Tabs so the navigator stays mounted */}
       {!isInitComplete ? (
-        <View style={styles.loadingOverlay}>
+        <View style={styles.loadingOverlay} className={Platform.OS === 'web' ? 'bg-background-0' : 'bg-background-0/95'}>
           <ActivityIndicator size="large" />
         </View>
       ) : null}
@@ -768,7 +769,6 @@ const styles = StyleSheet.create({
     ...(StyleSheet.absoluteFill as object),
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Platform.OS === 'web' ? '#ffffff' : 'rgba(255,255,255,0.95)',
     zIndex: 1000,
   },
 });

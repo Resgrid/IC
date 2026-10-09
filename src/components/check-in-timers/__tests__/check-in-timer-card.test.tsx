@@ -3,7 +3,7 @@ import { render, fireEvent } from '@testing-library/react-native';
 
 import type { CheckInTimerStatusResultData } from '@/models/v4/checkIn/checkInTimerStatusResultData';
 
-import { CheckInTimerCard } from '../check-in-timer-card';
+import { CheckInTimerCard, isOverdueCheckInStatus } from '../check-in-timer-card';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -127,5 +127,37 @@ describe('CheckInTimerCard', () => {
     const { getByText } = render(<CheckInTimerCard timer={timer} onCheckIn={onCheckIn} />);
 
     expect(getByText('check_in.status_overdue')).toBeTruthy();
+  });
+
+  it.each([
+    ['Green', 'check_in.status_green'],
+    ['Warning', 'check_in.status_warning'],
+    ['Critical', 'check_in.status_critical'],
+  ])('should render the translated label for server status %s', (status, labelKey) => {
+    const timer = createMockTimer({ Status: status });
+
+    const { getByText, unmount } = render(<CheckInTimerCard timer={timer} onCheckIn={jest.fn()} />);
+
+    expect(getByText(labelKey)).toBeTruthy();
+    unmount();
+  });
+
+  it('should show the raw status instead of an i18n key for an unknown status', () => {
+    const timer = createMockTimer({ Status: 'NoTimer' });
+
+    const { getByText, queryByText, unmount } = render(<CheckInTimerCard timer={timer} onCheckIn={jest.fn()} />);
+
+    expect(getByText('NoTimer')).toBeTruthy();
+    expect(queryByText('check_in.status_notimer')).toBeNull();
+    unmount();
+  });
+});
+
+describe('isOverdueCheckInStatus', () => {
+  it('treats Critical and legacy Overdue as overdue', () => {
+    expect(isOverdueCheckInStatus('Critical')).toBe(true);
+    expect(isOverdueCheckInStatus('Overdue')).toBe(true);
+    expect(isOverdueCheckInStatus('Warning')).toBe(false);
+    expect(isOverdueCheckInStatus('Green')).toBe(false);
   });
 });

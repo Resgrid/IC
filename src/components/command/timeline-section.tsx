@@ -94,7 +94,7 @@ export const SceneClock: React.FC<SceneClockProps> = ({ startedOn }) => {
   const text = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
   return (
-    <Text className="text-sm font-semibold tabular-nums text-primary-600 dark:text-primary-400" testID="command-scene-clock">
+    <Text className="text-sm font-semibold tabular-nums text-primary-600" testID="command-scene-clock">
       {text}
     </Text>
   );

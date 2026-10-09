@@ -11,7 +11,7 @@
 
 import { type TFunction } from 'i18next';
 
-import { getCommandNodeTypeName, getIncidentRoleName, getNeedCategoryName } from '@/lib/incident-command-utils';
+import { dedupeByUserId, getCommandNodeTypeName, getIncidentRoleName, getNeedCategoryName } from '@/lib/incident-command-utils';
 import { parseUtcMs } from '@/lib/utils';
 import { IncidentTimerStatus } from '@/models/v4/incidentCommand/incidentCommandEnums';
 import {
@@ -102,7 +102,7 @@ const isCriticalPar = (row: PersonnelCallCheckInStatus): boolean => row.Status =
 const isWarningPar = (row: PersonnelCallCheckInStatus): boolean => !isCriticalPar(row) && row.Status === 'Warning';
 
 const parBuckets = (board: IncidentCommandBoard) => {
-  const rows = board.Accountability ?? [];
+  const rows = dedupeByUserId(board.Accountability ?? []);
   return { total: rows.length, warning: rows.filter(isWarningPar).length, critical: rows.filter(isCriticalPar).length };
 };
 
@@ -249,7 +249,7 @@ export const answerStatus = (context: IncidentAnswerContext, t: TFunction): stri
 };
 
 export const answerPar = (context: IncidentAnswerContext, t: TFunction): string => {
-  const rows = context.board!.Accountability ?? [];
+  const rows = dedupeByUserId(context.board!.Accountability ?? []);
   if (rows.length === 0) {
     return t('incident_assistant.par_none', { incident: incidentLabel(context, t) });
   }
