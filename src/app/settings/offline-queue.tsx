@@ -153,11 +153,11 @@ export default function OfflineQueue() {
           </HStack>
 
           {item.error ? (
-            <Text className="mt-1 text-xs text-error-600 dark:text-error-400" testID={`queue-event-error-${item.id}`}>
+            <Text className="mt-1 text-xs text-error-600" testID={`queue-event-error-${item.id}`}>
               {item.error}
             </Text>
           ) : null}
-          {exhausted ? <Text className="mt-1 text-xs text-error-600 dark:text-error-400">{t('offline_queue.retries_exhausted')}</Text> : null}
+          {exhausted ? <Text className="mt-1 text-xs text-error-600">{t('offline_queue.retries_exhausted')}</Text> : null}
 
           <HStack space="sm" className="mt-2 justify-end">
             {item.status === QueuedEventStatus.FAILED ? (

@@ -211,7 +211,7 @@ export const LoginForm = ({ onSubmit = () => {}, isLoading = false, error = unde
           ) : null}
           {onSsoPress ? (
             <Button className="flex-1" variant="outline" action="secondary" size="sm" onPress={onSsoPress}>
-              <ShieldCheck size={14} style={{ marginRight: 4 }} />
+              <ShieldCheck size={14} className="text-typography-500" style={{ marginRight: 4 }} />
               <ButtonText className="text-xs">{t('login.sso_button')}</ButtonText>
             </Button>
           ) : null}
@@ -220,7 +220,7 @@ export const LoginForm = ({ onSubmit = () => {}, isLoading = false, error = unde
         {/* Shared device: every sign-in here starts a shared session that locks between operators */}
         {onSharedDevicePress ? (
           <Button className="mt-2 self-center" variant="link" action="secondary" size="sm" onPress={onSharedDevicePress} testID="login-shared-device">
-            <Truck size={14} style={{ marginRight: 4 }} />
+            <Truck size={14} className="text-typography-500" style={{ marginRight: 4 }} />
             <ButtonText className="text-xs">
               {sharedDevice ? (sharedDevice.label ? t('shared_session.device_on_label', { label: sharedDevice.label }) : t('shared_session.device_on')) : t('shared_session.device_settings')}
             </ButtonText>

@@ -125,7 +125,7 @@ const NotificationRow = React.memo<NotificationRowProps>(({ item, isSelectionMod
 
       {isSelectionMode ? (
         <View style={styles.selectionIndicator}>
-          {isSelected ? <CheckCircle size={24} className="text-primary-500 dark:text-primary-400" strokeWidth={2} /> : <Circle size={24} className="text-gray-400 dark:text-gray-500" strokeWidth={2} />}
+          {isSelected ? <CheckCircle size={24} className="text-primary-600" strokeWidth={2} /> : <Circle size={24} className="text-gray-400 dark:text-gray-500" strokeWidth={2} />}
         </View>
       ) : null}
 
@@ -140,7 +140,7 @@ const NotificationRow = React.memo<NotificationRowProps>(({ item, isSelectionMod
         notification.referenceType && notification.referenceId ? (
           <View style={styles.actionButtons}>
             <Button onPress={handleNavigate} variant="outline" className="size-8 p-0" testID={`notification-reference-${notification.id}`}>
-              <ExternalLink size={24} className="text-primary-500 dark:text-primary-400" strokeWidth={2} />
+              <ExternalLink size={24} className="text-primary-600" strokeWidth={2} />
             </Button>
             <ChevronRight size={24} className="ml-2 text-gray-400" strokeWidth={2} />
           </View>
@@ -395,10 +395,10 @@ export const NotificationInbox = ({ isOpen, onClose }: NotificationInboxProps) =
                     <Text style={styles.headerTitle}>{t('notifications.title')}</Text>
                     <View style={styles.headerActions}>
                       <Pressable onPress={enterSelectionMode} style={styles.actionButton}>
-                        <MoreVertical size={24} className="text-primary-500 dark:text-primary-400" strokeWidth={2} />
+                        <MoreVertical size={24} className="text-primary-600" strokeWidth={2} />
                       </Pressable>
                       <Pressable onPress={onClose} style={styles.closeButton}>
-                        <X size={24} className="text-primary-500 dark:text-primary-400" strokeWidth={2} />
+                        <X size={24} className="text-primary-600" strokeWidth={2} />
                       </Pressable>
                     </View>
                   </>

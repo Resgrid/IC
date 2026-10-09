@@ -10,7 +10,7 @@ import { HtmlRenderer } from '@/components/ui/html-renderer';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import { getTimeAgoUtc, invertColor } from '@/lib/utils';
+import { getTimeAgoUtc, readableColors } from '@/lib/utils';
 import { type CallPriorityResultData } from '@/models/v4/callPriorities/callPriorityResultData';
 import type { CallResultData } from '@/models/v4/calls/callResultData';
 import type { DispatchedEventResultData } from '@/models/v4/calls/dispatchedEventResultData';
@@ -43,7 +43,7 @@ interface CallCardProps {
 
 export const CallCard: React.FC<CallCardProps> = ({ call, priority, showTimerIcon = false, isTimerOverdue = false, dispatches, onStartCommand, isCommandCall = false, hasCommand = false }) => {
   const { t } = useTranslation();
-  const textColor = invertColor(getColor(call, priority), true);
+  const { backgroundColor, textColor } = readableColors(getColor(call, priority));
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const destinationLabel = call.DestinationName || call.DestinationAddress || '';
 
@@ -62,14 +62,14 @@ export const CallCard: React.FC<CallCardProps> = ({ call, priority, showTimerIco
   return (
     <Box
       style={{
-        backgroundColor: getColor(call, priority),
+        backgroundColor,
       }}
       className={`mb-2 rounded-xl p-2 shadow-xs`}
     >
       {/* Header with Call Number and Priority */}
       <HStack className="mb-4 items-center justify-between">
         <HStack className="items-center space-x-2">
-          <AlertTriangle size={20} />
+          <AlertTriangle size={20} color={textColor} />
           <Text
             style={{
               color: textColor,
@@ -197,7 +197,7 @@ export const CallCard: React.FC<CallCardProps> = ({ call, priority, showTimerIco
           <ButtonIcon as={ClipboardList} className="text-gray-900" />
           <ButtonText className="text-gray-900">{hasCommand ? t('command.open_board') : t('command.start_command')}</ButtonText>
           {isCommandCall ? (
-            <Text className="ml-2 text-xs font-semibold text-primary-600" testID={`command-active-badge-${call.CallId}`}>
+            <Text className="ml-2 text-xs font-semibold text-primary-600 dark:text-primary-400" testID={`command-active-badge-${call.CallId}`}>
               {t('command.active_badge')}
             </Text>
           ) : null}

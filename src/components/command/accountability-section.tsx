@@ -182,7 +182,7 @@ export const AccountabilitySection: React.FC<AccountabilitySectionProps> = ({ ca
         </HStack>
         {timersEnabled ? (
           <Button size="xs" variant="outline" onPress={refresh} isDisabled={isLoadingStatuses} testID="command-accountability-refresh">
-            <RefreshCw size={14} />
+            <RefreshCw size={14} className="text-primary-600" />
             <ButtonText>{t('common.refresh')}</ButtonText>
           </Button>
         ) : null}
@@ -209,7 +209,7 @@ export const AccountabilitySection: React.FC<AccountabilitySectionProps> = ({ ca
               </VStack>
               <VStack space="xs" className="items-end">
                 <Badge action={getParBadgeAction(entry.Status)} variant="solid">
-                  <BadgeText className="text-white">{entry.Status === 'Green' ? t('command.par_green') : entry.Status === 'Warning' ? t('command.par_warning') : t('command.par_critical')}</BadgeText>
+                  <BadgeText>{entry.Status === 'Green' ? t('command.par_green') : entry.Status === 'Warning' ? t('command.par_warning') : t('command.par_critical')}</BadgeText>
                 </Badge>
                 <Button size="xs" onPress={() => handlePersonnelCheckIn(entry.UserId)} isDisabled={isCheckingIn} testID={`accountability-check-in-${entry.UserId}`}>
                   <ButtonText>{t('check_in.perform_check_in')}</ButtonText>
@@ -233,9 +233,7 @@ export const AccountabilitySection: React.FC<AccountabilitySectionProps> = ({ ca
                 </VStack>
                 <VStack space="xs" className="items-end">
                   <Badge action={getParBadgeAction(timer.Status)} variant="solid">
-                    <BadgeText className="text-white">
-                      {timer.Status === 'Green' || timer.Status === 'Ok' ? t('command.par_green') : timer.Status === 'Warning' ? t('command.par_warning') : t('command.par_critical')}
-                    </BadgeText>
+                    <BadgeText>{timer.Status === 'Green' || timer.Status === 'Ok' ? t('command.par_green') : timer.Status === 'Warning' ? t('command.par_warning') : t('command.par_critical')}</BadgeText>
                   </Badge>
                   <Button size="xs" onPress={() => handleTimerCheckIn(timer)} isDisabled={isCheckingIn || target === null} testID={`accountability-timer-check-in-${timer.TargetType}-${timer.TargetEntityId}`}>
                     <ButtonText>{t('check_in.perform_check_in')}</ButtonText>

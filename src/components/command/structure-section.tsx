@@ -85,7 +85,7 @@ export const StructureSection: React.FC<StructureSectionProps> = ({
       </HStack>
 
       {activeAssignments.length > 0 ? (
-        <Text className={`mb-3 text-sm ${selectedAssignment ? 'font-medium text-primary-600 dark:text-primary-300' : 'text-gray-500 dark:text-gray-400'}`}>
+        <Text className={`mb-3 text-sm ${selectedAssignment ? 'font-medium text-primary-600' : 'text-gray-500 dark:text-gray-400'}`}>
           {selectedAssignment ? t('command.move_selected_hint', { resource: resolveResourceName(selectedAssignment.ResourceKind, selectedAssignment.ResourceId) }) : t('command.drag_move_hint')}
         </Text>
       ) : null}
@@ -103,7 +103,7 @@ export const StructureSection: React.FC<StructureSectionProps> = ({
                 key={node.CommandStructureNodeId}
                 accessibilityHint={selectedAssignment ? t('command.move_resource_to_lane', { resource: resolveResourceName(selectedAssignment.ResourceKind, selectedAssignment.ResourceId), lane: node.Name }) : undefined}
                 style={node.Color ? { borderLeftWidth: 4, borderLeftColor: node.Color } : undefined}
-                className={`rounded-lg border p-3 ${selectedAssignment && selectedAssignment.CommandStructureNodeId !== node.CommandStructureNodeId ? 'border-primary-400 bg-primary-50 dark:bg-primary-950' : 'border-gray-200 dark:border-gray-700'}`}
+                className={`rounded-lg border p-3 ${selectedAssignment && selectedAssignment.CommandStructureNodeId !== node.CommandStructureNodeId ? 'border-primary-400 bg-primary-50' : 'border-gray-200 dark:border-gray-700'}`}
                 onPress={() => void handleLanePress(node.CommandStructureNodeId)}
                 testID={`lane-${node.CommandStructureNodeId}`}
               >
@@ -113,7 +113,7 @@ export const StructureSection: React.FC<StructureSectionProps> = ({
                       <Text className="text-base font-semibold text-gray-900 dark:text-white">{node.Name}</Text>
                       {isUnderstaffed ? (
                         <Badge action="warning" variant="solid" testID={`lane-understaffed-${node.CommandStructureNodeId}`}>
-                          <BadgeText className="text-white">{t('command.lane_understaffed', { count: laneUnitCount, min: node.MinUnits })}</BadgeText>
+                          <BadgeText>{t('command.lane_understaffed', { count: laneUnitCount, min: node.MinUnits })}</BadgeText>
                         </Badge>
                       ) : null}
                       {node.CommandStructureNodeId.startsWith('local-') ? <Icon as={CloudOff} size="sm" className="text-amber-500" /> : null}
@@ -164,7 +164,7 @@ export const StructureSection: React.FC<StructureSectionProps> = ({
                         <Pressable
                           key={assignment.ResourceAssignmentId}
                           accessibilityHint={t('command.drag_move_hint')}
-                          className={`rounded border px-2 py-1.5 ${isSelected ? 'border-primary-500 bg-primary-50 dark:bg-primary-950' : assignment.RequirementsWarning ? 'border-2 border-amber-500 bg-gray-50 dark:bg-gray-900' : 'border-transparent bg-gray-50 dark:bg-gray-900'}`}
+                          className={`rounded border px-2 py-1.5 ${isSelected ? 'border-primary-500 bg-primary-50' : assignment.RequirementsWarning ? 'border-2 border-amber-500 bg-gray-50 dark:bg-gray-900' : 'border-transparent bg-gray-50 dark:bg-gray-900'}`}
                           onLongPress={() => setSelectedAssignmentId(assignment.ResourceAssignmentId)}
                           onPress={() => handleSelectResource(assignment.ResourceAssignmentId)}
                           testID={`lane-resource-${assignment.ResourceAssignmentId}`}
@@ -175,12 +175,12 @@ export const StructureSection: React.FC<StructureSectionProps> = ({
                               {assignment.ResourceAssignmentId.startsWith('local-') ? <Icon as={CloudOff} size="sm" className="text-amber-500" /> : null}
                               {assignment.RequirementsWarning ? (
                                 <Badge action="warning" variant="solid" size="sm">
-                                  <BadgeText className="text-white">{t('command.requirements_warning')}</BadgeText>
+                                  <BadgeText>{t('command.requirements_warning')}</BadgeText>
                                 </Badge>
                               ) : null}
                               {isSelected ? (
                                 <Badge action="info" variant="solid" size="sm">
-                                  <BadgeText className="text-white">{t('command.selected')}</BadgeText>
+                                  <BadgeText>{t('command.selected')}</BadgeText>
                                 </Badge>
                               ) : null}
                             </HStack>

@@ -106,7 +106,7 @@ export const NotificationDetail = ({ notification, onClose, onDelete, onNavigate
         <SafeAreaView style={styles.safeArea}>
           <View style={[styles.header, themed.header]}>
             <Pressable onPress={handleClose} style={styles.backButton}>
-              <ArrowLeft size={24} className="text-primary-500 dark:text-primary-400" strokeWidth={2} />
+              <ArrowLeft size={24} className="text-primary-600" strokeWidth={2} />
             </Pressable>
             <Text style={[styles.headerTitle, themed.headerTitle]}>{t('notifications.notification')}</Text>
             <Pressable onPress={handleDelete} style={styles.deleteButton}>

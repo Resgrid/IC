@@ -162,7 +162,7 @@ export default function AccountSecurity() {
 
   return (
     <>
-      <Stack.Screen options={{ title: t('mfa.account.title') }} />
+      <Stack.Screen options={{ title: t('mfa.account.title'), headerShown: true }} />
       <ScrollView contentContainerStyle={{ padding: 16 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}>
         <VStack space="lg">
           {notice ? (

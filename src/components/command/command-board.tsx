@@ -8,6 +8,7 @@ import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { dedupeByUserId } from '@/lib/incident-command-utils';
 import { type IncidentCommandBoard } from '@/models/v4/incidentCommand/incidentCommandBoard';
 import { CommandNodeType, TacticalObjectiveStatus } from '@/models/v4/incidentCommand/incidentCommandEnums';
 import { type PersonnelCallCheckInStatus } from '@/models/v4/incidentCommand/personnelCallCheckInStatus';
@@ -29,6 +30,7 @@ export const CommandBoard: React.FC<CommandBoardProps> = ({ board }) => {
   const liveNodes = board.Nodes.filter((n) => !n.DeletedOn).sort((a, b) => a.SortOrder - b.SortOrder);
   const liveAssignments = board.Assignments.filter((a) => !a.ReleasedOn);
   const objectives = board.Objectives.slice().sort((a, b) => a.SortOrder - b.SortOrder);
+  const accountability = dedupeByUserId(board.Accountability);
 
   return (
     <VStack space="lg">
@@ -78,10 +80,10 @@ export const CommandBoard: React.FC<CommandBoardProps> = ({ board }) => {
       {/* Personnel accountability / PAR */}
       <VStack space="sm">
         <Heading size="sm">{t('incidents.accountability')}</Heading>
-        {board.Accountability.length === 0 ? (
+        {accountability.length === 0 ? (
           <Text className="text-typography-500">{t('incidents.unassigned')}</Text>
         ) : (
-          board.Accountability.map((person) => (
+          accountability.map((person) => (
             <HStack key={person.UserId} className="items-center justify-between">
               <Text className="flex-1 pr-2 text-typography-900">{person.FullName ?? person.UserId}</Text>
               <Badge action={parAction(person.Status)} size="sm">

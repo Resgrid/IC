@@ -154,6 +154,17 @@ describe('incident assistant answers', () => {
     expect(answer).toContain('6 min overdue');
   });
 
+  it('counts a member once when the server returns duplicate accountability rows for them', () => {
+    const context = buildContext();
+    const [green, critical] = context.board!.Accountability;
+    context.board!.Accountability = [green, critical, { ...critical }];
+
+    const answer = answerPar(context, t);
+
+    expect(answer).toContain('2 personnel tracked');
+    expect(answer).toContain('1 green, 0 approaching, 1 overdue');
+  });
+
   it('says plainly when nothing is being tracked rather than implying everyone is fine', () => {
     const context = buildContext();
     context.board!.Accountability = [];
