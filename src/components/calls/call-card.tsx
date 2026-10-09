@@ -10,7 +10,7 @@ import { HtmlRenderer } from '@/components/ui/html-renderer';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
-import { getTimeAgoUtc, readableTextColor } from '@/lib/utils';
+import { getTimeAgoUtc, readableColors } from '@/lib/utils';
 import { type CallPriorityResultData } from '@/models/v4/callPriorities/callPriorityResultData';
 import type { CallResultData } from '@/models/v4/calls/callResultData';
 import type { DispatchedEventResultData } from '@/models/v4/calls/dispatchedEventResultData';
@@ -43,7 +43,7 @@ interface CallCardProps {
 
 export const CallCard: React.FC<CallCardProps> = ({ call, priority, showTimerIcon = false, isTimerOverdue = false, dispatches, onStartCommand, isCommandCall = false, hasCommand = false }) => {
   const { t } = useTranslation();
-  const textColor = readableTextColor(getColor(call, priority)) ?? '#000000';
+  const { backgroundColor, textColor } = readableColors(getColor(call, priority));
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const destinationLabel = call.DestinationName || call.DestinationAddress || '';
 
@@ -62,7 +62,7 @@ export const CallCard: React.FC<CallCardProps> = ({ call, priority, showTimerIco
   return (
     <Box
       style={{
-        backgroundColor: getColor(call, priority),
+        backgroundColor,
       }}
       className={`mb-2 rounded-xl p-2 shadow-xs`}
     >

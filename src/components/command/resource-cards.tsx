@@ -12,7 +12,7 @@ import { Text } from '@/components/ui/text';
 import { View } from '@/components/ui/view';
 import { VStack } from '@/components/ui/vstack';
 import { isWeb } from '@/lib/platform';
-import { readableTextColor } from '@/lib/utils';
+import { readableColors } from '@/lib/utils';
 import type { PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
 import type { ActiveUnitRoleResultData } from '@/models/v4/unitRoles/activeUnitRoleResultData';
 import type { UnitResultData } from '@/models/v4/units/unitResultData';
@@ -25,11 +25,11 @@ const asHexColor = (value?: string | null) => (value && /^#[0-9a-fA-F]{3,8}$/.te
 const oneLine = isWeb ? ({ isTruncated: true } as const) : ({ numberOfLines: 1 } as const);
 
 const ServerColorBadge: React.FC<{ label: string; color?: string | null; testID?: string }> = ({ label, color, testID }) => {
-  const hex = asHexColor(color);
+  const { backgroundColor, textColor } = readableColors(color, '#6b7280');
   return (
-    <Badge style={hex ? { backgroundColor: hex } : styles.badgeFallback} variant="solid" testID={testID}>
+    <Badge style={{ backgroundColor }} variant="solid" testID={testID}>
       {/* Status colours run from dark to pastel, so pick black or white text for each rather than a fixed white. */}
-      <BadgeText className="text-white" style={hex ? { color: readableTextColor(hex) ?? '#FFFFFF' } : undefined}>
+      <BadgeText className="text-white" style={{ color: textColor }}>
         {label}
       </BadgeText>
     </Badge>
@@ -191,9 +191,6 @@ export const PersonnelResourceCard: React.FC<PersonnelResourceCardProps> = ({ na
 };
 
 const styles = StyleSheet.create({
-  badgeFallback: {
-    backgroundColor: '#6b7280',
-  },
   statusDot: {
     position: 'absolute',
     right: -1,
