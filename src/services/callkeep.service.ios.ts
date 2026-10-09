@@ -1,4 +1,5 @@
 import { RTCAudioSession } from '@livekit/react-native-webrtc';
+import { getLocales } from 'expo-localization';
 import { Platform } from 'react-native';
 import RNCallKeep, { AudioSessionCategoryOption, AudioSessionMode, CONSTANTS as CK_CONSTANTS } from 'react-native-callkeep';
 
@@ -6,6 +7,18 @@ import { logger } from '../lib/logging';
 
 // UUID for the CallKeep call - should be unique per session
 let currentCallUUID: string | null = null;
+
+// China's MIIT requires CallKit to be inactive for users in mainland China, and App Review
+// (Guideline 5) rejects apps that leave it active there. The device region setting
+// (Locale.current.region, surfaced by expo-localization as regionCode) is the accepted signal.
+// Without CallKit, voice channels still keep running in the background through the `audio`
+// UIBackgroundMode and LiveKit's own audio session.
+const CALLKIT_RESTRICTED_REGIONS = new Set(['CN', 'CHN']);
+
+export const isCallKitRestrictedRegion = (): boolean => {
+  const regionCode = getLocales()[0]?.regionCode;
+  return regionCode ? CALLKIT_RESTRICTED_REGIONS.has(regionCode.toUpperCase()) : false;
+};
 
 export interface CallKeepConfig {
   appName: string;
@@ -44,6 +57,14 @@ export class CallKeepService {
       logger.debug({
         message: 'CallKeep setup skipped - not iOS platform',
         context: { platform: Platform.OS },
+      });
+      return;
+    }
+
+    if (isCallKitRestrictedRegion()) {
+      logger.info({
+        message: 'CallKeep setup skipped - CallKit is unavailable in this region',
+        context: { regionCode: getLocales()[0]?.regionCode },
       });
       return;
     }
@@ -104,6 +125,13 @@ export class CallKeepService {
       logger.debug({
         message: 'CallKeep startCall skipped - not iOS platform',
         context: { platform: Platform.OS },
+      });
+      return '';
+    }
+
+    if (isCallKitRestrictedRegion()) {
+      logger.debug({
+        message: 'CallKeep startCall skipped - CallKit is unavailable in this region',
       });
       return '';
     }
