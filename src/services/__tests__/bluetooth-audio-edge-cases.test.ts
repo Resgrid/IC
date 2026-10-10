@@ -607,6 +607,43 @@ describe('BluetoothAudioService - edge cases', () => {
       expect(setMicrophoneEnabled()).not.toHaveBeenCalled();
       expect(callKeepService.ignoreMuteEvents).not.toHaveBeenCalled();
     });
+
+    describe('while the room is still connecting', () => {
+      const legacyState = () => useLiveKitStore.getState() as { isConnecting?: boolean };
+
+      beforeEach(() => {
+        jest.useFakeTimers();
+        legacyState().isConnecting = true;
+      });
+
+      afterEach(() => {
+        delete legacyState().isConnecting;
+        service.clearMicApplyRetry();
+      });
+
+      it('keeps a release waiting for the room when the headset drops', async () => {
+        service.processButtonEvent(pttEvent('ptt_start'));
+        service.processButtonEvent(pttEvent('ptt_stop'));
+        await jest.advanceTimersByTimeAsync(0);
+
+        service.handleDeviceDisconnected({ peripheral: DEVICE_ID });
+        legacyState().isConnecting = false;
+        await jest.advanceTimersByTimeAsync(160);
+
+        expect(micCalls()).toEqual([false]);
+      });
+
+      it('drops an unmute waiting for the room when the headset drops', async () => {
+        service.processButtonEvent(pttEvent('ptt_start'));
+        await jest.advanceTimersByTimeAsync(0);
+
+        service.handleDeviceDisconnected({ peripheral: DEVICE_ID });
+        legacyState().isConnecting = false;
+        await jest.advanceTimersByTimeAsync(160);
+
+        expect(micCalls()).toEqual([false]);
+      });
+    });
   });
 
   it('resets its state synchronously on destroy so it can be initialized again', () => {

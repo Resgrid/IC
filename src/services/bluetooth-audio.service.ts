@@ -2421,7 +2421,11 @@ export class BluetoothAudioService {
 
     this.pttPressActive = false;
     this.clearPttReleaseFallback();
-    this.clearMicApplyRetry();
+
+    // A release waiting on the room to finish connecting is a queued release too
+    if (this.retryMicEnabled === true) {
+      this.clearMicApplyRetry();
+    }
 
     if (this.pendingMicEnabled === true) {
       this.pendingMicEnabled = null;

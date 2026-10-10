@@ -21,14 +21,18 @@
 function registerAndroidPackage(contents, basePackageName, packageClass) {
   let result = contents;
 
+  // Whole-line match, so an import of a longer class name (e.g. `MediaButtonPackageExtra`) doesn't count
   const importStatement = `import ${basePackageName}.${packageClass}`;
-  if (!result.includes(importStatement)) {
+  const importPattern = new RegExp(`^[ \\t]*${escapeRegExp(importStatement)}[ \\t]*;?[ \\t]*$`, 'm');
+  if (!importPattern.test(result)) {
     result = result.replace(/^(package\s+[^\n]+\n)/, `$1${importStatement}\n`);
   }
 
   // Checked separately from the import: a MainApplication.kt that already imports the package
-  // without registering it must still get the registration
-  if (result.includes(`add(${packageClass}())`)) {
+  // without registering it must still get the registration. Only an active call counts, not one in a
+  // `//` comment such as the template's `// add(MyReactNativePackage())` example.
+  const registrationPattern = new RegExp(`^(?:(?!//).)*\\badd\\(${escapeRegExp(packageClass)}\\(\\)\\)`, 'm');
+  if (registrationPattern.test(result)) {
     return result;
   }
 
@@ -43,6 +47,10 @@ function registerAndroidPackage(contents, basePackageName, packageClass) {
   }
 
   throw new Error(`Could not find where to register ${packageClass} in MainApplication.kt`);
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 module.exports = { registerAndroidPackage };
