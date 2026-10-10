@@ -82,15 +82,15 @@ export const VoiceSection: React.FC<VoiceSectionProps> = ({ callId, channels, tr
   const PreviousPageIcon = I18nManager.isRTL ? ChevronRight : ChevronLeft;
   const NextPageIcon = I18nManager.isRTL ? ChevronLeft : ChevronRight;
 
-  const goToLogPage = useCallback(
-    (page: number) => {
-      setLogPage({ callId, page });
-      logScrollRef.current?.scrollTo({ y: 0, animated: false });
-    },
-    [callId]
-  );
+  const goToLogPage = useCallback((page: number) => setLogPage({ callId, page }), [callId]);
   const showPreviousLogPage = useCallback(() => goToLogPage(currentLogPage - 1), [goToLogPage, currentLogPage]);
   const showNextLogPage = useCallback(() => goToLogPage(currentLogPage + 1), [goToLogPage, currentLogPage]);
+
+  // The list stays mounted across pages and incidents, so open whatever is now shown at its top — whether the page
+  // changed from the buttons, from switching incidents, or from clamping after the log shrank
+  useEffect(() => {
+    logScrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [callId, currentLogPage]);
 
   // Local PTT transmission log: mic-on → mic-off on an incident channel = one transmission
   const transmitStartRef = useRef<string | null>(null);

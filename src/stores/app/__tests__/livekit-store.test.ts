@@ -443,14 +443,15 @@ describe('LiveKit Store - Permission Management', () => {
 
 describe('LiveKit Store - iOS audio routing', () => {
   const mockSetAudioModeAsync = setAudioModeAsync as jest.MockedFunction<typeof setAudioModeAsync>;
+  let platformOS: jest.ReplaceProperty<typeof Platform.OS>;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (Platform as any).OS = 'ios';
+    platformOS = jest.replaceProperty(Platform, 'OS', 'ios');
   });
 
   afterEach(() => {
-    (Platform as any).OS = 'android';
+    platformOS.restore();
   });
 
   it.each([

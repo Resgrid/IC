@@ -71,6 +71,9 @@ export class BluetoothAudioService {
   private connectedDevice: Device | null = null;
   private scanTimeout: ReturnType<typeof setTimeout> | null = null;
   private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
+  // Devices whose connect attempt timed out. Android can still deliver the native "connected" callback after the
+  // cancel, which would leave a connection nothing here tracks or cleans up — those late connections are dropped.
+  private timedOutConnectionDeviceIds = new Set<string>();
   // Guards connectToDevice against overlapping runs — discovery events can fire
   // repeatedly for the preferred device while a connection is still in flight.
   private isConnecting: boolean = false;
@@ -251,6 +254,10 @@ export class BluetoothAudioService {
     // Bluetooth state change listener
     const stateListener = BleManager.onDidUpdateState(this.handleBluetoothStateChange.bind(this));
     this.addEventListener(stateListener);
+
+    // Device connection listener (connectToDevice owns live attempts; this only catches ones that already timed out)
+    const connectListener = BleManager.onConnectPeripheral(this.handleDeviceConnected.bind(this));
+    this.addEventListener(connectListener);
 
     // Device disconnection listener
     const disconnectListener = BleManager.onDisconnectPeripheral(this.handleDeviceDisconnected.bind(this));
@@ -1054,6 +1061,10 @@ export class BluetoothAudioService {
       return;
     }
     this.isConnecting = true;
+    // A fresh attempt owns this device's next connection again
+    this.timedOutConnectionDeviceIds.delete(deviceId);
+    // Set once the native link is up; a failure after that must tear it down or it stays connected outside service state
+    let isNativelyConnected = false;
     try {
       useBluetoothAudioStore.getState().clearConnectionError();
       useBluetoothAudioStore.getState().setIsConnecting(true);
@@ -1071,6 +1082,7 @@ export class BluetoothAudioService {
         context: { deviceId },
       });
       await this.withConnectionTimeout(Promise.resolve(BleManager.connect(deviceId)), deviceId);
+      isNativelyConnected = true;
 
       logger.info({
         message: 'Connected to Bluetooth audio device',
@@ -1163,11 +1175,35 @@ export class BluetoothAudioService {
         context: { deviceId, error, errorMessage },
       });
 
+      if (isNativelyConnected) {
+        await this.abandonConnection(deviceId);
+      }
+
       useBluetoothAudioStore.getState().setIsConnecting(false);
       useBluetoothAudioStore.getState().setConnectionError(errorMessage);
       throw error;
     } finally {
       this.isConnecting = false;
+    }
+  }
+
+  /**
+   * Tear down a connection that came up natively but failed during setup. Never throws, so the caller still reports the
+   * original failure. A failed or timed-out connect never gets here: native already dropped it, or the timeout cancelled it.
+   */
+  private async abandonConnection(deviceId: string): Promise<void> {
+    try {
+      if (this.connectedDevice?.id === deviceId) {
+        // Setup got far enough to adopt the device, so its monitoring, polling and audio routing may be running too
+        await this.disconnectDevice();
+      } else {
+        await BleManager.disconnect(deviceId);
+      }
+    } catch (error) {
+      logger.warn({
+        message: 'Failed to disconnect Bluetooth device after its connection setup failed',
+        context: { deviceId, error },
+      });
     }
   }
 
@@ -1177,7 +1213,9 @@ export class BluetoothAudioService {
 
       this.connectionTimeout = setTimeout(() => {
         this.connectionTimeout = null;
-        // Cancel the pending native connect so it cannot complete later without being tracked
+        // Cancel the pending native connect so it cannot complete later without being tracked; if its success callback
+        // is already queued it still lands, so remember the device and drop that connection in handleDeviceConnected
+        this.timedOutConnectionDeviceIds.add(deviceId);
         Promise.resolve()
           .then(() => BleManager.disconnect(deviceId))
           .catch(() => undefined);
@@ -1242,6 +1280,26 @@ export class BluetoothAudioService {
       logger.error({ message: 'Failed to switch to System Audio', context: { error } });
       throw error;
     }
+  }
+
+  private handleDeviceConnected(args: { peripheral: string }): void {
+    if (!this.timedOutConnectionDeviceIds.delete(args.peripheral)) {
+      return;
+    }
+
+    logger.warn({
+      message: 'Bluetooth device connected after its connection attempt timed out, disconnecting it',
+      context: { deviceId: args.peripheral },
+    });
+
+    Promise.resolve()
+      .then(() => BleManager.disconnect(args.peripheral))
+      .catch((error: unknown) => {
+        logger.warn({
+          message: 'Failed to disconnect Bluetooth device that connected after timing out',
+          context: { deviceId: args.peripheral, error },
+        });
+      });
   }
 
   private handleDeviceDisconnected(args: { peripheral: string }): void {
@@ -1687,8 +1745,9 @@ export class BluetoothAudioService {
     // Iterate a snapshot: entries can be unregistered while a read is awaiting
     for (const entry of [...this.monitoredReadCharacteristics]) {
       // Notifications are proven to work for this characteristic — reading it
-      // on a timer would only duplicate events and burn battery.
-      if (entry.notificationConfirmed) {
+      // on a timer would only duplicate events and burn battery. Entries that a
+      // reconnect replaced while an earlier read was awaiting are not ours to read.
+      if (entry.notificationConfirmed || !this.monitoredReadCharacteristics.includes(entry)) {
         continue;
       }
       try {
@@ -1720,6 +1779,12 @@ export class BluetoothAudioService {
         const valueBase64 = Buffer.from(readValue).toString('base64');
         this.handleButtonEventFromCharacteristic(deviceId, entry.serviceUuid, entry.characteristicUuid, valueBase64);
       } catch (error) {
+        // Same staleness guard as a successful read: unregistering matches by UUID, so a late failure from a replaced
+        // entry would otherwise remove the reconnected device's entry for the same characteristic
+        if (entry.notificationConfirmed || !this.monitoredReadCharacteristics.includes(entry)) {
+          continue;
+        }
+
         entry.consecutiveFailures += 1;
 
         if (entry.consecutiveFailures >= READ_POLL_MAX_CONSECUTIVE_FAILURES) {
@@ -2698,6 +2763,7 @@ export class BluetoothAudioService {
     this.stopReadPollingFallback();
     this.stopMediaButtonFallbackMonitoring();
     this.clearConnectionTimeout();
+    this.timedOutConnectionDeviceIds.clear();
 
     // Remove all event listeners
     this.eventListeners.forEach((listener) => {

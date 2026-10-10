@@ -35,6 +35,7 @@ jest.mock('react-native-ble-manager', () => {
       startNotification: jest.fn().mockResolvedValue(undefined),
       read: jest.fn(),
       onDidUpdateState: jest.fn(listener),
+      onConnectPeripheral: jest.fn(listener),
       onDisconnectPeripheral: jest.fn(listener),
       onDiscoverPeripheral: jest.fn(listener),
       onDidUpdateValueForCharacteristic: jest.fn(listener),
@@ -250,6 +251,18 @@ describe('BluetoothAudioService - edge cases', () => {
   });
 
   describe('connectToDevice', () => {
+    /** Native connect and discovery succeed; button monitoring, the media-button fallback and audio routing are stubbed. */
+    const stubDeviceSetup = () => {
+      (BleManager.getConnectedPeripherals as jest.Mock).mockResolvedValueOnce([hysDevice]);
+      jest.spyOn(service, 'setupButtonEventMonitoring').mockResolvedValue(undefined);
+      jest.spyOn(service, 'startMediaButtonFallbackMonitoring').mockImplementation(() => undefined);
+      return jest.spyOn(service, 'setupLiveKitAudioRouting').mockResolvedValue(undefined);
+    };
+
+    afterEach(() => {
+      useBluetoothAudioStore.getState().setConnectedDevice(null);
+    });
+
     it('ignores a connect request while another one is in flight', async () => {
       service.isConnecting = true;
 
@@ -268,9 +281,167 @@ describe('BluetoothAudioService - edge cases', () => {
       await jest.advanceTimersByTimeAsync(500 + 15000);
       await assertion;
 
+      expect(BleManager.disconnect).toHaveBeenCalledTimes(1);
       expect(BleManager.disconnect).toHaveBeenCalledWith(DEVICE_ID);
       expect(useBluetoothAudioStore.getState().connectionError).toContain('Timed out');
       expect(service.isConnecting).toBe(false);
+    });
+
+    describe('setup failure after the native connect', () => {
+      const connectExpectingError = async (message: string) => {
+        const assertion = expect(service.connectToDevice(DEVICE_ID)).rejects.toThrow(message);
+        await jest.advanceTimersByTimeAsync(500);
+        await assertion;
+      };
+
+      beforeEach(() => {
+        jest.useFakeTimers();
+      });
+
+      it('disconnects a device that connected but was then not found', async () => {
+        await connectExpectingError('Device not found after connection');
+
+        expect(BleManager.disconnect).toHaveBeenCalledTimes(1);
+        expect(BleManager.disconnect).toHaveBeenCalledWith(DEVICE_ID);
+        expect(useBluetoothAudioStore.getState().connectionError).toBe('Device not found after connection');
+        expect(service.isConnecting).toBe(false);
+      });
+
+      it('still reports a discovery failure when the cleanup disconnect fails too', async () => {
+        (BleManager.getConnectedPeripherals as jest.Mock).mockResolvedValueOnce([hysDevice]);
+        (BleManager.retrieveServices as jest.Mock).mockRejectedValueOnce(new Error('Discovery failed'));
+        (BleManager.disconnect as jest.Mock).mockRejectedValueOnce(new Error('Not connected'));
+
+        await connectExpectingError('Discovery failed');
+
+        expect(BleManager.disconnect).toHaveBeenCalledWith(DEVICE_ID);
+        expect(useBluetoothAudioStore.getState().connectionError).toBe('Discovery failed');
+      });
+
+      it('rolls back a device it had already adopted', async () => {
+        stubDeviceSetup().mockRejectedValueOnce(new Error('Routing failed'));
+        const revertRoutingSpy = jest.spyOn(service, 'revertLiveKitAudioRouting');
+
+        await connectExpectingError('Routing failed');
+
+        expect(BleManager.disconnect).toHaveBeenCalledWith(DEVICE_ID);
+        expect(revertRoutingSpy).toHaveBeenCalled();
+        expect(service.connectedDevice).toBeNull();
+        expect(useBluetoothAudioStore.getState().connectedDevice).toBeNull();
+        expect(useBluetoothAudioStore.getState().connectionError).toBe('Routing failed');
+      });
+
+      it('leaves the cleanup to native when the connect itself fails', async () => {
+        (BleManager.connect as jest.Mock).mockRejectedValueOnce(new Error('Connection error'));
+
+        await connectExpectingError('Connection error');
+
+        expect(BleManager.disconnect).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('late native connection after a timeout', () => {
+      let onConnectPeripheral: (event: { peripheral: string }) => void;
+
+      const timeOutConnect = async () => {
+        (BleManager.connect as jest.Mock).mockReturnValueOnce(new Promise(() => undefined));
+        const assertion = expect(service.connectToDevice(DEVICE_ID)).rejects.toThrow('Timed out connecting to Bluetooth device');
+        await jest.advanceTimersByTimeAsync(500 + 15000);
+        await assertion;
+      };
+
+      beforeEach(() => {
+        jest.useFakeTimers();
+        service.setupEventListeners();
+        onConnectPeripheral = (BleManager.onConnectPeripheral as jest.Mock).mock.calls[0][0];
+      });
+
+      afterEach(() => {
+        service.eventListeners = [];
+        service.timedOutConnectionDeviceIds.clear();
+      });
+
+      it('disconnects a device whose connect lands after the attempt timed out, once', async () => {
+        await timeOutConnect();
+        expect(BleManager.disconnect).toHaveBeenCalledTimes(1);
+
+        onConnectPeripheral({ peripheral: DEVICE_ID });
+        await jest.advanceTimersByTimeAsync(0);
+        expect(BleManager.disconnect).toHaveBeenCalledTimes(2);
+        expect(BleManager.disconnect).toHaveBeenLastCalledWith(DEVICE_ID);
+
+        // Only the one late callback is dropped
+        onConnectPeripheral({ peripheral: DEVICE_ID });
+        await jest.advanceTimersByTimeAsync(0);
+        expect(BleManager.disconnect).toHaveBeenCalledTimes(2);
+      });
+
+      it('leaves connections alone that did not time out', async () => {
+        await timeOutConnect();
+
+        onConnectPeripheral({ peripheral: 'other-device' });
+        await jest.advanceTimersByTimeAsync(0);
+        expect(BleManager.disconnect).toHaveBeenCalledTimes(1);
+      });
+
+      it('treats a fresh attempt to the same device as a normal connection', async () => {
+        await timeOutConnect();
+        stubDeviceSetup();
+
+        // The retry's own connect event must not be mistaken for the timed-out one
+        const retry = service.connectToDevice(DEVICE_ID);
+        onConnectPeripheral({ peripheral: DEVICE_ID });
+        await jest.advanceTimersByTimeAsync(500);
+        await retry;
+
+        expect(BleManager.disconnect).toHaveBeenCalledTimes(1);
+        expect(service.connectedDevice).toBe(hysDevice);
+      });
+    });
+  });
+
+  describe('read polling', () => {
+    const pollEntry = (characteristicUuid: string, consecutiveFailures = 0) => ({ serviceUuid: HYS_SERVICE, characteristicUuid, lastHexValue: null, notificationConfirmed: false, consecutiveFailures });
+
+    it('ignores a late read failure from an entry a reconnect replaced', async () => {
+      const staleEntry = pollEntry('ffe1', 2);
+      const currentEntry = pollEntry('ffe1');
+      service.monitoredReadCharacteristics = [staleEntry];
+
+      let rejectRead: (error: Error) => void = () => undefined;
+      (BleManager.read as jest.Mock).mockReturnValueOnce(
+        new Promise((_, reject) => {
+          rejectRead = reject;
+        })
+      );
+      const poll = service.pollReadCharacteristics(DEVICE_ID);
+
+      // Reconnect rebuilt the list for the same characteristic while the old read was pending
+      service.monitoredReadCharacteristics = [currentEntry];
+      rejectRead(new Error('Reading is not permitted'));
+      await poll;
+
+      expect(service.monitoredReadCharacteristics).toEqual([currentEntry]);
+      expect(currentEntry.consecutiveFailures).toBe(0);
+      expect(staleEntry.consecutiveFailures).toBe(2);
+    });
+
+    it('stops reading the rest of a snapshot once a reconnect replaced it', async () => {
+      service.monitoredReadCharacteristics = [pollEntry('ffe1'), pollEntry('ffe2')];
+
+      let resolveRead: (value: number[]) => void = () => undefined;
+      (BleManager.read as jest.Mock).mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        })
+      );
+      const poll = service.pollReadCharacteristics(DEVICE_ID);
+
+      service.monitoredReadCharacteristics = [pollEntry('ffe1'), pollEntry('ffe2')];
+      resolveRead([0x01]);
+      await poll;
+
+      expect(BleManager.read).toHaveBeenCalledTimes(1);
     });
   });
 

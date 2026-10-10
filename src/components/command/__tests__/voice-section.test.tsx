@@ -1,6 +1,6 @@
 import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -177,6 +177,37 @@ describe('VoiceSection', () => {
     expect(getByTestId('command-transmission-page').props.children).toBe('command.transmission_log_page:1/3');
     expect(getByTestId('transmission-tx-0')).toBeTruthy();
 
+    unmount();
+  });
+
+  it('opens the newly shown page at its top when paging, clamping, or switching incidents', () => {
+    const scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo');
+    const { getByTestId, rerender, unmount } = render(<VoiceSection {...baseProps} transmissionLog={manyLogs(25)} />);
+    scrollTo.mockClear();
+
+    fireEvent.press(getByTestId('command-transmission-next'));
+    fireEvent.press(getByTestId('command-transmission-next'));
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 0, animated: false });
+
+    // Same incident, fewer entries: clamped from page 3 to page 2
+    scrollTo.mockClear();
+    rerender(<VoiceSection {...baseProps} transmissionLog={manyLogs(15)} />);
+    expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
+
+    // A new entry that keeps the same page leaves the reader where they are
+    scrollTo.mockClear();
+    rerender(<VoiceSection {...baseProps} transmissionLog={manyLogs(16)} />);
+    expect(scrollTo).not.toHaveBeenCalled();
+
+    // Already on the first page, switching incidents still resets the offset
+    fireEvent.press(getByTestId('command-transmission-prev'));
+    scrollTo.mockClear();
+    rerender(<VoiceSection {...baseProps} callId="202" transmissionLog={manyLogs(16)} />);
+    expect(getByTestId('command-transmission-page').props.children).toBe('command.transmission_log_page:1/2');
+    expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
+
+    scrollTo.mockRestore();
     unmount();
   });
 });
