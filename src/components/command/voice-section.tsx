@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { I18nManager, ScrollView, StyleSheet } from 'react-native';
 
 import { Badge, BadgeText } from '@/components/ui/badge';
 import { Box } from '@/components/ui/box';
@@ -7,7 +8,7 @@ import { Button, ButtonIcon, ButtonText } from '@/components/ui/button';
 import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Input, InputField } from '@/components/ui/input';
-import { Mic, MicOff, Phone, PhoneOff, Plus, RadioTower } from '@/components/ui/lucide-icons';
+import { ChevronLeft, ChevronRight, Mic, MicOff, Phone, PhoneOff, Plus, RadioTower } from '@/components/ui/lucide-icons';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { parseUtcMs } from '@/lib/utils';
@@ -16,6 +17,11 @@ import { useLiveKitStore } from '@/stores/app/livekit-store';
 
 /** Quick-create channel name keys — the two channels every incident wants first. */
 const CHANNEL_PRESET_KEYS = ['channel_preset_tactical', 'channel_preset_command'];
+
+/** Transmissions per page of the log (newest first). */
+const TRANSMISSION_PAGE_SIZE = 10;
+/** Cap on the log's height so it never grows the board; a full page fits at the default text size and scrolls when text is enlarged. */
+const TRANSMISSION_LOG_MAX_HEIGHT = 360;
 
 interface VoiceSectionProps {
   callId: string;
@@ -65,6 +71,26 @@ export const VoiceSection: React.FC<VoiceSectionProps> = ({ callId, channels, tr
   }, [channels.length, availableRooms.length, fetchVoiceSettings]);
 
   const connectedChannel = channels.find((c) => currentRoomInfo?.Id === c.DepartmentVoiceChannelId);
+
+  // Transmission log paging: the page is remembered per incident, so switching boards starts again at the newest page
+  const [logPage, setLogPage] = useState({ callId, page: 0 });
+  const logScrollRef = useRef<ScrollView>(null);
+  const totalLogPages = Math.max(1, Math.ceil(transmissionLog.length / TRANSMISSION_PAGE_SIZE));
+  const currentLogPage = logPage.callId === callId ? Math.max(0, Math.min(logPage.page, totalLogPages - 1)) : 0;
+  const pageTransmissions = transmissionLog.slice(currentLogPage * TRANSMISSION_PAGE_SIZE, (currentLogPage + 1) * TRANSMISSION_PAGE_SIZE);
+  // Layout flips under RTL but icons don't, so swap the chevrons to keep them pointing outward
+  const PreviousPageIcon = I18nManager.isRTL ? ChevronRight : ChevronLeft;
+  const NextPageIcon = I18nManager.isRTL ? ChevronLeft : ChevronRight;
+
+  const goToLogPage = useCallback((page: number) => setLogPage({ callId, page }), [callId]);
+  const showPreviousLogPage = useCallback(() => goToLogPage(currentLogPage - 1), [goToLogPage, currentLogPage]);
+  const showNextLogPage = useCallback(() => goToLogPage(currentLogPage + 1), [goToLogPage, currentLogPage]);
+
+  // The list stays mounted across pages and incidents, so open whatever is now shown at its top — whether the page
+  // changed from the buttons, from switching incidents, or from clamping after the log shrank
+  useEffect(() => {
+    logScrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [callId, currentLogPage]);
 
   // Local PTT transmission log: mic-on → mic-off on an incident channel = one transmission
   const transmitStartRef = useRef<string | null>(null);
@@ -195,21 +221,53 @@ export const VoiceSection: React.FC<VoiceSectionProps> = ({ callId, channels, tr
 
       {transmissionLog.length > 0 ? (
         <VStack space="xs" className="mt-3" testID="command-transmission-log">
-          <Text className="text-2xs font-medium uppercase text-gray-500 dark:text-gray-400">{t('command.transmission_log')}</Text>
-          {transmissionLog.slice(0, 10).map((log) => {
-            const seconds = transmissionSeconds(log);
-            const channelLabel = channels.find((c) => c.DepartmentVoiceChannelId === log.DepartmentVoiceChannelId)?.Name ?? '';
-            return (
-              <HStack key={log.VoiceTransmissionLogId} space="sm" className="items-center rounded-lg bg-gray-50 px-3 py-1.5 dark:bg-gray-900" testID={`transmission-${log.VoiceTransmissionLogId}`}>
-                <Text className="w-20 shrink-0 text-xs tabular-nums text-gray-500 dark:text-gray-400">{formatLogTime(log.StartedOn)}</Text>
-                <Text className="min-w-0 flex-1 text-sm text-gray-900 dark:text-white">{personName(log.UserId)}</Text>
-                {channelLabel ? <Text className="text-xs text-gray-500 dark:text-gray-400">{channelLabel}</Text> : null}
-                {seconds !== null ? <Text className="text-xs tabular-nums text-gray-500 dark:text-gray-400">{t('command.transmission_seconds', { count: seconds })}</Text> : null}
-              </HStack>
-            );
-          })}
+          <Text className="text-2xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            {t('command.transmission_log')} ({transmissionLog.length})
+          </Text>
+          <ScrollView ref={logScrollRef} style={styles.transmissionList} nestedScrollEnabled testID="command-transmission-list">
+            <VStack space="xs">
+              {pageTransmissions.map((log) => {
+                const seconds = transmissionSeconds(log);
+                const channelLabel = channels.find((c) => c.DepartmentVoiceChannelId === log.DepartmentVoiceChannelId)?.Name ?? '';
+                return (
+                  <HStack key={log.VoiceTransmissionLogId} space="sm" className="items-center rounded-lg bg-gray-50 px-3 py-1.5 dark:bg-gray-900" testID={`transmission-${log.VoiceTransmissionLogId}`}>
+                    <Text className="w-20 shrink-0 text-xs tabular-nums text-gray-500 dark:text-gray-400">{formatLogTime(log.StartedOn)}</Text>
+                    <Text className="min-w-0 flex-1 text-sm text-gray-900 dark:text-white">{personName(log.UserId)}</Text>
+                    {channelLabel ? <Text className="text-xs text-gray-500 dark:text-gray-400">{channelLabel}</Text> : null}
+                    {seconds !== null ? <Text className="text-xs tabular-nums text-gray-500 dark:text-gray-400">{t('command.transmission_seconds', { count: seconds })}</Text> : null}
+                  </HStack>
+                );
+              })}
+            </VStack>
+          </ScrollView>
+          {totalLogPages > 1 ? (
+            <HStack className="items-center justify-between pt-1" testID="command-transmission-pagination">
+              <Button size="xs" variant="outline" onPress={showPreviousLogPage} isDisabled={currentLogPage === 0} accessibilityLabel={t('command.transmission_log_previous_page')} testID="command-transmission-prev">
+                <ButtonIcon as={PreviousPageIcon} />
+              </Button>
+              <Text className="text-xs tabular-nums text-gray-500 dark:text-gray-400" testID="command-transmission-page">
+                {t('command.transmission_log_page', { page: currentLogPage + 1, total: totalLogPages })}
+              </Text>
+              <Button
+                size="xs"
+                variant="outline"
+                onPress={showNextLogPage}
+                isDisabled={currentLogPage >= totalLogPages - 1}
+                accessibilityLabel={t('command.transmission_log_next_page')}
+                testID="command-transmission-next"
+              >
+                <ButtonIcon as={NextPageIcon} />
+              </Button>
+            </HStack>
+          ) : null}
         </VStack>
       ) : null}
     </Box>
   );
 };
+
+const styles = StyleSheet.create({
+  transmissionList: {
+    maxHeight: TRANSMISSION_LOG_MAX_HEIGHT,
+  },
+});

@@ -14,6 +14,7 @@ import {
   CheckCircle as RawCheckCircle,
   CheckIcon as RawCheckIcon,
   ChevronDownIcon as RawChevronDownIcon,
+  ChevronLeft as RawChevronLeft,
   ChevronRight as RawChevronRight,
   ChevronRightIcon as RawChevronRightIcon,
   Circle as RawCircle,
@@ -107,6 +108,7 @@ export const Check = themed(RawCheck);
 export const CheckCircle = themed(RawCheckCircle);
 export const CheckIcon = themed(RawCheckIcon);
 export const ChevronDownIcon = themed(RawChevronDownIcon);
+export const ChevronLeft = themed(RawChevronLeft);
 export const ChevronRight = themed(RawChevronRight);
 export const ChevronRightIcon = themed(RawChevronRightIcon);
 export const Circle = themed(RawCircle);
