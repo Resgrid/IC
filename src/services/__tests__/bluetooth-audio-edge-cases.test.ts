@@ -96,7 +96,9 @@ import { PermissionsAndroid, Platform } from 'react-native';
 import BleManager from 'react-native-ble-manager';
 
 import { removeItem } from '@/lib/storage';
+import { callKeepService } from '@/services/callkeep.service';
 import { State, useBluetoothAudioStore } from '@/stores/app/bluetooth-audio-store';
+import { useLiveKitStore } from '@/stores/app/livekit-store';
 
 import { bluetoothAudioService } from '../bluetooth-audio.service';
 
@@ -533,6 +535,115 @@ describe('BluetoothAudioService - edge cases', () => {
 
     expect(timeoutSpy).not.toHaveBeenCalled();
     expect(service.scanTimeout).toBeNull();
+  });
+
+  describe('PTT cleanup', () => {
+    const setMicrophoneEnabled = () => useLiveKitStore.getState().setMicrophoneEnabled as jest.Mock;
+    const micCalls = () => setMicrophoneEnabled().mock.calls.map(([enabled]) => enabled);
+    const flushMicQueue = () => new Promise((resolve) => setImmediate(resolve));
+    const pttEvent = (button: 'ptt_start' | 'ptt_stop') => ({ type: 'press', button, timestamp: Date.now() });
+
+    beforeEach(() => {
+      service.connectedDevice = hysDevice;
+      service.pttPressActive = false;
+    });
+
+    it('releases the microphone when the headset is disconnected while PTT is held', async () => {
+      service.processButtonEvent(pttEvent('ptt_start'));
+      await flushMicQueue();
+
+      await service.disconnectDevice();
+      await flushMicQueue();
+
+      expect(micCalls()).toEqual([true, false]);
+      expect(service.pttPressActive).toBe(false);
+      expect(callKeepService.ignoreMuteEvents).toHaveBeenCalledTimes(2);
+    });
+
+    it('releases a held press whose unmute is still being applied when the headset drops', async () => {
+      service.processButtonEvent(pttEvent('ptt_start'));
+
+      service.handleDeviceDisconnected({ peripheral: DEVICE_ID });
+      await flushMicQueue();
+
+      expect(micCalls()).toEqual([true, false]);
+    });
+
+    it('keeps a queued release when the headset drops before it is applied', async () => {
+      service.processButtonEvent(pttEvent('ptt_start'));
+      service.processButtonEvent(pttEvent('ptt_stop'));
+
+      service.handleDeviceDisconnected({ peripheral: DEVICE_ID });
+      await flushMicQueue();
+
+      expect(micCalls()).toEqual([true, false]);
+    });
+
+    it('drops a queued unmute when the headset drops', async () => {
+      service.processButtonEvent(pttEvent('ptt_start'));
+      service.processButtonEvent(pttEvent('ptt_stop'));
+      service.processButtonEvent(pttEvent('ptt_start'));
+
+      service.handleDeviceDisconnected({ peripheral: DEVICE_ID });
+      await flushMicQueue();
+
+      expect(micCalls()).toEqual([true, false]);
+    });
+
+    it('releases the microphone on destroy while PTT is held', async () => {
+      service.processButtonEvent(pttEvent('ptt_start'));
+      await flushMicQueue();
+
+      await service.destroy();
+      await flushMicQueue();
+
+      expect(micCalls()).toEqual([true, false]);
+    });
+
+    it('leaves the microphone alone on disconnect when no PTT press is active', async () => {
+      await service.disconnectDevice();
+      await flushMicQueue();
+
+      expect(setMicrophoneEnabled()).not.toHaveBeenCalled();
+      expect(callKeepService.ignoreMuteEvents).not.toHaveBeenCalled();
+    });
+
+    describe('while the room is still connecting', () => {
+      const legacyState = () => useLiveKitStore.getState() as { isConnecting?: boolean };
+
+      beforeEach(() => {
+        jest.useFakeTimers();
+        legacyState().isConnecting = true;
+      });
+
+      afterEach(() => {
+        delete legacyState().isConnecting;
+        service.clearMicApplyRetry();
+      });
+
+      it('keeps a release waiting for the room when the headset drops', async () => {
+        service.processButtonEvent(pttEvent('ptt_start'));
+        service.processButtonEvent(pttEvent('ptt_stop'));
+        await jest.advanceTimersByTimeAsync(0);
+
+        service.handleDeviceDisconnected({ peripheral: DEVICE_ID });
+        legacyState().isConnecting = false;
+        await jest.advanceTimersByTimeAsync(160);
+
+        expect(micCalls()).toEqual([false]);
+      });
+
+      it('drops an unmute waiting for the room when the headset drops', async () => {
+        service.processButtonEvent(pttEvent('ptt_start'));
+        await jest.advanceTimersByTimeAsync(0);
+
+        service.handleDeviceDisconnected({ peripheral: DEVICE_ID });
+        legacyState().isConnecting = false;
+        await jest.advanceTimersByTimeAsync(160);
+
+        expect(micCalls()).toEqual([false]);
+      });
+    });
   });
 
   it('resets its state synchronously on destroy so it can be initialized again', () => {
