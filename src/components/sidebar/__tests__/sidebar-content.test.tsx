@@ -24,11 +24,18 @@ jest.mock('lucide-react-native', () => {
   };
 });
 
+import { terminologyStore, TermKeys } from '@/stores/terminology/store';
+
 import Sidebar from '../sidebar-content';
 
 describe('Sidebar menu', () => {
   beforeEach(() => {
     mockPush.mockClear();
+    terminologyStore.setState({ names: {} });
+  });
+
+  afterAll(() => {
+    terminologyStore.setState({ names: {} });
   });
 
   it('renders a link for every page', () => {
@@ -51,6 +58,20 @@ describe('Sidebar menu', () => {
     expect(getByText('tabs.calls')).toBeTruthy();
     expect(getByText('tabs.command_board')).toBeTruthy();
     expect(getByText('tabs.weather_alerts')).toBeTruthy();
+    expect(getByText('tabs.settings')).toBeTruthy();
+
+    unmount();
+  });
+
+  it("shows the department's name for a module it renamed and the app's label for the rest", () => {
+    terminologyStore.setState({ names: { [TermKeys.Calls]: 'Incidents', [TermKeys.Mapping]: 'GIS' } });
+    const { getByText, queryByText, unmount } = render(<Sidebar />);
+
+    expect(getByText('Incidents')).toBeTruthy();
+    expect(getByText('GIS')).toBeTruthy();
+    expect(queryByText('tabs.calls')).toBeNull();
+    expect(queryByText('tabs.map')).toBeNull();
+    expect(getByText('tabs.command_board')).toBeTruthy();
     expect(getByText('tabs.settings')).toBeTruthy();
 
     unmount();

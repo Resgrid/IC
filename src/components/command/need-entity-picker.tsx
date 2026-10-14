@@ -7,6 +7,7 @@ import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { NeedEntityKind } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useDispatchStore } from '@/stores/dispatch/store';
+import { terminologyStore, TermKeys } from '@/stores/terminology/store';
 
 export interface SelectedNeedEntity {
   kind: NeedEntityKind;
@@ -14,8 +15,8 @@ export interface SelectedNeedEntity {
   name: string;
 }
 
-const TABS: { kind: NeedEntityKind; labelKey: string }[] = [
-  { kind: NeedEntityKind.Unit, labelKey: 'command.need_entity_tab_units' },
+const TABS: { kind: NeedEntityKind; labelKey: string; termKey?: string }[] = [
+  { kind: NeedEntityKind.Unit, labelKey: 'command.need_entity_tab_units', termKey: TermKeys.Units },
   { kind: NeedEntityKind.User, labelKey: 'command.need_entity_tab_users' },
   { kind: NeedEntityKind.Role, labelKey: 'command.need_entity_tab_roles' },
   { kind: NeedEntityKind.Group, labelKey: 'command.need_entity_tab_groups' },
@@ -29,6 +30,7 @@ interface NeedEntityPickerProps {
 /** Multi-select picker for Entity needs: any combination of units, users, roles, and groups. */
 export const NeedEntityPicker: React.FC<NeedEntityPickerProps> = ({ selected, onChange }) => {
   const { t } = useTranslation();
+  const termNames = terminologyStore((state) => state.names);
   const dispatchData = useDispatchStore((state) => state.data);
   const fetchDispatchData = useDispatchStore((state) => state.fetchDispatchData);
   const [activeTab, setActiveTab] = useState<NeedEntityKind>(NeedEntityKind.Unit);
@@ -68,7 +70,7 @@ export const NeedEntityPicker: React.FC<NeedEntityPickerProps> = ({ selected, on
       <HStack space="sm">
         {TABS.map((tab) => (
           <Button key={tab.kind} size="xs" variant={activeTab === tab.kind ? 'solid' : 'outline'} onPress={() => setActiveTab(tab.kind)} testID={`need-entity-tab-${tab.kind}`}>
-            <ButtonText>{t(tab.labelKey)}</ButtonText>
+            <ButtonText>{(tab.termKey && termNames[tab.termKey]) || t(tab.labelKey)}</ButtonText>
           </Button>
         ))}
       </HStack>

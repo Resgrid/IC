@@ -16,9 +16,11 @@ import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { useRecordsContext } from '@/hooks/use-records-context';
+import { definitionDisplayName } from '@/lib/records/definition-name';
 import { canAuthorOffline, cellKey, toValueList, unsupportedFieldKeys, validate, type ValidationIssue, type ValueMap } from '@/lib/records/schema';
 import { type FieldRecordCatalogEntry, type RecordDefinitionSchema } from '@/models/v4/records';
 import { useRecordsStore } from '@/stores/records/store';
+import { terminologyStore } from '@/stores/terminology/store';
 
 // Contextual create: pick a definition the server offered for this context, then author it. The
 // catalog is the only source of what may be started here — nothing is inferred locally.
@@ -40,6 +42,7 @@ export default function NewRecordScreen() {
   const discardDraft = useRecordsStore((state) => state.discardDraft);
   const pushDraft = useRecordsStore((state) => state.pushDraft);
   const report = useRecordsStore((state) => state.report);
+  const termNames = terminologyStore((state) => state.names);
 
   const resumed = params.draft ? pendingDrafts[params.draft] : undefined;
   const [entry, setEntry] = useState<FieldRecordCatalogEntry | null>(null);
@@ -178,7 +181,7 @@ export default function NewRecordScreen() {
                 <Pressable className="px-4 py-4" onPress={() => void choose(definition)} testID={`records-choose-${definition.DefinitionKey}`}>
                   <HStack className="items-center" space="md">
                     <VStack className="flex-1">
-                      <Text className="font-medium text-typography-900">{definition.Name}</Text>
+                      <Text className="font-medium text-typography-900">{definitionDisplayName(termNames, definition.DefinitionKey, definition.Name)}</Text>
                       <HStack space="xs" className="mt-1 flex-wrap items-center">
                         {definition.Category ? <Text className="text-xs text-typography-500">{definition.Category}</Text> : null}
                         {definition.RequiresProtectedGrant ? (
@@ -207,7 +210,7 @@ export default function NewRecordScreen() {
 
   return (
     <Box className="flex-1 bg-background-0">
-      <Stack.Screen options={{ title: entry.Name }} />
+      <Stack.Screen options={{ title: definitionDisplayName(termNames, entry.DefinitionKey, entry.Name) }} />
       <ScrollView contentContainerClassName="p-4">
         {unsupported.length > 0 ? (
           <Box className="mb-4 rounded-md border border-warning-300 bg-background-warning p-3">

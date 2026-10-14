@@ -58,6 +58,7 @@ import { useCheckInTimerStore } from '@/stores/check-in-timers/store';
 import { useCommandStore } from '@/stores/command/store';
 import { useIsChecklistsEnabled } from '@/stores/feature-flags/store';
 import { securityStore } from '@/stores/security/store';
+import { TermKeys, useTerm } from '@/stores/terminology/store';
 import { useToastStore } from '@/stores/toast/store';
 
 import { useCallDetailMenu } from '../../components/calls/call-detail-menu';
@@ -72,6 +73,7 @@ export default function CallDetail() {
   const router = useRouter();
   const { t } = useTranslation();
   const isChecklistsEnabled = useIsChecklistsEnabled();
+  const readinessTitle = useTerm(TermKeys.Readiness, t('readiness.tab'));
   const { trackEvent } = useAnalytics();
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
@@ -562,7 +564,7 @@ export default function CallDetail() {
     if (isChecklistsEnabled) {
       tabs.push({
         key: 'readiness',
-        title: t('readiness.tab'),
+        title: readinessTitle,
         icon: <ShieldCheckIcon size={16} />,
         content: <UnitReadinessPanel callId={parseInt(call.CallId, 10)} />,
       });

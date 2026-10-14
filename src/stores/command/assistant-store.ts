@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { askIncidentAssistant } from '@/api/chat/chatbot';
+import { findCallType } from '@/lib/call-field-policy';
 import { logger } from '@/lib/logging';
 import { zustandStorage } from '@/lib/storage';
 import { uuidv4 } from '@/lib/utils';
@@ -55,7 +56,7 @@ const isOffline = () => {
  */
 export const buildAnswerContext = (callId: string): IncidentAnswerContext => {
   const boardState = useCommandStore.getState().boards[callId];
-  const calls = useCallsStore.getState().calls;
+  const { calls, callTypes } = useCallsStore.getState();
   const activeCall = useCoreStore.getState().activeCall;
   const call = calls.find((c) => c.CallId === callId) ?? (activeCall?.CallId === callId ? activeCall : null);
   const users = useRolesStore.getState().users;
@@ -70,6 +71,8 @@ export const buildAnswerContext = (callId: string): IncidentAnswerContext => {
     callNumber: call?.Number ?? null,
     callAddress: call?.Address ?? null,
     callType: call?.Type ?? null,
+    // By the call's type id first, so a renamed type keeps its class.
+    callTypeClass: findCallType(callTypes, call)?.BaseType ?? null,
     callNature: call?.Nature ?? null,
     resolveUserName: (userId: string) => {
       const user = users.find((u) => u.UserId === userId);

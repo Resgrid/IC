@@ -17,6 +17,7 @@ import { VStack } from '@/components/ui/vstack';
 import type { PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
 import type { UnitResultData } from '@/models/v4/units/unitResultData';
 import type { UnitStatusResultData } from '@/models/v4/unitStatus/unitStatusResultData';
+import { TermKeys, useTerm } from '@/stores/terminology/store';
 
 export type AdHocResourceKind = 'unit' | 'person';
 
@@ -46,6 +47,8 @@ interface AddResourceSheetProps {
 // eslint-disable-next-line max-lines-per-function
 export const AddResourceSheet: React.FC<AddResourceSheetProps> = ({ isOpen, onClose, units, personnel, unitCurrentStatuses = [], trackedUnitIds, trackedUserIds, onAddUnit, onAddPersonnel, onSaveExternal }) => {
   const { t } = useTranslation();
+  const unitsLabel = useTerm(TermKeys.Units, t('command.resource_kind_units'));
+  const personnelLabel = useTerm(TermKeys.Personnel, t('command.resource_kind_personnel'));
   const [tab, setTab] = useState<ResourceTab>('units');
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState<AdHocResourceKind>('unit');
@@ -92,10 +95,10 @@ export const AddResourceSheet: React.FC<AddResourceSheetProps> = ({ isOpen, onCl
         {/* Department units / personnel are the default; external covers mutual aid & non-Resgrid people */}
         <HStack space="sm">
           <Button size="xs" variant={tab === 'units' ? 'solid' : 'outline'} onPress={() => handleTabChange('units')} testID="resource-tab-units">
-            <ButtonText>{t('command.resource_kind_units')}</ButtonText>
+            <ButtonText>{unitsLabel}</ButtonText>
           </Button>
           <Button size="xs" variant={tab === 'personnel' ? 'solid' : 'outline'} onPress={() => handleTabChange('personnel')} testID="resource-tab-personnel">
-            <ButtonText>{t('command.resource_kind_personnel')}</ButtonText>
+            <ButtonText>{personnelLabel}</ButtonText>
           </Button>
           <Button size="xs" variant={tab === 'external' ? 'solid' : 'outline'} onPress={() => handleTabChange('external')} testID="resource-tab-external">
             <ButtonText>{t('command.resource_kind_external')}</ButtonText>

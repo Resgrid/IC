@@ -10,6 +10,7 @@ import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { useIsChatEnabled, useIsDeploymentsEnabled, useIsRecordsFieldEnabled } from '@/stores/feature-flags/store';
+import { terminologyStore, TermKeys } from '@/stores/terminology/store';
 
 interface SidebarProps {
   onClose?: () => void;
@@ -18,16 +19,18 @@ interface SidebarProps {
 interface MenuItem {
   key: string;
   labelKey: string;
+  /** The department can rename this module (Department -> Terminology); its word replaces the app's label. */
+  termKey?: string;
   icon: LucideIcon;
   href: string;
 }
 
 const MENU_ITEMS: MenuItem[] = [
-  { key: 'map', labelKey: 'tabs.map', icon: Map, href: '/' },
-  { key: 'calls', labelKey: 'tabs.calls', icon: Megaphone, href: '/calls' },
+  { key: 'map', labelKey: 'tabs.map', termKey: TermKeys.Mapping, icon: Map, href: '/' },
+  { key: 'calls', labelKey: 'tabs.calls', termKey: TermKeys.Calls, icon: Megaphone, href: '/calls' },
   { key: 'command', labelKey: 'tabs.command_board', icon: ClipboardList, href: '/command' },
-  { key: 'contacts', labelKey: 'tabs.contacts', icon: ContactIcon, href: '/contacts' },
-  { key: 'records', labelKey: 'tabs.records', icon: FileText, href: '/records' },
+  { key: 'contacts', labelKey: 'tabs.contacts', termKey: TermKeys.Contacts, icon: ContactIcon, href: '/contacts' },
+  { key: 'records', labelKey: 'tabs.records', termKey: TermKeys.Records, icon: FileText, href: '/records' },
   { key: 'operations', labelKey: 'operations.title', icon: Briefcase, href: '/operations' },
   { key: 'chat', labelKey: 'chat.title', icon: MessagesSquare, href: '/chat' },
   { key: 'chatbot', labelKey: 'chat.assistant', icon: Sparkles, href: '/chatbot' },
@@ -42,6 +45,7 @@ const Sidebar = ({ onClose }: SidebarProps) => {
   const isChatEnabled = useIsChatEnabled();
   const isRecordsEnabled = useIsRecordsFieldEnabled();
   const isDeploymentsEnabled = useIsDeploymentsEnabled();
+  const termNames = terminologyStore((state) => state.names);
 
   // Chat.System off hides chat and the assistant; Field Records needs Records.System plus this app's
   // own child flag. Both fail closed, so an entry stays hidden until the server confirms it.
@@ -71,7 +75,7 @@ const Sidebar = ({ onClose }: SidebarProps) => {
         {menuItems.map((item) => (
           <Pressable key={item.key} testID={`sidebar-link-${item.key}`} className="flex-row items-center gap-3 rounded-lg px-3 py-3 active:bg-gray-100 dark:active:bg-gray-800" onPress={() => handleNavigate(item.href)}>
             <Icon as={item.icon} size="lg" className="text-primary-500 dark:text-primary-400" />
-            <Text className="flex-1 text-base font-medium text-gray-900 dark:text-white">{t(item.labelKey)}</Text>
+            <Text className="flex-1 text-base font-medium text-gray-900 dark:text-white">{(item.termKey && termNames[item.termKey]) || t(item.labelKey)}</Text>
             <Icon as={ChevronRight} size="sm" className="text-gray-400 dark:text-gray-500" />
           </Pressable>
         ))}

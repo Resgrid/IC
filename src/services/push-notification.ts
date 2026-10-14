@@ -7,9 +7,12 @@ import { Platform } from 'react-native';
 
 import { registerDevice } from '@/api/devices/push';
 import { useAuthStore } from '@/lib/auth';
+import { registerSignOutHook } from '@/lib/auth/sign-out-hooks';
 import { logger } from '@/lib/logging';
+import { CLIENT_HEADER, RESGRID_CLIENT } from '@/lib/mfa/client-app';
 import { type RouterPushRetryOptions, routerPushWithRetry } from '@/lib/navigation';
-import { getDeviceUuid } from '@/lib/storage/app';
+import { getBaseApiUrl, getDeviceUuid } from '@/lib/storage/app';
+import { type NativePushUnRegistrationInput } from '@/models/v4/device/nativePushUnRegistrationInput';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useLocationStore } from '@/stores/app/location-store';
 import { useCheckInTimerStore } from '@/stores/check-in-timers/store';
@@ -152,6 +155,8 @@ Notifications.setNotificationHandler({
 class PushNotificationService {
   private static instance: PushNotificationService;
   private pushToken: string | null = null;
+  // What this phone last registered on the server, so sign-out can take exactly that token off again.
+  private registration: NativePushUnRegistrationInput | null = null;
   private notificationListener: { remove: () => void } | null = null;
   private responseListener: { remove: () => void } | null = null;
   private notifeeForegroundUnsubscribe: (() => void) | null = null;
@@ -492,6 +497,8 @@ class PushNotificationService {
         Source: 'IC',
       });
 
+      this.registration = { Token: this.pushToken || '', Prefix: departmentCode, Source: 'IC' };
+
       return this.pushToken;
     } catch (error) {
       logger.warn({
@@ -507,13 +514,42 @@ class PushNotificationService {
   }
 
   /**
+   * Takes this phone's token off the server at sign-out, as the session that is signing out (the hook below runs
+   * before logout clears its access token). Straight to the server, not through the api client: its 401 handling
+   * would re-enter logout. Quiet: sign-out goes ahead whatever the server says.
+   */
+  public async unregisterAtSignOut(accessToken: string | null): Promise<void> {
+    const registration = this.registration;
+    this.registration = null;
+
+    if (!registration || !accessToken) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${getBaseApiUrl()}/Devices/UnRegisterNativePush`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, [CLIENT_HEADER]: RESGRID_CLIENT },
+        body: JSON.stringify(registration),
+      });
+      if (!response.ok) {
+        logger.warn({ message: 'Push: the server refused to unregister the device token at sign-out', context: { status: response.status } });
+      }
+    } catch (error) {
+      logger.warn({ message: 'Push: the device token could not be unregistered at sign-out', context: { error } });
+    }
+  }
+
+  /**
    * Clears this device's local push state on logout: the cached token, the badge, and notifications
    * already delivered for the previous user (which may name incidents or people). The next sign-in
-   * registers again for the new user.
+   * registers again for the new user. Taking the token off the server is the sign-out hook's job
+   * (unregisterAtSignOut), which runs first while the session can still authenticate.
    */
   public async unregisterFromPushNotifications(): Promise<void> {
     try {
       this.pushToken = null;
+      this.registration = null;
       this.handledResponseIds.clear();
       await Notifications.setBadgeCountAsync(0).catch(() => {});
       await Notifications.dismissAllNotificationsAsync().catch(() => {});
@@ -609,6 +645,10 @@ if (Platform.OS !== 'web') {
 }
 
 export const pushNotificationService = PushNotificationService.getInstance();
+
+// Sign-out takes this phone's token off the server while the session can still authenticate, so the next person to
+// use the device never gets the previous one's incident pushes.
+registerSignOutHook((accessToken) => pushNotificationService.unregisterAtSignOut(accessToken));
 
 // React hook for component usage
 export const usePushNotifications = () => {

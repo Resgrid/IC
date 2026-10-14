@@ -10,6 +10,7 @@ import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { parseUtcMs } from '@/lib/utils';
 import { type IncidentCommandSummary } from '@/models/v4/incidentCommand/incidentCommandModels';
+import { TermKeys, useTerm } from '@/stores/terminology/store';
 
 interface IncidentCardProps {
   summary: IncidentCommandSummary;
@@ -35,6 +36,8 @@ export const formatIncidentDuration = (startIso: string, endIso?: string | null)
 /** Summary card for one incident command in the Incidents list (active or ended). */
 export const IncidentCard: React.FC<IncidentCardProps> = ({ summary, onPress }) => {
   const { t } = useTranslation();
+  const unitsLabel = useTerm(TermKeys.Units, t('incidents.units'));
+  const personnelLabel = useTerm(TermKeys.Personnel, t('incidents.personnel'));
 
   const isEnded = summary.Status !== 0;
   const title = summary.Name || summary.CallName || (summary.CallNumber ? `#${summary.CallNumber}` : t('incidents.unnamed'));
@@ -87,11 +90,11 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({ summary, onPress }) 
             <HStack space="sm" className="flex-wrap items-center">
               <Badge action="muted" size="sm">
                 <TruckIcon size={12} color="#6b7280" />
-                <BadgeText className="ml-1">{`${t('incidents.units')}: ${summary.AssignedUnitCount}`}</BadgeText>
+                <BadgeText className="ml-1">{`${unitsLabel}: ${summary.AssignedUnitCount}`}</BadgeText>
               </Badge>
               <Badge action="muted" size="sm">
                 <UsersIcon size={12} color="#6b7280" />
-                <BadgeText className="ml-1">{`${t('incidents.personnel')}: ${summary.AssignedPersonnelCount}`}</BadgeText>
+                <BadgeText className="ml-1">{`${personnelLabel}: ${summary.AssignedPersonnelCount}`}</BadgeText>
               </Badge>
             </HStack>
           </VStack>

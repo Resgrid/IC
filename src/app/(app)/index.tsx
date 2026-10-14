@@ -29,6 +29,7 @@ import { locationService } from '@/services/location';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useLocationStore } from '@/stores/app/location-store';
 import { useMapsStore } from '@/stores/maps/store';
+import { TermKeys, useTerm } from '@/stores/terminology/store';
 import { useToastStore } from '@/stores/toast/store';
 import { useWeatherAlertsStore } from '@/stores/weather-alerts/store';
 
@@ -48,6 +49,7 @@ export default function Map() {
 
 function MapContent() {
   const { t } = useTranslation();
+  const mapTitle = useTerm(TermKeys.Mapping, t('tabs.map'));
   const { trackEvent } = useAnalytics();
   const { colorScheme } = useColorScheme();
   const insets = useSafeAreaInsets();
@@ -451,7 +453,7 @@ function MapContent() {
     <>
       <Stack.Screen
         options={{
-          title: t('tabs.map'),
+          title: mapTitle,
           headerTitle: t('app.title'),
           headerShown: true,
           headerBackTitle: '',
