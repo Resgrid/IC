@@ -3,6 +3,7 @@ import { create } from 'zustand';
 
 import type { PerformCheckInInput } from '@/api/check-in-timers/check-in-timers';
 import { getCallPersonnelCheckInStatuses, getCheckInHistory, getTimersForCall, getTimerStatuses, performCheckIn, toggleCallTimers } from '@/api/check-in-timers/check-in-timers';
+import { dedupeByUserId } from '@/lib/incident-command-utils';
 import { logger } from '@/lib/logging';
 import type { CallPersonnelCheckInStatusResultData } from '@/models/v4/checkIn/callPersonnelCheckInStatusResultData';
 import type { CheckInRecordResultData } from '@/models/v4/checkIn/checkInRecordResultData';
@@ -81,8 +82,8 @@ export const useCheckInTimerStore = create<CheckInTimerState>((set, get) => ({
   fetchPersonnelStatuses: async (callId: number) => {
     try {
       const result = await getCallPersonnelCheckInStatuses(callId);
-      const data = Array.isArray(result.Data) ? result.Data : [];
-      const sorted = [...data].sort((a, b) => (STATUS_SEVERITY[a.Status] ?? 3) - (STATUS_SEVERITY[b.Status] ?? 3));
+      const data = Array.isArray(result.Data) ? dedupeByUserId(result.Data) : [];
+      const sorted = data.sort((a, b) => (STATUS_SEVERITY[a.Status] ?? 3) - (STATUS_SEVERITY[b.Status] ?? 3));
       set({ personnelStatuses: sorted, hasActivePersonnelTimer: result.HasActivePersonnelTimer === true });
     } catch (error) {
       logger.error({ message: 'Failed to fetch personnel check-in statuses', context: { error, callId } });

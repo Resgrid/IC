@@ -43,4 +43,25 @@ describe('CommandBoard', () => {
     expect(screen.getByText('Jane Doe')).toBeTruthy();
     expect(screen.getByText('Critical')).toBeTruthy();
   });
+
+  it('renders a member once when accountability contains duplicate rows for them', () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const duplicated = {
+      ...board,
+      Accountability: [
+        { UserId: 'u1', FullName: 'Jane Doe', Status: 'Critical' },
+        { UserId: 'u2', FullName: 'John Roe', Status: 'Green' },
+        { UserId: 'u1', FullName: 'Jane Doe', Status: 'Critical' },
+      ],
+    } as unknown as IncidentCommandBoard;
+
+    const { unmount } = render(<CommandBoard board={duplicated} />);
+
+    expect(screen.getAllByText('Jane Doe')).toHaveLength(1);
+    expect(screen.getByText('John Roe')).toBeTruthy();
+    expect(consoleErrorSpy.mock.calls.some(([message]) => String(message).includes('same key'))).toBe(false);
+
+    unmount();
+    consoleErrorSpy.mockRestore();
+  });
 });

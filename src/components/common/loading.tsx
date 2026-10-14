@@ -66,7 +66,12 @@ export const Loading: React.FC<LoadingProps> = ({ text, fullscreen = false, size
           </HStack>
         );
       case 'icon':
-        return <Loader2 size={size === 'small' ? 24 : size === 'large' ? 32 : 40} className="text-primary animate-spin" />;
+        // Spin a wrapping View, not the SVG: Reanimated 4's CSS animations can't interpolate `transform` on an <Svg> root.
+        return (
+          <View className="animate-spin">
+            <Loader2 size={size === 'small' ? 24 : size === 'large' ? 32 : 40} className="text-primary" />
+          </View>
+        );
       case 'spinner':
       default:
         return <Spinner size={size} className="text-primary" />;

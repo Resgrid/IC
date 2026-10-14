@@ -12,6 +12,7 @@ import { Text } from '@/components/ui/text';
 import { View } from '@/components/ui/view';
 import { VStack } from '@/components/ui/vstack';
 import { isWeb } from '@/lib/platform';
+import { readableColors } from '@/lib/utils';
 import type { PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
 import type { ActiveUnitRoleResultData } from '@/models/v4/unitRoles/activeUnitRoleResultData';
 import type { UnitResultData } from '@/models/v4/units/unitResultData';
@@ -24,10 +25,13 @@ const asHexColor = (value?: string | null) => (value && /^#[0-9a-fA-F]{3,8}$/.te
 const oneLine = isWeb ? ({ isTruncated: true } as const) : ({ numberOfLines: 1 } as const);
 
 const ServerColorBadge: React.FC<{ label: string; color?: string | null; testID?: string }> = ({ label, color, testID }) => {
-  const hex = asHexColor(color);
+  const { backgroundColor, textColor } = readableColors(color, '#6b7280');
   return (
-    <Badge style={hex ? { backgroundColor: hex } : styles.badgeFallback} variant="solid" testID={testID}>
-      <BadgeText className="text-white">{label}</BadgeText>
+    <Badge style={{ backgroundColor }} variant="solid" testID={testID}>
+      {/* Status colours run from dark to pastel, so pick black or white text for each rather than a fixed white. */}
+      <BadgeText className="text-white" style={{ color: textColor }}>
+        {label}
+      </BadgeText>
     </Badge>
   );
 };
@@ -89,7 +93,7 @@ export const UnitResourceCard: React.FC<UnitResourceCardProps> = ({ name, unit, 
   return (
     <CardShell isLocal={isLocal} onView={onView} testID={testID} viewTestID={viewTestID}>
       <HStack className="items-center" space="sm">
-        <Box className="size-8 items-center justify-center rounded-lg bg-primary-50 dark:bg-primary-950">
+        <Box className="size-8 items-center justify-center rounded-lg bg-primary-50">
           <Icon as={Truck} className="text-blue-600 dark:text-blue-400" size={16} />
         </Box>
         <VStack className="min-w-0 flex-1">
@@ -156,8 +160,8 @@ export const PersonnelResourceCard: React.FC<PersonnelResourceCardProps> = ({ na
   return (
     <CardShell isLocal={isLocal} onView={onView} testID={testID} viewTestID={viewTestID}>
       <HStack className="items-center" space="sm">
-        <Box className="size-8 items-center justify-center rounded-full bg-primary-50 dark:bg-primary-950">
-          <Text className="text-xs font-bold text-primary-600 dark:text-primary-400">{initials}</Text>
+        <Box className="size-8 items-center justify-center rounded-full bg-primary-50">
+          <Text className="text-xs font-bold text-primary-600">{initials}</Text>
           {statusDot ? <View style={[styles.statusDot, { backgroundColor: statusDot }]} /> : null}
         </Box>
         <VStack className="min-w-0 flex-1">
@@ -187,9 +191,6 @@ export const PersonnelResourceCard: React.FC<PersonnelResourceCardProps> = ({ na
 };
 
 const styles = StyleSheet.create({
-  badgeFallback: {
-    backgroundColor: '#6b7280',
-  },
   statusDot: {
     position: 'absolute',
     right: -1,

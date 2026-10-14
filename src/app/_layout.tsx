@@ -31,7 +31,7 @@ import { PushNotificationModal } from '@/components/push-notification/push-notif
 import { ToastContainer } from '@/components/toast/toast-container';
 import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
 import { loadKeepAliveState } from '@/lib/hooks/use-keep-alive';
-import { loadSelectedTheme } from '@/lib/hooks/use-selected-theme';
+import { loadSelectedTheme, useSelectedTheme } from '@/lib/hooks/use-selected-theme';
 import { logger } from '@/lib/logging';
 import { registerNavigationReadyCheck } from '@/lib/navigation';
 import { getDeviceUuid, setDeviceUuid } from '@/lib/storage/app';
@@ -211,10 +211,13 @@ function Providers({ children }: { children: React.ReactNode }) {
   // nativewind's hook (not react-native's) so manually selected themes are
   // reflected on web, where Appearance only tracks the system preference.
   const { colorScheme } = useColorScheme();
+  // The provider gets the user's choice, not the resolved scheme: handing it the resolved 'light' or 'dark'
+  // pinned Appearance to that value, so a 'system' choice stopped following the OS until a restart.
+  const { selectedTheme } = useSelectedTheme();
 
   const renderContent = () => (
     <APIProvider>
-      <GluestackUIProvider mode={(colorScheme ?? 'light') as 'light' | 'dark'}>
+      <GluestackUIProvider mode={selectedTheme}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <BottomSheetModalProvider>
             {children}

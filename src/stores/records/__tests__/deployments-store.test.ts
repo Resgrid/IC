@@ -106,7 +106,7 @@ describe('Deployments store conformance', () => {
     const list = await useDeploymentsStore.getState().fetchDeployments();
 
     expect(list).toHaveLength(1);
-    expect(useDeploymentsStore.getState().error).toBe('offline');
+    expect(useDeploymentsStore.getState().error).toBe('load_failed');
     expect(useDeploymentsStore.getState().isLoading).toBe(false);
   });
 

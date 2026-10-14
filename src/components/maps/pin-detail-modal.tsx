@@ -85,7 +85,7 @@ export const PinDetailModal: React.FC<PinDetailModalProps> = ({ pin, isOpen, onC
         <VStack className="mb-6 space-y-3">
           <Box className="flex-row items-center">
             <MapPinIcon size={16} color={colorScheme === 'dark' ? '#FFFFFF' : '#000000'} />
-            <Text className="ml-2 text-sm text-gray-600">
+            <Text className="ml-2 text-sm text-gray-600 dark:text-gray-400">
               {pin.Latitude.toFixed(6)}, {pin.Longitude.toFixed(6)}
             </Text>
           </Box>
@@ -99,28 +99,28 @@ export const PinDetailModal: React.FC<PinDetailModalProps> = ({ pin, isOpen, onC
           {pin.Address ? (
             <Box>
               <Text className="text-sm font-medium">{t('map.pin_address')}</Text>
-              <Text className="text-sm text-gray-600">{pin.Address}</Text>
+              <Text className="text-sm text-gray-600 dark:text-gray-400">{pin.Address}</Text>
             </Box>
           ) : null}
 
           {pin.Note ? (
             <Box>
               <Text className="text-sm font-medium">{t('map.pin_note')}</Text>
-              <Text className="text-sm text-gray-600">{pin.Note}</Text>
+              <Text className="text-sm text-gray-600 dark:text-gray-400">{pin.Note}</Text>
             </Box>
           ) : null}
 
           {pin.PoiTypeName ? (
             <Box>
               <Text className="text-sm font-medium">{t('map.pin_type')}</Text>
-              <Text className="text-sm text-gray-600">{pin.PoiTypeName}</Text>
+              <Text className="text-sm text-gray-600 dark:text-gray-400">{pin.PoiTypeName}</Text>
             </Box>
           ) : null}
 
           {pin.Color && (
             <Box className="flex-row items-center">
               <Box className="mr-2 size-4 rounded-full" style={{ backgroundColor: pin.Color }} />
-              <Text className="text-sm text-gray-600">{t('map.pin_color')}</Text>
+              <Text className="text-sm text-gray-600 dark:text-gray-400">{t('map.pin_color')}</Text>
             </Box>
           )}
 

@@ -114,7 +114,7 @@ export const NeedsSection: React.FC<NeedsSectionProps> = ({ needs, onAdd, onSetS
                   </VStack>
                   <HStack space="sm" className="items-center">
                     <Badge action={getNeedStatusBadgeAction(need.Status)} variant="solid" size="sm">
-                      <BadgeText className="text-white">{getNeedStatusName(t, need.Status)}</BadgeText>
+                      <BadgeText>{getNeedStatusName(t, need.Status)}</BadgeText>
                     </Badge>
                     {isMet ? (
                       <Pressable onPress={() => onSetStatus(need.IncidentNeedId, IncidentNeedStatus.Open)} className="p-2" testID={`need-reopen-${need.IncidentNeedId}`}>

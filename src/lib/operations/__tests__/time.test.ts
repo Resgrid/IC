@@ -138,6 +138,8 @@ it('maps server failures to short reason codes', () => {
   expect(operationsError({ response: { status: 401 } })).toBe('denied');
   expect(operationsError({ response: { status: 400, headers: { 'x-resgrid-reason': 'timereports_subject_covered' } } })).toBe('timereports_subject_covered');
   expect(operationsError({ response: { status: 400 } })).toBe('validation');
+  // A reason with no message of its own must not surface as a raw key or as the misleading "could not reach the server".
+  expect(operationsError({ response: { status: 400, headers: { 'x-resgrid-reason': 'workforce_amount_invalid' } } })).toBe('validation');
   expect(operationsError({ response: { status: 200, data: { type: 'protected_data_required' } } })).toBe('locked');
   expect(operationsError(new Error('boom'))).toBe('retry');
 });

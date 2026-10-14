@@ -186,28 +186,28 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       'expo-location',
       {
+        // Foreground-only (see src/services/location.ts): the app never requests background
+        // location and has no feature that needs it, so every background flag stays off.
+        // isIosBackgroundLocationEnabled would add `location` to UIBackgroundModes, which App
+        // Review rejects (Guideline 2.5.4) when no persistent-location feature exists.
+        //
+        // This is the only location prompt users (and App Review) ever see. Guideline
+        // 5.1.1(ii) requires it to name each use and give a concrete example.
         locationWhenInUsePermission:
-          'Resgrid IC uses your location while you use the app to show your position on the incident map and to attach your coordinates to incident actions you take. For example, when you assign a resource, your location helps place command on the scene map.',
+          'Resgrid IC uses your location while the app is open to show where you are on the incident map, to center the map when you set a call location, and to record where you were when you check in, attach a photo to a call, or share your location in chat. For example, when you check in during an incident, your location is included so the incident commander can confirm where you checked in from.',
+        // The "Always" keys must exist anyway: expo-location's background requester references
+        // requestAlwaysAuthorization, and App Store static analysis rejects the binary with
+        // ITMS-90683 when they are absent. The app never shows these prompts, so they state the
+        // same foreground-only use.
         locationAlwaysAndWhenInUsePermission:
-          'Resgrid IC uses your location, including in the background, to keep the incident and department maps updated with your position. For example, while you move around an incident scene, your location is periodically sent so other responders and dispatchers can see where command is, even when the app is not on screen.',
+          'Resgrid IC uses your location only while the app is open and never tracks it in the background. It shows where you are on the incident map and records where you were when you check in or attach a photo to a call. For example, when you check in during an incident, your location is included so the incident commander can confirm where you checked in from.',
         locationAlwaysPermission:
-          'Resgrid IC uses your location in the background to keep the incident and department maps updated with your position. For example, while you move around an incident scene, your location is periodically sent so other responders and dispatchers can see where command is, even when the app is not on screen.',
+          'Resgrid IC uses your location only while the app is open and never tracks it in the background. It shows where you are on the incident map and records where you were when you check in or attach a photo to a call. For example, when you check in during an incident, your location is included so the incident commander can confirm where you checked in from.',
         // Required even though getMotionActivityAsync() is never called: expo-location links
         // CoreMotion (MotionActivityPermissionRequester), and App Store static analysis rejects
         // the binary with ITMS-90683 whenever the framework is referenced and the string is absent.
         motionUsagePermission:
-          'Resgrid IC uses motion data to improve the accuracy of the location shown on the department map. For example, while you are driving to a call, motion data helps distinguish travel from a stop so dispatchers see an accurate position and heading.',
-        isIosBackgroundLocationEnabled: true,
-        isAndroidBackgroundLocationEnabled: true,
-        isAndroidForegroundServiceEnabled: true,
-        taskManager: {
-          locationTaskName: 'location-updates',
-          locationTaskOptions: {
-            accuracy: 'balanced',
-            distanceInterval: 10,
-            timeInterval: 5000,
-          },
-        },
+          'Resgrid IC uses motion data only to improve the accuracy of your position on the incident map while the app is open. For example, while you walk an incident scene, motion data helps keep your position marker accurate. Motion data never leaves your device.',
       },
     ],
     [

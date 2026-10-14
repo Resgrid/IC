@@ -124,7 +124,7 @@ export default function Settings() {
             <VStack space="sm">
               <Item text={t('settings.server')} value={serverUrl || getBaseApiUrl()} onPress={() => setShowServerUrl(true)} textStyle="text-info-600" />
               <Item text={t('settings.login_info')} onPress={() => setShowLoginInfo(true)} textStyle="text-info-600" />
-              <Item text={t('mfa.account.title')} onPress={() => router.push('/account-security' as unknown as Href)} textStyle="text-info-600" />
+              <Item text={t('mfa.account.title')} onPress={() => router.push('/settings/account-security' as unknown as Href)} textStyle="text-info-600" />
               <Item text={t('shared_session.device_title')} onPress={() => router.push('/login/shared-device' as unknown as Href)} textStyle="text-info-600" />
               <Item text={t('settings.logout')} onPress={() => setShowLogoutConfirm(true)} textStyle="text-error-600" />
             </VStack>

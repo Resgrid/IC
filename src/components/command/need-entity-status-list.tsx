@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { logger } from '@/lib/logging';
+import { readableTextColor } from '@/lib/utils';
 import { type IncidentNeedEntity, NeedEntityKind } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { type PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
 import { type UnitStatusResultData } from '@/models/v4/unitStatus/unitStatusResultData';
@@ -17,11 +18,15 @@ const FALLBACK_COLOR = '#6b7280';
 const asHexColor = (value?: string | null): string | null => (value && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim()) ? value.trim() : null);
 
 /** Solid chip tinted with a server-provided status color. */
-const StatusChip: React.FC<{ label: string; color?: string | null; testID?: string }> = ({ label, color, testID }) => (
-  <View style={[styles.chip, { backgroundColor: asHexColor(color) ?? FALLBACK_COLOR }]} testID={testID}>
-    <Text style={styles.chipText}>{label}</Text>
-  </View>
-);
+const StatusChip: React.FC<{ label: string; color?: string | null; testID?: string }> = ({ label, color, testID }) => {
+  const background = asHexColor(color) ?? FALLBACK_COLOR;
+  // Status colours run from dark to pastel, so a fixed white label vanishes on the lighter ones.
+  return (
+    <View style={[styles.chip, { backgroundColor: background }]} testID={testID}>
+      <Text style={[styles.chipText, { color: readableTextColor(background) ?? '#ffffff' }]}>{label}</Text>
+    </View>
+  );
+};
 
 interface NeedEntityStatusListProps {
   incidentNeedId: string;

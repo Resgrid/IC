@@ -251,7 +251,14 @@ it('stamps usage readings with the open deployment and surfaces server refusals 
   expect(server.addResourceUsage).toHaveBeenCalledWith(expect.objectContaining({ DeploymentId: 'dep-1', CallId: 9, UnitId: 12 }));
   expect(useOperationsStore.getState().usage.map((reading) => reading.Id)).toEqual(['u-1']);
 
-  server.addResourceUsage.mockRejectedValue({ response: { status: 400, headers: { 'x-resgrid-reason': 'usage_unit_not_rostered' } } });
+  // FieldCost/AddResourceUsage refuses a unit that is not on the member's deployment with a 403.
+  server.addResourceUsage.mockRejectedValue({ response: { status: 403, headers: { 'x-resgrid-reason': 'workforce_unit_not_on_deployment' } } });
   expect(await useOperationsStore.getState().addUsage({ UnitId: 99, UsageDate: '2026-09-19T00:00:00', Phase: 2 })).toBe(false);
-  expect(useOperationsStore.getState().error).toBe('usage_unit_not_rostered');
+  expect(useOperationsStore.getState().error).toBe('denied');
+
+  // A 400 reason with no operations.errors message of its own reads as the generic validation error, not a raw key.
+  server.addResourceUsage.mockRejectedValue({ response: { status: 400, headers: { 'x-resgrid-reason': 'workforce_usage_invalid' } } });
+  expect(await useOperationsStore.getState().addUsage({ UnitId: 12, UsageDate: '2026-09-19T00:00:00', Phase: 2 })).toBe(false);
+  expect(useOperationsStore.getState().error).toBe('validation');
+  expect(useOperationsStore.getState().usage.map((reading) => reading.Id)).toEqual(['u-1']);
 });

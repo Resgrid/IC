@@ -384,9 +384,9 @@ export default function ChannelConversationScreen() {
 
       {/* IC delta: identity chip — messages in command channels post as the Incident Commander. */}
       {isCommandChannel ? (
-        <HStack className="items-center border-b border-outline-100 bg-primary-50 px-4 py-1.5 dark:bg-primary-950" space="xs">
+        <HStack className="items-center border-b border-outline-100 bg-primary-50 px-4 py-1.5" space="xs">
           <ShieldCheck size={14} color="#2563eb" />
-          <Text className="text-xs font-medium text-primary-700 dark:text-primary-300">{t('chat.chatting_as_ic')}</Text>
+          <Text className="text-xs font-medium text-primary-700">{t('chat.chatting_as_ic')}</Text>
         </HStack>
       ) : null}
 

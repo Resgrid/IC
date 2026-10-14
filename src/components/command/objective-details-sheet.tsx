@@ -102,7 +102,7 @@ export const ObjectiveDetailsSheet: React.FC<ObjectiveDetailsSheetProps> = ({ is
           </Heading>
           {isComplete ? (
             <Badge action={getObjectiveOutcomeBadgeAction(objective.Outcome ?? 0)} variant="solid" size="sm" testID="objective-details-outcome">
-              <BadgeText className="text-white">{t(getObjectiveOutcomeKey(objective.Outcome ?? 0))}</BadgeText>
+              <BadgeText>{t(getObjectiveOutcomeKey(objective.Outcome ?? 0))}</BadgeText>
             </Badge>
           ) : (
             <Badge action="info" variant="outline" size="sm">

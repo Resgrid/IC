@@ -95,4 +95,16 @@ describe('PersonnelResourceCard', () => {
 
     unmount();
   });
+
+  it('pairs each status badge with text that reads on it, swapping a colour it cannot read for grey', () => {
+    const tinted = { ...person, StatusColor: '#ffff0080', StaffingColor: 'rgb(255, 255, 0)' } as PersonnelInfoResultData;
+    const { getByText, getByTestId, unmount } = render(<PersonnelResourceCard isLocal={false} laneLabel="command.unassigned" name="Alex Reed" onView={jest.fn()} person={tinted} testID="card-4" viewTestID="view-4" />);
+
+    expect(getByTestId('card-4-status')).toHaveStyle({ backgroundColor: '#6b7280' });
+    expect(getByText('Available')).toHaveStyle({ color: '#FFFFFF' });
+    expect(getByTestId('card-4-staffing')).toHaveStyle({ backgroundColor: 'rgb(255, 255, 0)' });
+    expect(getByText('On Shift')).toHaveStyle({ color: '#000000' });
+
+    unmount();
+  });
 });

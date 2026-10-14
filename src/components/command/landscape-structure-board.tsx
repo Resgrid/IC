@@ -67,10 +67,10 @@ export const WorkTimeLight: React.FC<{ assignedOn?: string | null; rotationAfter
   return (
     <HStack className="items-center" space="xs" testID={testID}>
       <NativeView style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: isRotationDue ? '#ef4444' : workTimeColor(minutes, amberAfterMinutes, redAfterMinutes) }} />
-      <Text className={`text-xs tabular-nums ${isRotationDue ? 'font-semibold text-error-600 dark:text-error-400' : 'text-gray-500 dark:text-gray-400'}`}>{`${minutes}m`}</Text>
+      <Text className={`text-xs tabular-nums ${isRotationDue ? 'font-semibold text-error-600' : 'text-gray-500 dark:text-gray-400'}`}>{`${minutes}m`}</Text>
       {isRotationDue ? (
         <Badge action="error" variant="solid" testID={testID ? `${testID}-rotation` : undefined}>
-          <BadgeText className="text-white">{t('command.rotation_due')}</BadgeText>
+          <BadgeText>{t('command.rotation_due')}</BadgeText>
         </Badge>
       ) : null}
     </HStack>
@@ -234,7 +234,7 @@ const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo(
           accessibilityHint={t('command.drag_move_hint')}
           accessibilityLabel={name}
           accessibilityRole={containerButtonRole}
-          className={`rounded-lg border px-3 py-2 ${isSelected || isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-950' : assignment.RequirementsWarning ? 'border-2 border-amber-500 bg-white dark:bg-gray-900' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'}`}
+          className={`rounded-lg border px-3 py-2 ${isSelected || isDragging ? 'border-primary-500 bg-primary-50' : assignment.RequirementsWarning ? 'border-2 border-amber-500 bg-white dark:bg-gray-900' : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'}`}
           delayLongPress={LONG_PRESS_DELAY_MS}
           onLongPress={handleLongPress}
           onPress={handlePress}
@@ -264,12 +264,12 @@ const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo(
               {assignment.ResourceAssignmentId.startsWith('local-') ? <Icon as={CloudOff} className="text-amber-500" size={14} /> : null}
               {assignment.RequirementsWarning ? (
                 <Badge action="warning" size="sm" variant="solid">
-                  <BadgeText className="text-white">{t('command.requirements_warning')}</BadgeText>
+                  <BadgeText>{t('command.requirements_warning')}</BadgeText>
                 </Badge>
               ) : null}
               {isSelected ? (
                 <Badge action="info" size="sm" variant="solid">
-                  <BadgeText className="text-white">{t('command.selected')}</BadgeText>
+                  <BadgeText>{t('command.selected')}</BadgeText>
                 </Badge>
               ) : null}
             </HStack>
@@ -373,7 +373,7 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
         </Button>
       </HStack>
 
-      <Text className={`mb-3 text-sm ${selectedAssignment ? 'font-medium text-primary-600 dark:text-primary-300' : 'text-gray-500 dark:text-gray-400'}`} testID="command-move-hint">
+      <Text className={`mb-3 text-sm ${selectedAssignment ? 'font-medium text-primary-600' : 'text-gray-500 dark:text-gray-400'}`} testID="command-move-hint">
         {selectedAssignment ? t('command.move_selected_hint', { resource: resolveResourceName(selectedAssignment.ResourceKind, selectedAssignment.ResourceId) }) : t('command.drag_move_hint')}
       </Text>
 
@@ -401,7 +401,7 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
                     }
                     accessibilityRole={containerButtonRole}
                     style={node.Color ? { borderTopWidth: 4, borderTopColor: node.Color } : undefined}
-                    className={`h-full rounded-xl border p-3 ${isMoveTarget ? 'border-primary-400 bg-primary-50 dark:bg-primary-950' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900'}`}
+                    className={`h-full rounded-xl border p-3 ${isMoveTarget ? 'border-primary-400 bg-primary-50' : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900'}`}
                     onPress={() => handleLanePress(node.CommandStructureNodeId)}
                     testID={`landscape-lane-${node.CommandStructureNodeId}`}
                   >
@@ -418,7 +418,7 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
                       <HStack className="items-center" space="xs">
                         {isUnderstaffed ? (
                           <Badge action="warning" variant="solid" testID={`landscape-lane-understaffed-${node.CommandStructureNodeId}`}>
-                            <BadgeText className="text-white">{t('command.lane_understaffed', { count: laneUnitCount, min: node.MinUnits })}</BadgeText>
+                            <BadgeText>{t('command.lane_understaffed', { count: laneUnitCount, min: node.MinUnits })}</BadgeText>
                           </Badge>
                         ) : null}
                         {node.CommandStructureNodeId.startsWith('local-') ? <Icon as={CloudOff} className="text-amber-500" size={16} /> : null}

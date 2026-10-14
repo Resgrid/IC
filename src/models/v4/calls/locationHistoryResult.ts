@@ -24,7 +24,7 @@ export interface LocationHistoryCallData {
   Priority: number;
   PriorityText?: string | null;
   PriorityColor?: string | null;
-  /** CallStates: 0 Active, 1 Closed, 2 Cancelled, 3 Unfounded, 4 Founded, 5 Minor */
+  /** CallStates: 0 Active, 1 Closed, 2 Cancelled, 3 Unfounded, 4 Founded, 5 Minor, 6 Transferred, 7 False Alarm, 8 Pending */
   State: number;
   LoggedOnUtc: string;
   /** Formatted in the department's time zone */

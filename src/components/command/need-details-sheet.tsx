@@ -158,7 +158,7 @@ export const NeedDetailsSheet: React.FC<NeedDetailsSheetProps> = ({ isOpen, onCl
             {need.Name}
           </Heading>
           <Badge action={getNeedStatusBadgeAction(need.Status)} variant="solid" size="sm" testID="need-details-status">
-            <BadgeText className="text-white">{getNeedStatusName(t, need.Status)}</BadgeText>
+            <BadgeText>{getNeedStatusName(t, need.Status)}</BadgeText>
           </Badge>
         </HStack>
         <Text className="text-xs uppercase text-gray-500 dark:text-gray-400">

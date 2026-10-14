@@ -97,6 +97,30 @@ describe('useCheckInTimerStore', () => {
       expect(useCheckInTimerStore.getState().personnelStatuses.map((status) => status.UserId)).toEqual(['critical', 'safe']);
       expect(useCheckInTimerStore.getState().hasActivePersonnelTimer).toBe(true);
     });
+
+    it('keeps one row per user when the server returns a row per dispatch', async () => {
+      const critical = { UserId: 'critical', FullName: 'Critical User', LastCheckIn: null, NeedsCheckIn: true, MinutesRemaining: -2, Status: 'Critical' };
+      mockGetCallPersonnelCheckInStatuses.mockResolvedValue({
+        CallId: 1,
+        HasActivePersonnelTimer: true,
+        DurationMinutes: 20,
+        WarningThresholdMinutes: 5,
+        Data: [critical, { UserId: 'safe', FullName: 'Safe User', LastCheckIn: null, NeedsCheckIn: false, MinutesRemaining: 12, Status: 'Green' }, { ...critical }],
+        PageSize: 3,
+        Timestamp: '',
+        Version: '',
+        Node: '',
+        RequestId: '',
+        Status: '',
+        Environment: '',
+      });
+
+      await act(async () => {
+        await useCheckInTimerStore.getState().fetchPersonnelStatuses(1);
+      });
+
+      expect(useCheckInTimerStore.getState().personnelStatuses.map((status) => status.UserId)).toEqual(['critical', 'safe']);
+    });
   });
 
   describe('fetchTimerStatuses', () => {

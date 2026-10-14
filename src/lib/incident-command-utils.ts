@@ -187,3 +187,18 @@ export const getParBadgeAction = (status: string): 'success' | 'warning' | 'erro
       return 'muted';
   }
 };
+
+/**
+ * Collapse PAR/accountability rows to one per member. Older servers emit a row per CallDispatch, so a member
+ * dispatched more than once on a call appears repeatedly (duplicate React keys, inflated PAR counts).
+ */
+export const dedupeByUserId = <T extends { UserId: string }>(rows: readonly T[]): T[] => {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (seen.has(row.UserId)) {
+      return false;
+    }
+    seen.add(row.UserId);
+    return true;
+  });
+};

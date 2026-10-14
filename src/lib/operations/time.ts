@@ -238,13 +238,26 @@ export const documentNumberLabel = (number: string) => (/^\d+$/.test(number) ? `
 
 export const isReportEditable = (report: TimeReport | null) => !!report && report.Status === TimeReportStatus.Draft && report.CanAct;
 
+/** Server rejection reasons that have their own operations.errors message; any other reason reads as a generic validation error. */
+const OPERATIONS_ERROR_REASONS = new Set([
+  'deployments_attachment_too_large',
+  'deployments_closed',
+  'expenses_receipt_invalid',
+  'timereports_date_exists',
+  'timereports_locked',
+  'timereports_scope_invalid',
+  'timereports_status_transition_invalid',
+  'timereports_subject_covered',
+  'timereports_time_invalid',
+]);
+
 export const operationsError = (error: unknown): string => {
   const response = (error as { response?: { status?: number; headers?: Record<string, string>; data?: { type?: string } } })?.response;
   const reason = String(response?.headers?.['x-resgrid-reason'] ?? '');
   if (response?.data?.type === 'protected_data_required') return 'locked';
   if (reason.endsWith('_disabled')) return 'disabled';
   if (response?.status === 401 || response?.status === 403 || response?.status === 404) return 'denied';
-  if (response?.status === 400) return reason || 'validation';
+  if (response?.status === 400) return OPERATIONS_ERROR_REASONS.has(reason) ? reason : 'validation';
   if (error instanceof Error && ['denied', 'disabled', 'locked', 'validation'].includes(error.message)) return error.message;
   return 'retry';
 };

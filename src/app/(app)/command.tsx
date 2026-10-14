@@ -72,6 +72,7 @@ import { useDirectMessage } from '@/hooks/use-direct-message';
 import { useRecordsContext } from '@/hooks/use-records-context';
 import { getIncidentRoleName } from '@/lib/incident-command-utils';
 import { isWeb } from '@/lib/platform';
+import { readableColors } from '@/lib/utils';
 import { ChatChannelType } from '@/models/v4/chat';
 import { type IncidentNeedStatus, type ResourceAssignment, ResourceAssignmentKind } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { useCoreStore } from '@/stores/app/core-store';
@@ -647,6 +648,7 @@ export default function CommandBoard() {
         ? { latitude: callLatitude, longitude: callLongitude, isIcp: false }
         : null;
   const summaryPriority = activeCall?.CallId === boardState.callId ? activePriority : null;
+  const summaryPriorityColors = summaryPriority?.Color ? readableColors(summaryPriority.Color) : null;
 
   return (
     <View className="flex-1 bg-gray-50 dark:bg-gray-900" testID="command-board-screen">
@@ -685,12 +687,13 @@ export default function CommandBoard() {
               <HStack space="xs" className="items-center">
                 {boardState.isProvisional ? (
                   <Badge action="warning" variant="solid" testID="command-provisional-badge">
-                    <BadgeText className="text-white">{t('command.provisional_badge')}</BadgeText>
+                    <BadgeText>{t('command.provisional_badge')}</BadgeText>
                   </Badge>
                 ) : null}
                 {summaryPriority ? (
-                  <Badge style={summaryPriority.Color ? { backgroundColor: summaryPriority.Color } : undefined} variant="solid">
-                    <BadgeText className="text-white">{summaryPriority.Name}</BadgeText>
+                  <Badge style={summaryPriorityColors ? { backgroundColor: summaryPriorityColors.backgroundColor } : undefined} variant="solid">
+                    {/* A priority colour is fixed in both themes; pick black or white text for it rather than a fixed white. */}
+                    <BadgeText style={summaryPriorityColors ? { color: summaryPriorityColors.textColor } : undefined}>{summaryPriority.Name}</BadgeText>
                   </Badge>
                 ) : null}
                 {/* Master scene timer — elapsed time since the call was logged */}

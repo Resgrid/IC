@@ -94,7 +94,7 @@ export const ObjectivesSection: React.FC<ObjectivesSectionProps> = ({ objectives
                   </Pressable>
                   {isComplete ? (
                     <Badge action={getObjectiveOutcomeBadgeAction(objective.Outcome ?? 0)} variant="solid" size="sm" testID={`objective-outcome-badge-${objective.TacticalObjectiveId}`}>
-                      <BadgeText className="text-white">{(objective.Outcome ?? 0) !== 0 ? t(getObjectiveOutcomeKey(objective.Outcome ?? 0)) : t('command.objective_completed')}</BadgeText>
+                      <BadgeText>{(objective.Outcome ?? 0) !== 0 ? t(getObjectiveOutcomeKey(objective.Outcome ?? 0)) : t('command.objective_completed')}</BadgeText>
                     </Badge>
                   ) : null}
                 </HStack>

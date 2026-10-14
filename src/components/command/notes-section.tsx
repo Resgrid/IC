@@ -89,7 +89,7 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ notes, onAdd }) => {
             <HStack space="sm">
               <Pressable
                 onPress={() => setVisibility(IncidentContentVisibility.Internal)}
-                className={`flex-1 flex-row items-center justify-center rounded-lg border px-3 py-2 ${visibility === IncidentContentVisibility.Internal ? 'border-primary-500 bg-primary-50 dark:bg-primary-950' : 'border-gray-300 dark:border-gray-700'}`}
+                className={`flex-1 flex-row items-center justify-center rounded-lg border px-3 py-2 ${visibility === IncidentContentVisibility.Internal ? 'border-primary-500 bg-primary-50' : 'border-gray-300 dark:border-gray-700'}`}
                 testID="command-note-visibility-internal"
               >
                 <Icon as={Lock} size="sm" className="mr-2 text-gray-600 dark:text-gray-300" />
@@ -97,7 +97,7 @@ export const NotesSection: React.FC<NotesSectionProps> = ({ notes, onAdd }) => {
               </Pressable>
               <Pressable
                 onPress={() => setVisibility(IncidentContentVisibility.Public)}
-                className={`flex-1 flex-row items-center justify-center rounded-lg border px-3 py-2 ${visibility === IncidentContentVisibility.Public ? 'border-primary-500 bg-primary-50 dark:bg-primary-950' : 'border-gray-300 dark:border-gray-700'}`}
+                className={`flex-1 flex-row items-center justify-center rounded-lg border px-3 py-2 ${visibility === IncidentContentVisibility.Public ? 'border-primary-500 bg-primary-50' : 'border-gray-300 dark:border-gray-700'}`}
                 testID="command-note-visibility-public"
               >
                 <Icon as={Globe} size="sm" className="mr-2 text-gray-600 dark:text-gray-300" />

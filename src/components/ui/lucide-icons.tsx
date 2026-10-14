@@ -3,6 +3,7 @@ import {
   AlertCircle as RawAlertCircle,
   AlertTriangle as RawAlertTriangle,
   ArrowLeft as RawArrowLeft,
+  ArrowRight as RawArrowRight,
   Bell as RawBell,
   BellIcon as RawBellIcon,
   BluetoothIcon as RawBluetoothIcon,
@@ -13,6 +14,7 @@ import {
   CheckCircle as RawCheckCircle,
   CheckIcon as RawCheckIcon,
   ChevronDownIcon as RawChevronDownIcon,
+  ChevronLeft as RawChevronLeft,
   ChevronRight as RawChevronRight,
   ChevronRightIcon as RawChevronRightIcon,
   Circle as RawCircle,
@@ -45,6 +47,7 @@ import {
   SearchIcon as RawSearchIcon,
   SettingsIcon as RawSettingsIcon,
   ShieldCheck as RawShieldCheck,
+  ShieldIcon as RawShieldIcon,
   SmartphoneIcon as RawSmartphoneIcon,
   Speaker as RawSpeaker,
   StarIcon as RawStarIcon,
@@ -94,6 +97,7 @@ export const AlarmClock = themed(RawAlarmClock);
 export const AlertCircle = themed(RawAlertCircle);
 export const AlertTriangle = themed(RawAlertTriangle);
 export const ArrowLeft = themed(RawArrowLeft);
+export const ArrowRight = themed(RawArrowRight);
 export const Bell = themed(RawBell);
 export const BellIcon = themed(RawBellIcon);
 export const BluetoothIcon = themed(RawBluetoothIcon);
@@ -104,6 +108,7 @@ export const Check = themed(RawCheck);
 export const CheckCircle = themed(RawCheckCircle);
 export const CheckIcon = themed(RawCheckIcon);
 export const ChevronDownIcon = themed(RawChevronDownIcon);
+export const ChevronLeft = themed(RawChevronLeft);
 export const ChevronRight = themed(RawChevronRight);
 export const ChevronRightIcon = themed(RawChevronRightIcon);
 export const Circle = themed(RawCircle);
@@ -135,6 +140,7 @@ export const RefreshCwIcon = themed(RawRefreshCwIcon);
 export const SearchIcon = themed(RawSearchIcon);
 export const SettingsIcon = themed(RawSettingsIcon);
 export const ShieldCheck = themed(RawShieldCheck);
+export const ShieldIcon = themed(RawShieldIcon);
 export const Truck = themed(RawTruck);
 export const SmartphoneIcon = themed(RawSmartphoneIcon);
 export const Speaker = themed(RawSpeaker);
