@@ -14,6 +14,7 @@ import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { ResourceAssignmentKind } from '@/models/v4/incidentCommand/incidentCommandModels';
+import { terminologyStore, TermKeys } from '@/stores/terminology/store';
 
 export interface AssignableResourceOption {
   kind: ResourceAssignmentKind;
@@ -41,15 +42,16 @@ interface AssignResourceSheetProps {
   onSave: (kind: ResourceAssignmentKind, resourceId: string) => void;
 }
 
-const KIND_TABS: { labelKey: string; kinds: ResourceAssignmentKind[] }[] = [
-  { labelKey: 'command.resource_kind_units', kinds: [ResourceAssignmentKind.RealUnit, ResourceAssignmentKind.LinkedDeptUnit] },
-  { labelKey: 'command.resource_kind_personnel', kinds: [ResourceAssignmentKind.RealPersonnel, ResourceAssignmentKind.LinkedDeptPersonnel] },
+const KIND_TABS: { labelKey: string; termKey?: string; kinds: ResourceAssignmentKind[] }[] = [
+  { labelKey: 'command.resource_kind_units', termKey: TermKeys.Units, kinds: [ResourceAssignmentKind.RealUnit, ResourceAssignmentKind.LinkedDeptUnit] },
+  { labelKey: 'command.resource_kind_personnel', termKey: TermKeys.Personnel, kinds: [ResourceAssignmentKind.RealPersonnel, ResourceAssignmentKind.LinkedDeptPersonnel] },
   { labelKey: 'command.resource_kind_external', kinds: [ResourceAssignmentKind.AdHocUnit, ResourceAssignmentKind.AdHocPersonnel] },
 ];
 
 // eslint-disable-next-line max-lines-per-function
 export const AssignResourceSheet: React.FC<AssignResourceSheetProps> = ({ isOpen, onClose, options, targetNodeId, resolveLaneName, onSave }) => {
   const { t } = useTranslation();
+  const termNames = terminologyStore((state) => state.names);
   const [tabIndex, setTabIndex] = useState(0);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<AssignableResourceOption | null>(null);
@@ -79,7 +81,7 @@ export const AssignResourceSheet: React.FC<AssignResourceSheetProps> = ({ isOpen
         <HStack space="sm">
           {KIND_TABS.map((tab, index) => (
             <Button key={tab.labelKey} size="xs" variant={tabIndex === index ? 'solid' : 'outline'} onPress={() => setTabIndex(index)} testID={`resource-kind-tab-${index}`}>
-              <ButtonText>{t(tab.labelKey)}</ButtonText>
+              <ButtonText>{(tab.termKey && termNames[tab.termKey]) || t(tab.labelKey)}</ButtonText>
             </Button>
           ))}
         </HStack>

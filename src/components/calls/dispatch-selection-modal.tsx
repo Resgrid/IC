@@ -14,6 +14,7 @@ import { CheckIcon, SearchIcon, UsersIcon, X } from '@/components/ui/lucide-icon
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
 import { type DispatchSelection, useDispatchStore } from '@/stores/dispatch/store';
+import { TermKeys, useTerm } from '@/stores/terminology/store';
 
 interface DispatchSelectionModalProps {
   isVisible: boolean;
@@ -24,6 +25,7 @@ interface DispatchSelectionModalProps {
 
 export const DispatchSelectionModal: React.FC<DispatchSelectionModalProps> = ({ isVisible, onClose, onConfirm, initialSelection }) => {
   const { t } = useTranslation();
+  const unitsLabel = useTerm(TermKeys.Units, t('calls.units'));
   const { colorScheme } = useColorScheme();
   const { selection, isLoading, error, searchQuery, fetchDispatchData, setSelection, toggleEveryone, toggleUser, toggleGroup, toggleRole, toggleUnit, setSearchQuery, clearSelection, getFilteredData } =
     useDispatchStore();
@@ -182,7 +184,7 @@ export const DispatchSelectionModal: React.FC<DispatchSelectionModalProps> = ({ 
             {filteredData.units.length > 0 ? (
               <VStack className="mb-6">
                 <Text className="mb-3 text-lg font-semibold">
-                  {t('calls.units')} ({filteredData.units.length})
+                  {unitsLabel} ({filteredData.units.length})
                 </Text>
                 {filteredData.units.map((unit) => (
                   <Card key={`unit-${unit.Id}`} className="mb-2 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">

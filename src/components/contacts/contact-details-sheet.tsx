@@ -28,6 +28,7 @@ import { htmlToText, withoutRedacted } from '@/lib/contacts/format';
 import { logger } from '@/lib/logging';
 import { ContactType } from '@/models/v4/contacts/contactResultData';
 import { useContactsStore } from '@/stores/contacts/store';
+import { TermKeys, useTerm } from '@/stores/terminology/store';
 
 import { Actionsheet, ActionsheetBackdrop, ActionsheetContent, ActionsheetDragIndicator, ActionsheetDragIndicatorWrapper } from '../ui/actionsheet';
 import { Box } from '../ui/box';
@@ -179,6 +180,7 @@ const ContactField: React.FC<ContactFieldProps> = ({ label, value, icon, isLink,
 
 export const ContactDetailsSheet: React.FC = () => {
   const { t } = useTranslation();
+  const callsLabel = useTerm(TermKeys.Calls, t('contacts.tabs.calls'));
   const { trackEvent } = useAnalytics();
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
@@ -328,7 +330,7 @@ export const ContactDetailsSheet: React.FC = () => {
               <Text className={`text-center font-medium ${isLandscape ? 'text-sm' : 'text-xs'} ${activeTab === 'files' ? 'text-primary-600' : 'text-gray-600 dark:text-gray-400'}`}>{t('contacts.tabs.files')}</Text>
             </Pressable>
             <Pressable onPress={() => setActiveTab('calls')} className={`flex-1 rounded-md ${isLandscape ? 'px-4 py-2' : 'px-3 py-1.5'} ${activeTab === 'calls' ? 'bg-white shadow-xs dark:bg-gray-700' : ''}`}>
-              <Text className={`text-center font-medium ${isLandscape ? 'text-sm' : 'text-xs'} ${activeTab === 'calls' ? 'text-primary-600' : 'text-gray-600 dark:text-gray-400'}`}>{t('contacts.tabs.calls')}</Text>
+              <Text className={`text-center font-medium ${isLandscape ? 'text-sm' : 'text-xs'} ${activeTab === 'calls' ? 'text-primary-600' : 'text-gray-600 dark:text-gray-400'}`}>{callsLabel}</Text>
             </Pressable>
           </HStack>
 

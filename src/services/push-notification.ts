@@ -7,9 +7,12 @@ import { Platform } from 'react-native';
 
 import { registerDevice } from '@/api/devices/push';
 import { useAuthStore } from '@/lib/auth';
+import { registerSignOutHook } from '@/lib/auth/sign-out-hooks';
 import { logger } from '@/lib/logging';
+import { CLIENT_HEADER, RESGRID_CLIENT } from '@/lib/mfa/client-app';
 import { type RouterPushRetryOptions, routerPushWithRetry } from '@/lib/navigation';
-import { getDeviceUuid } from '@/lib/storage/app';
+import { getBaseApiUrl, getDeviceUuid, getNativePushRegistration, removeNativePushRegistration, setNativePushRegistration } from '@/lib/storage/app';
+import { type NativePushUnRegistrationInput } from '@/models/v4/device/nativePushUnRegistrationInput';
 import { useCoreStore } from '@/stores/app/core-store';
 import { useLocationStore } from '@/stores/app/location-store';
 import { useCheckInTimerStore } from '@/stores/check-in-timers/store';
@@ -152,6 +155,9 @@ Notifications.setNotificationHandler({
 class PushNotificationService {
   private static instance: PushNotificationService;
   private pushToken: string | null = null;
+  // Registrations and the sign-out unregistration run one at a time, so sign-out always sees what the registration
+  // ahead of it left on the server, and two overlapping registrations never record each other's token.
+  private registrationQueue: Promise<unknown> = Promise.resolve();
   private notificationListener: { remove: () => void } | null = null;
   private responseListener: { remove: () => void } | null = null;
   private notifeeForegroundUnsubscribe: (() => void) | null = null;
@@ -412,7 +418,13 @@ class PushNotificationService {
     });
   }
 
-  public async registerForPushNotifications(userId: string, departmentCode: string): Promise<string | null> {
+  public registerForPushNotifications(userId: string, departmentCode: string): Promise<string | null> {
+    const run = this.registrationQueue.then(() => this.runRegistration(userId, departmentCode));
+    this.registrationQueue = run.catch(() => undefined);
+    return run;
+  }
+
+  private async runRegistration(userId: string, departmentCode: string): Promise<string | null> {
     if (!Device.isDevice) {
       logger.warn({
         message: 'Push notifications are not available on simulator/emulator',
@@ -470,12 +482,14 @@ class PushNotificationService {
 
       // Get the native device push token (FCM on Android, APNs on iOS).
       const devicePushToken = await Notifications.getDevicePushTokenAsync();
-      this.pushToken = devicePushToken.data as string;
+      // This call's own token: what it registers is exactly what it records for sign-out to remove.
+      const token = devicePushToken.data as string;
+      this.pushToken = token;
 
       logger.info({
         message: 'Push notification token obtained',
         context: {
-          token: this.pushToken,
+          token,
           userId,
           platform: Platform.OS,
         },
@@ -485,14 +499,18 @@ class PushNotificationService {
       // Source "IC" routes the Novu credential update to the IC-specific subscriber, keeping the inbox separate from the Responder app.
       await registerDevice({
         UserId: userId,
-        Token: this.pushToken || '',
+        Token: token || '',
         Platform: Platform.OS === 'ios' ? 1 : 2,
         DeviceUuid: getDeviceUuid() || '',
         Prefix: departmentCode,
         Source: 'IC',
       });
 
-      return this.pushToken;
+      // Kept on the device, not just in memory: a sign-out after a restart, before this run has registered again
+      // (or when it cannot), still takes this token off the server.
+      await setNativePushRegistration({ UserId: userId, Token: token || '', Prefix: departmentCode, Source: 'IC' });
+
+      return token;
     } catch (error) {
       logger.warn({
         message: 'Error registering for push notifications',
@@ -507,13 +525,54 @@ class PushNotificationService {
   }
 
   /**
+   * Takes this phone's token off the server at sign-out, as the session that is signing out (the hook below runs
+   * before logout clears its access token). Straight to the server, not through the api client: its 401 handling
+   * would re-enter logout. Quiet: sign-out goes ahead whatever the server says. Queued behind any registration in
+   * progress, so one that finishes during sign-out is removed too rather than left live for the next person.
+   */
+  public unregisterAtSignOut(accessToken: string | null): Promise<void> {
+    // Read now, while the signing-out session still has its user: a queued run may start after logout clears it.
+    const userId = useAuthStore.getState().userId;
+    const run = this.registrationQueue.then(() => this.runUnregistration(accessToken, userId));
+    this.registrationQueue = run.catch(() => undefined);
+    return run;
+  }
+
+  private async runUnregistration(accessToken: string | null, userId: string | null): Promise<void> {
+    const stored = getNativePushRegistration();
+    await removeNativePushRegistration();
+
+    // Only the session that made the registration may take it off; another user's token is not this one's to remove.
+    if (!stored || !accessToken || !userId || stored.UserId !== userId) {
+      return;
+    }
+
+    const registration: NativePushUnRegistrationInput = { Token: stored.Token, Prefix: stored.Prefix, Source: stored.Source };
+
+    try {
+      const response = await fetch(`${getBaseApiUrl()}/Devices/UnRegisterNativePush`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, [CLIENT_HEADER]: RESGRID_CLIENT },
+        body: JSON.stringify(registration),
+      });
+      if (!response.ok) {
+        logger.warn({ message: 'Push: the server refused to unregister the device token at sign-out', context: { status: response.status } });
+      }
+    } catch (error) {
+      logger.warn({ message: 'Push: the device token could not be unregistered at sign-out', context: { error } });
+    }
+  }
+
+  /**
    * Clears this device's local push state on logout: the cached token, the badge, and notifications
    * already delivered for the previous user (which may name incidents or people). The next sign-in
-   * registers again for the new user.
+   * registers again for the new user. Taking the token off the server is the sign-out hook's job
+   * (unregisterAtSignOut), which runs first while the session can still authenticate.
    */
   public async unregisterFromPushNotifications(): Promise<void> {
     try {
       this.pushToken = null;
+      await removeNativePushRegistration();
       this.handledResponseIds.clear();
       await Notifications.setBadgeCountAsync(0).catch(() => {});
       await Notifications.dismissAllNotificationsAsync().catch(() => {});
@@ -609,6 +668,10 @@ if (Platform.OS !== 'web') {
 }
 
 export const pushNotificationService = PushNotificationService.getInstance();
+
+// Sign-out takes this phone's token off the server while the session can still authenticate, so the next person to
+// use the device never gets the previous one's incident pushes.
+registerSignOutHook((accessToken) => pushNotificationService.unregisterAtSignOut(accessToken));
 
 // React hook for component usage
 export const usePushNotifications = () => {

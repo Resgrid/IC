@@ -108,6 +108,13 @@ jest.mock('@/stores/data-protection/store', () => ({
   dataProtectionStore: { getState: () => ({ fetchCapabilities: mockFetchCapabilities }) },
 }));
 
+const mockFetchTerminology = jest.fn<Promise<void>, []>();
+const mockTerminologyState = { names: {} as Record<string, string>, fetchTerminology: mockFetchTerminology };
+jest.mock('@/stores/terminology/store', () => ({
+  TermKeys: { Calls: 'module.calls', Contacts: 'module.contacts', Mapping: 'module.mapping', Records: 'module.records' },
+  terminologyStore: Object.assign(<T,>(selector: (state: typeof mockTerminologyState) => T) => selector(mockTerminologyState), { getState: () => mockTerminologyState }),
+}));
+
 const mockConnectUpdateHub = jest.fn().mockResolvedValue(undefined);
 const mockConnectGeolocationHub = jest.fn().mockResolvedValue(undefined);
 jest.mock('@/stores/signalr/signalr-store', () => ({
@@ -144,6 +151,7 @@ describe('app initialization awaits the feature flags and data-protection capabi
     jest.clearAllMocks();
     mockFetchFlags.mockResolvedValue(undefined);
     mockFetchCapabilities.mockResolvedValue(undefined);
+    mockFetchTerminology.mockResolvedValue(undefined);
   });
 
   it.each([
@@ -158,6 +166,28 @@ describe('app initialization awaits the feature flags and data-protection capabi
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledTimes(1);
     });
+    await flushInitialization();
+    expect(mockConnectUpdateHub).not.toHaveBeenCalled();
+
+    await act(async () => {
+      pending.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockConnectUpdateHub).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("awaits the department's terminology with the flags, so the menu opens with its names", async () => {
+    const pending = deferred();
+    mockFetchTerminology.mockReturnValue(pending.promise);
+
+    render(<TabLayout />);
+
+    await waitFor(() => {
+      expect(mockFetchTerminology).toHaveBeenCalledTimes(1);
+    });
+    expect(mockFetchFlags).toHaveBeenCalledTimes(1);
     await flushInitialization();
     expect(mockConnectUpdateHub).not.toHaveBeenCalled();
 

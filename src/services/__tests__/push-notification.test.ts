@@ -54,7 +54,14 @@ jest.mock('@/lib/logging', () => ({
 
 jest.mock('@/lib/storage/app', () => ({
   getDeviceUuid: jest.fn(() => 'test-device-uuid'),
+  getBaseApiUrl: jest.fn(() => 'https://api.test/api/v4'),
+  getNativePushRegistration: jest.fn(() => null),
+  setNativePushRegistration: jest.fn(() => Promise.resolve()),
+  removeNativePushRegistration: jest.fn(() => Promise.resolve()),
 }));
+
+// The real module reads the shared-installation setting from MMKV, which these minimal stubs cannot load.
+jest.mock('@/lib/mfa/client-app', () => ({ CLIENT_HEADER: 'X-Resgrid-Client', RESGRID_CLIENT: 'ic' }));
 
 const mockRegisterDevice = jest.fn((..._args: unknown[]) => Promise.resolve({}));
 jest.mock('@/api/devices/push', () => ({

@@ -28,7 +28,7 @@ import { useAnalytics } from '@/hooks/use-analytics';
 import { type CallLocation, useCallLocationSearch } from '@/hooks/use-call-location-search';
 import { useNewCallFieldPolicy } from '@/hooks/use-new-call-field-policy';
 import { useToast } from '@/hooks/use-toast';
-import { EDIT_CALL_UNENFORCED_KEYS, getCallFieldLabels, getEditCallFieldValues, getMissingRequiredCallFields, getMissingRequiredFieldsFromError, isPendingCallState } from '@/lib/call-field-policy';
+import { EDIT_CALL_UNENFORCED_KEYS, findCallType, getCallFieldLabels, getEditCallFieldValues, getMissingRequiredCallFields, getMissingRequiredFieldsFromError, isPendingCallState } from '@/lib/call-field-policy';
 import { parseCoordinate } from '@/lib/call-geolocation';
 import { getScheduledDispatchPrefill, isScheduledDispatchTooSoon, MIN_SCHEDULED_DISPATCH_LEAD_MINUTES, toDispatchOnUtc } from '@/lib/call-schedule';
 import { NewCallFieldKeys } from '@/models/v4/calls/newCallFieldPolicyResultData';
@@ -180,8 +180,9 @@ export default function EditCall() {
   useEffect(() => {
     if (call) {
       const priority = callPriorities.find((p) => p.Id === call.Priority);
-      // Call.Type is the type's text, not its id -- matching on Id left the picker blank on every edit.
-      const type = callTypes.find((t) => t.Name === call.Type);
+      // Call.Type is the type's text, not its id -- matching on Id left the picker blank on every edit. TypeId (newer
+      // servers) is the id and still finds the type after a rename; the name match covers older servers.
+      const type = findCallType(callTypes, call);
 
       // Seed the picker with who the call already went to. Without this the edit posted an empty
       // dispatch list, which the API reads as "dispatch the whole department".

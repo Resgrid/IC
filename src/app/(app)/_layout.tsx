@@ -46,6 +46,7 @@ import { FeatureFlagKeys, featureFlagsStore } from '@/stores/feature-flags/store
 import { useRolesStore } from '@/stores/roles/store';
 import { securityStore } from '@/stores/security/store';
 import { useSignalRStore } from '@/stores/signalr/signalr-store';
+import { terminologyStore, TermKeys } from '@/stores/terminology/store';
 import { useWeatherAlertsStore } from '@/stores/weather-alerts/store';
 
 export default function TabLayout() {
@@ -192,7 +193,7 @@ export default function TabLayout() {
         return;
       }
 
-      await Promise.all([featureFlagsStore.getState().fetchFlags(), dataProtectionStore.getState().fetchCapabilities()]);
+      await Promise.all([featureFlagsStore.getState().fetchFlags(), dataProtectionStore.getState().fetchCapabilities(), terminologyStore.getState().fetchTerminology()]);
 
       if (!isCurrentRun()) return;
 
@@ -351,6 +352,8 @@ export default function TabLayout() {
   // Get user ID and config for notifications
   const config = useCoreStore((state) => state.config);
   const rights = securityStore((state) => state.rights);
+  // The department's own module names (Department -> Terminology); unrenamed modules keep the app's label.
+  const termNames = terminologyStore((state) => state.names);
 
   // Compute Novu readiness once for consistent gating across the render
   const novuReady = !!(userId && config?.NovuApplicationId && config?.NovuBackendApiUrl && config?.NovuSocketUrl && rights?.DepartmentCode);
@@ -358,6 +361,7 @@ export default function TabLayout() {
   // even if a transient state update briefly nullifies one of the values.
   const lastNovuConfig = useRef<{
     subscriberId: string;
+    subscriberHash?: string;
     applicationIdentifier: string;
     backendUrl: string;
     socketUrl: string;
@@ -365,6 +369,9 @@ export default function TabLayout() {
   if (novuReady) {
     lastNovuConfig.current = {
       subscriberId: `${rights?.DepartmentCode}_IC_User_${userId}`,
+      // Issued by the server for this user's own IC subscriber; Novu refuses the session without it once
+      // HMAC is enforced. Absent from older servers, which is fine until then.
+      subscriberHash: rights?.NovuICSubscriberHash ?? undefined,
       applicationIdentifier: config!.NovuApplicationId,
       backendUrl: config!.NovuBackendApiUrl,
       socketUrl: config!.NovuSocketUrl,
@@ -433,25 +440,25 @@ export default function TabLayout() {
   // Memoize per-screen options to prevent new objects every render
   const indexOptions = useMemo(
     () => ({
-      title: t('tabs.map'),
+      title: termNames[TermKeys.Mapping] || t('tabs.map'),
       tabBarIcon: mapIcon,
       headerLeft: headerLeftMap,
       tabBarButtonTestID: 'map-tab' as const,
       headerRight: headerRightNotification,
     }),
-    [t, mapIcon, headerLeftMap, headerRightNotification]
+    [t, termNames, mapIcon, headerLeftMap, headerRightNotification]
   );
 
   const callsOptions = useMemo(
     () => ({
-      title: t('tabs.calls'),
+      title: termNames[TermKeys.Calls] || t('tabs.calls'),
       headerShown: true as const,
       tabBarIcon: callsIcon,
       tabBarButtonTestID: 'calls-tab' as const,
       headerLeft: headerLeftMap,
       headerRight: headerRightNotification,
     }),
-    [t, callsIcon, headerLeftMap, headerRightNotification]
+    [t, termNames, callsIcon, headerLeftMap, headerRightNotification]
   );
 
   const commandOptions = useMemo(
@@ -525,23 +532,23 @@ export default function TabLayout() {
   const contactsOptions = useMemo(
     () => ({
       href: null,
-      title: t('tabs.contacts'),
+      title: termNames[TermKeys.Contacts] || t('tabs.contacts'),
       headerShown: true as const,
       headerLeft: headerLeftMap,
       headerRight: headerRightNotification,
     }),
-    [t, headerLeftMap, headerRightNotification]
+    [t, termNames, headerLeftMap, headerRightNotification]
   );
 
   const recordsOptions = useMemo(
     () => ({
       href: null,
-      title: t('tabs.records'),
+      title: termNames[TermKeys.Records] || t('tabs.records'),
       headerShown: true as const,
       headerLeft: headerLeftMap,
       headerRight: headerRightNotification,
     }),
-    [t, headerLeftMap, headerRightNotification]
+    [t, termNames, headerLeftMap, headerRightNotification]
   );
 
   // chat + chatbot are routable (sidebar menu links) but hidden from the tab bar (href: null).
@@ -671,6 +678,7 @@ export default function TabLayout() {
     return (
       <NovuProvider
         subscriberId={lastNovuConfig.current.subscriberId}
+        subscriberHash={lastNovuConfig.current.subscriberHash}
         applicationIdentifier={lastNovuConfig.current.applicationIdentifier}
         backendUrl={lastNovuConfig.current.backendUrl}
         socketUrl={lastNovuConfig.current.socketUrl}

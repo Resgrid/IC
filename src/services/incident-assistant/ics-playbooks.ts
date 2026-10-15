@@ -16,6 +16,7 @@
  * built from it are always framed as prompts to the commander, never as orders.
  */
 
+import { CallTypeClasses } from '@/lib/base-types';
 import { IncidentRoleType } from '@/models/v4/incidentCommand/incidentCommandModels';
 
 /** Incident families the assistant carries guidance for. Mirrors Core `IncidentPlaybookType`. */
@@ -460,6 +461,21 @@ export const allPlaybooks: IncidentPlaybook[] = [GENERAL, ...PLAYBOOKS];
 
 export const getPlaybook = (type: IncidentPlaybookType): IncidentPlaybook => (type === 'General' ? GENERAL : (PLAYBOOKS.find((p) => p.type === type) ?? GENERAL));
 
+const isLetterOrDigit = (char: string | undefined): boolean => !!char && /[\p{L}\p{N}]/u.test(char);
+
+/**
+ * Whole-phrase containment, as Core's `IcsPlaybooks.ContainsPhrase`: the keyword must sit on word boundaries so "od"
+ * doesn't match inside "code" or "flood" and "brush" doesn't match inside "toothbrush". Both inputs are lowercase.
+ */
+export const containsPhrase = (haystack: string, phrase: string): boolean => {
+  for (let index = haystack.indexOf(phrase); index >= 0; index = haystack.indexOf(phrase, index + 1)) {
+    if (!isLetterOrDigit(haystack[index - 1]) && !isLetterOrDigit(haystack[index + phrase.length])) {
+      return true;
+    }
+  }
+  return false;
+};
+
 /** Resolves a playbook from free text the commander typed ("structure fire", "mci"). Null when nothing matches. */
 export const resolvePlaybook = (text?: string | null): IncidentPlaybook | null => {
   if (!text) {
@@ -470,35 +486,52 @@ export const resolvePlaybook = (text?: string | null): IncidentPlaybook | null =
     return null;
   }
 
-  return PLAYBOOKS.find((playbook) => playbook.displayName.toLowerCase() === needle || playbook.keywords.some((keyword) => needle.includes(keyword))) ?? null;
+  return PLAYBOOKS.find((playbook) => playbook.displayName.toLowerCase() === needle || playbook.keywords.some((keyword) => containsPhrase(needle, keyword))) ?? null;
+};
+
+/** Playbook per call type class. Classes are coarse ("Fire" can't tell a structure from a brush fire), so they only pick a playbook when no keyword does. */
+const CLASS_PLAYBOOKS: Partial<Record<CallTypeClasses, IncidentPlaybookType>> = {
+  [CallTypeClasses.Fire]: 'StructureFire',
+  [CallTypeClasses.Medical]: 'Ems',
+  [CallTypeClasses.Rescue]: 'TechnicalRescue',
+  [CallTypeClasses.TrafficCollision]: 'VehicleAccident',
+  [CallTypeClasses.HazardousMaterials]: 'HazMat',
+  [CallTypeClasses.DisasterWeather]: 'NaturalDisaster',
+};
+
+/** The playbook for a call type class (CallTypeResultData.BaseType); null when the class has no specific one. Mirrors Core `IcsPlaybooks.ForCallTypeClass`. */
+export const playbookForCallTypeClass = (callTypeClass?: number | null): IncidentPlaybook | null => {
+  const type = callTypeClass == null ? undefined : CLASS_PLAYBOOKS[callTypeClass as CallTypeClasses];
+  return type ? (PLAYBOOKS.find((p) => p.type === type) ?? null) : null;
 };
 
 /**
  * Infers the incident family from whatever the app knows about the call. Longer keyword matches win
- * so "vehicle fire" beats a bare "fire"; falls back to the general playbook when nothing scores.
+ * so "vehicle fire" beats a bare "fire". When nothing scores, the call type's class picks the playbook
+ * (a department's own type names, in any language); the general playbook is the last resort.
  */
-export const inferPlaybook = (parts: (string | null | undefined)[]): IncidentPlaybook => {
+export const inferPlaybook = (parts: (string | null | undefined)[], callTypeClass?: number | null): IncidentPlaybook => {
   const haystack = parts
     .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
     .join(' ')
     .toLowerCase();
 
   if (!haystack) {
-    return GENERAL;
+    return playbookForCallTypeClass(callTypeClass) ?? GENERAL;
   }
 
   let best: IncidentPlaybook | null = null;
   let bestScore = 0;
 
   for (const playbook of PLAYBOOKS) {
-    const score = playbook.keywords.reduce((max, keyword) => (haystack.includes(keyword) ? Math.max(max, keyword.length) : max), 0);
+    const score = playbook.keywords.reduce((max, keyword) => (containsPhrase(haystack, keyword) ? Math.max(max, keyword.length) : max), 0);
     if (score > bestScore) {
       bestScore = score;
       best = playbook;
     }
   }
 
-  return best ?? GENERAL;
+  return best ?? playbookForCallTypeClass(callTypeClass) ?? GENERAL;
 };
 
 /** The checklist to work from: type-specific items followed by the universal ones. */

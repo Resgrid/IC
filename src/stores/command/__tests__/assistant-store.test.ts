@@ -73,7 +73,10 @@ jest.mock('@/stores/units/store', () => ({
 }));
 
 // eslint-disable-next-line import/first
-import { useIncidentAssistantStore } from '../assistant-store';
+import { useCallsStore } from '@/stores/calls/store';
+
+// eslint-disable-next-line import/first
+import { buildAnswerContext, useIncidentAssistantStore } from '../assistant-store';
 
 const t = ((key: string, options?: Record<string, unknown>): string => {
   const value = key.split('.').reduce<unknown>((node, part) => (node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined), en);
@@ -167,5 +170,15 @@ describe('incident assistant store', () => {
 
     // The call is a structure fire, so the RIT prompt is offered.
     expect(suggestions.map((s) => s.question)).toContain('Do I have a RIT?');
+  });
+
+  it('reads the call type class by the call type id, so a renamed type keeps its playbook', () => {
+    (useCallsStore.getState as jest.Mock).mockReturnValueOnce({
+      calls: [{ CallId: '42', Name: 'Box 12', Type: 'Code 3 Assignment', TypeId: '7', Nature: '' }],
+      callTypes: [{ Id: '7', Name: 'Feu de bâtiment', BaseType: 1 }],
+    });
+
+    expect(buildAnswerContext('42').callTypeClass).toBe(1);
+    expect(buildAnswerContext('42').callTypeClass).toBeNull(); // the default mock has no call types
   });
 });

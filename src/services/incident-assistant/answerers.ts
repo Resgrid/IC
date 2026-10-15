@@ -47,6 +47,8 @@ export interface IncidentAnswerContext {
   callNumber?: string | null;
   callAddress?: string | null;
   callType?: string | null;
+  /** The class of the call's type (CallTypeResultData.BaseType); picks a playbook when the call text names none. */
+  callTypeClass?: number | null;
   callNature?: string | null;
   /** Resolves a Resgrid user id to a display name (falls back to the id). */
   resolveUserName: (userId: string) => string;
@@ -113,7 +115,7 @@ const truncate = (value: string | null | undefined, max: number): string => {
 
 /** Playbook for the incident, from an explicit override or inferred from the call. */
 export const playbookFor = (context: IncidentAnswerContext, override?: string | null): IncidentPlaybook =>
-  resolvePlaybook(override) ?? inferPlaybook([context.board?.Command?.Name, context.callType, context.callName, context.callNature]);
+  resolvePlaybook(override) ?? inferPlaybook([context.board?.Command?.Name, context.callType, context.callName, context.callNature], context.callTypeClass);
 
 const resourceLabel = (assignment: ResourceAssignment, context: IncidentAnswerContext): string => {
   if (assignment.ResourceKind === ResourceAssignmentKind.RealUnit || assignment.ResourceKind === ResourceAssignmentKind.LinkedDeptUnit) {

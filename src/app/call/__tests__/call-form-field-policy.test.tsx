@@ -73,7 +73,10 @@ jest.mock('@/components/ui/lucide-icons', () => ({
 // Stores — selector-style hooks over fixed state, so effects that depend on store values stay stable.
 const mockCallsState = {
   callPriorities: [{ Id: 1, Name: 'High' }],
-  callTypes: [{ Id: '1', Name: 'Fire' }],
+  callTypes: [
+    { Id: '1', Name: 'Fire' },
+    { Id: '7', Name: 'Structure Fire' },
+  ],
   destinationPois: [],
   poiTypes: [],
   isLoading: false,
@@ -345,6 +348,32 @@ describe('edit call screen', () => {
     expect(request.contactName).toBe('Jane Caller');
     expect(request.dispatchUsers).toEqual(['user-1']);
     expect(mockToast.success).toHaveBeenCalledWith('call_detail.update_call_success');
+  });
+
+  it("pre-fills the call type by the call's TypeId, which survives a rename of the type", async () => {
+    setPolicy([]);
+    loadCall(storedCall({ Type: 'Fire', TypeId: '7' }));
+
+    render(<EditCall />);
+    await waitForPolicy('save-call-button');
+
+    fireEvent.press(screen.getByTestId('save-call-button'));
+
+    await waitFor(() => expect(mockUpdateCall).toHaveBeenCalledTimes(1));
+    expect(mockUpdateCall.mock.calls[0][0].type).toBe('Structure Fire');
+  });
+
+  it('pre-fills the call type by name when the server sends no TypeId', async () => {
+    setPolicy([]);
+    loadCall(storedCall({ Type: 'Fire' }));
+
+    render(<EditCall />);
+    await waitForPolicy('save-call-button');
+
+    fireEvent.press(screen.getByTestId('save-call-button'));
+
+    await waitFor(() => expect(mockUpdateCall).toHaveBeenCalledTimes(1));
+    expect(mockUpdateCall.mock.calls[0][0].type).toBe('Fire');
   });
 
   it('resends the loaded destination and recipients when the department hides them', async () => {
