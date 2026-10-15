@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { registerDevice } from '@/api/devices/push';
 import { runSignOutHooks } from '@/lib/auth/sign-out-hooks';
 import { logger } from '@/lib/logging';
+import type { StoredNativePushRegistration } from '@/lib/storage/app';
 
 jest.mock('expo-device', () => ({ isDevice: true }));
 
@@ -43,8 +44,10 @@ jest.mock('@notifee/react-native', () => ({
 
 jest.mock('@/lib/auth', () => {
   const state = { status: 'signedIn', userId: 'user-1' };
-  const store: any = jest.fn((selector: any) => (selector ? selector(state) : state));
-  store.getState = () => state;
+  const store = Object.assign(
+    jest.fn((selector?: (current: typeof state) => unknown) => (selector ? selector(state) : state)),
+    { getState: () => state }
+  );
   return { useAuthStore: store };
 });
 
@@ -60,9 +63,20 @@ jest.mock('@/lib/logging', () => ({ logger: { info: jest.fn(), warn: jest.fn(), 
 
 jest.mock('@/lib/mfa/client-app', () => ({ CLIENT_HEADER: 'X-Resgrid-Client', RESGRID_CLIENT: 'ic' }));
 
+// The device's stored registration, as MMKV would keep it across a restart.
+let mockStoredRegistration: StoredNativePushRegistration | null = null;
 jest.mock('@/lib/storage/app', () => ({
   getDeviceUuid: jest.fn(() => 'device-uuid'),
   getBaseApiUrl: jest.fn(() => 'https://api.example/api/v4'),
+  getNativePushRegistration: jest.fn(() => mockStoredRegistration),
+  setNativePushRegistration: jest.fn((value: StoredNativePushRegistration) => {
+    mockStoredRegistration = value;
+    return Promise.resolve();
+  }),
+  removeNativePushRegistration: jest.fn(() => {
+    mockStoredRegistration = null;
+    return Promise.resolve();
+  }),
 }));
 
 jest.mock('@/api/devices/push', () => ({
@@ -160,6 +174,71 @@ describe('push notification sign-out', () => {
 
     expect(registerDevice).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('takes a registration made before the app restarted off the server, before this run has registered again', async () => {
+    // A previous process registered; this one restored the session but has not registered yet (or could not).
+    mockStoredRegistration = { UserId: 'user-1', Token: 'earlier-token', Prefix: 'DEPT', Source: 'IC' };
+
+    await runSignOutHooks('access-token');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ Token: 'earlier-token', Prefix: 'DEPT', Source: 'IC' });
+    expect(mockStoredRegistration).toBeNull();
+  });
+
+  it("leaves another user's registration to that user's session", async () => {
+    mockStoredRegistration = { UserId: 'user-2', Token: 'other-token', Prefix: 'DEPT', Source: 'IC' };
+
+    await runSignOutHooks('access-token');
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockStoredRegistration).toBeNull();
+  });
+
+  it('removes a registration that finishes while sign-out is under way', async () => {
+    let finishRegistration: () => void = () => undefined;
+    (registerDevice as jest.Mock).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishRegistration = () => resolve({ Status: 'queued' });
+        })
+    );
+
+    const registering = pushNotificationService.registerForPushNotifications('user-1', 'DEPT');
+    // Let the registration reach the server call before sign-out starts.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const signingOut = runSignOutHooks('access-token');
+    finishRegistration();
+    await Promise.all([registering, signingOut]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ Token: 'native-token', Prefix: 'DEPT', Source: 'IC' });
+    expect(mockStoredRegistration).toBeNull();
+  });
+
+  it('records the token each overlapping registration actually sent', async () => {
+    (Notifications.getDevicePushTokenAsync as jest.Mock).mockResolvedValueOnce({ data: 'first-token' }).mockResolvedValueOnce({ data: 'second-token' });
+    let finishFirst: () => void = () => undefined;
+    (registerDevice as jest.Mock).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishFirst = () => resolve({ Status: 'queued' });
+        })
+    );
+
+    const first = pushNotificationService.registerForPushNotifications('user-1', 'DEPT');
+    const second = pushNotificationService.registerForPushNotifications('user-1', 'DEPT');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The second waits for the first, so it has not asked for a token yet.
+    expect(Notifications.getDevicePushTokenAsync).toHaveBeenCalledTimes(1);
+    finishFirst();
+
+    await expect(first).resolves.toBe('first-token');
+    await expect(second).resolves.toBe('second-token');
+    expect(registerDevice).toHaveBeenNthCalledWith(1, expect.objectContaining({ Token: 'first-token' }));
+    expect(registerDevice).toHaveBeenNthCalledWith(2, expect.objectContaining({ Token: 'second-token' }));
+    expect(mockStoredRegistration).toEqual({ UserId: 'user-1', Token: 'second-token', Prefix: 'DEPT', Source: 'IC' });
   });
 
   it('forgets the registration when the local push state is cleared', async () => {

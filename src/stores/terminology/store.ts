@@ -101,6 +101,10 @@ export const terminologyStore = create<TerminologyState>()(
         }
         try {
           const response = await getTerminology();
+          if (getCurrentIdentityKey() !== identityKey) {
+            // Asked for by a session that has since ended: its names belong to that account or department, not this one.
+            return;
+          }
           const names: Record<string, string> = {};
           for (const term of response?.Data ?? []) {
             const name = term?.Name?.trim();
@@ -110,6 +114,9 @@ export const terminologyStore = create<TerminologyState>()(
           }
           set({ names, isLoaded: true, error: null, identityKey });
         } catch (error) {
+          if (getCurrentIdentityKey() !== identityKey) {
+            return;
+          }
           // Labels only: keep the persisted names (or the app's own) when offline or on an older server.
           logger.error({
             message: 'Failed to fetch department terminology',

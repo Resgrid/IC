@@ -23,7 +23,7 @@ jest.mock('lucide-react-native', () => ({
 }));
 
 const mockRecordsState = {
-  entryFor: jest.fn((_definitionKey: string): { Name: string } | null => null),
+  entryFor: jest.fn((_definitionKey: string, _version?: number): { Name: string } | null => null),
 };
 jest.mock('@/stores/records/store', () => ({
   useRecordsStore: (selector: (state: typeof mockRecordsState) => unknown) => selector(mockRecordsState),
@@ -127,6 +127,23 @@ describe('RecordListItem', () => {
     mockRecordsState.entryFor.mockReturnValue({ Name: 'Hydrant inspection' });
 
     render(<RecordListItem record={summary({ DefinitionKey: 'hydrant-inspection' })} onPress={jest.fn()} />);
+
+    expect(screen.getByText('Hydrant inspection')).toBeTruthy();
+  });
+
+  it("names the record by its own definition version's catalog entry", () => {
+    mockRecordsState.entryFor.mockImplementation((_definitionKey: string, version?: number) => (version === 2 ? { Name: 'Hydrant inspection v2' } : { Name: 'Hydrant inspection' }));
+
+    render(<RecordListItem record={summary({ DefinitionKey: 'hydrant-inspection', DefinitionVersion: 2 })} onPress={jest.fn()} />);
+
+    expect(mockRecordsState.entryFor).toHaveBeenCalledWith('hydrant-inspection', 2);
+    expect(screen.getByText('Hydrant inspection v2')).toBeTruthy();
+  });
+
+  it("falls back to the key's current catalog entry when the record's version is no longer listed", () => {
+    mockRecordsState.entryFor.mockImplementation((_definitionKey: string, version?: number) => (version === undefined ? { Name: 'Hydrant inspection' } : null));
+
+    render(<RecordListItem record={summary({ DefinitionKey: 'hydrant-inspection', DefinitionVersion: 1 })} onPress={jest.fn()} />);
 
     expect(screen.getByText('Hydrant inspection')).toBeTruthy();
   });

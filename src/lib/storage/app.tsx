@@ -1,10 +1,18 @@
 import { Env } from '@env';
 
 import { getItem, removeItem, setItem } from '@/lib/storage';
+import { type NativePushUnRegistrationInput } from '@/models/v4/device/nativePushUnRegistrationInput';
 
 const BASE_URL = 'baseUrl';
 const ACTIVE_CALL_ID = 'activeCallId';
 const DEVICE_UUID = 'unitDeviceUuid';
+const NATIVE_PUSH_REGISTRATION = 'nativePushRegistration';
+
+/** What this phone last registered for native push, kept across restarts so sign-out can still take it off the server. */
+export interface StoredNativePushRegistration extends NativePushUnRegistrationInput {
+  /** The user whose session made the registration: only that session's sign-out removes it. */
+  UserId: string;
+}
 
 /**
  * Storage key for the user-selected server URL. Exported so logout can preserve it: the
@@ -41,3 +49,7 @@ export const getDeviceUuid = () => {
   const uuid = getItem<string>(DEVICE_UUID);
   return uuid;
 };
+
+export const removeNativePushRegistration = () => removeItem(NATIVE_PUSH_REGISTRATION);
+export const setNativePushRegistration = (value: StoredNativePushRegistration) => setItem<StoredNativePushRegistration>(NATIVE_PUSH_REGISTRATION, value);
+export const getNativePushRegistration = () => getItem<StoredNativePushRegistration>(NATIVE_PUSH_REGISTRATION);

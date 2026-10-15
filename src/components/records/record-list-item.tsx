@@ -30,7 +30,8 @@ const stateAction = (state: number): 'muted' | 'info' | 'warning' | 'success' | 
 
 export const RecordListItem: React.FC<{ record: RecordSummaryData; onPress: () => void; testID?: string }> = ({ record, onPress, testID }) => {
   const { t } = useTranslation();
-  const catalogName = useRecordsStore((state) => (record.DefinitionKey ? state.entryFor(record.DefinitionKey)?.Name : undefined));
+  // The record's own definition version names it; a version no longer in the catalog falls back to the key's current entry.
+  const catalogName = useRecordsStore((state) => (record.DefinitionKey ? (state.entryFor(record.DefinitionKey, record.DefinitionVersion) ?? state.entryFor(record.DefinitionKey))?.Name : undefined));
   const typeName = useDefinitionDisplayName(record.DefinitionKey, catalogName);
   const title = record.RecordNumber || record.DraftReference || typeName || t('records.untitled');
 

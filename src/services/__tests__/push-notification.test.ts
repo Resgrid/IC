@@ -55,6 +55,9 @@ jest.mock('@/lib/logging', () => ({
 jest.mock('@/lib/storage/app', () => ({
   getDeviceUuid: jest.fn(() => 'test-device-uuid'),
   getBaseApiUrl: jest.fn(() => 'https://api.test/api/v4'),
+  getNativePushRegistration: jest.fn(() => null),
+  setNativePushRegistration: jest.fn(() => Promise.resolve()),
+  removeNativePushRegistration: jest.fn(() => Promise.resolve()),
 }));
 
 // The real module reads the shared-installation setting from MMKV, which these minimal stubs cannot load.

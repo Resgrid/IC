@@ -91,6 +91,33 @@ describe('Terminology store', () => {
     expect(terminologyStore.getState().names).toEqual({});
   });
 
+  it("discards a previous session's names that arrive after another department signed in", async () => {
+    getTerminology.mockImplementation(async () => {
+      // While dept-1's request is out, dept-2 signs in and its own names land first.
+      setIdentity('user-2', 'dept-2');
+      terminologyStore.setState({ names: { [TermKeys.Units]: 'Engines' }, isLoaded: true, identityKey: 'user-2:dept-2' });
+      return { Data: [{ Key: TermKeys.Units, Category: 'Module', DefaultName: 'Units', Name: 'Apparatus' }] };
+    });
+
+    await terminologyStore.getState().fetchTerminology();
+
+    const state = terminologyStore.getState();
+    expect(state.names).toEqual({ [TermKeys.Units]: 'Engines' });
+    expect(state.identityKey).toBe('user-2:dept-2');
+  });
+
+  it("discards a previous session's failure that arrives after another department signed in", async () => {
+    getTerminology.mockImplementation(async () => {
+      setIdentity('user-2', 'dept-2');
+      throw new Error('offline');
+    });
+
+    await terminologyStore.getState().fetchTerminology();
+
+    expect(terminologyStore.getState().error).toBeNull();
+    expect(terminologyStore.getState().isLoaded).toBe(false);
+  });
+
   it('maps record type numbers and built-in definition keys to term keys', () => {
     expect(recordTypeTermKey(1)).toBe('record-type.run');
     expect(recordTypeTermKey(8)).toBe('record-type.unit-activity');
