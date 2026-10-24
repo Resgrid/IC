@@ -14,6 +14,7 @@ import { Heading } from '@/components/ui/heading';
 import { HStack } from '@/components/ui/hstack';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { TypeIcon } from '@/components/units/unit-type-icon';
 import { openMapsWithDirections } from '@/lib/navigation';
 import { createPoiTypeMap, getPoiDisplayName, getPoiSelectionLabel, getPoiTypeName, isPoiDestinationEnabled } from '@/lib/poi-utils';
 import { useLocationStore } from '@/stores/app/location-store';
@@ -83,6 +84,7 @@ export default function PoiDetailScreen() {
         <VStack space="sm">
           <Heading size="xl">{displayName}</Heading>
           <HStack className="items-center gap-2">
+            <TypeIcon iconUrl={poi.IconUrl ?? poiTypesById[poi.PoiTypeId]?.IconUrl} size={24} testID="poi-detail-type-icon" />
             <Badge action="muted" variant="outline">
               <BadgeText>{poiTypeName}</BadgeText>
             </Badge>

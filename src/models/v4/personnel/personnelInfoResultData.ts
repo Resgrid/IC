@@ -25,4 +25,9 @@ export class PersonnelInfoResultData {
   public StaffingBaseType?: number | null;
   public StaffingTimestamp: string = '';
   public Roles: string[] = [];
+  /**
+   * Absolute URL of the uploaded icon of the first role this person holds (in the department's role order) that has
+   * one — the same icon as their map pin (128x128 transparent PNG, anonymous GET). Null when none; undefined from older servers.
+   */
+  public RoleIconUrl?: string | null = null;
 }

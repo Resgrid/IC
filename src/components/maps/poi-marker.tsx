@@ -1,5 +1,6 @@
+import { Image as ExpoImage } from 'expo-image';
 import { useColorScheme } from 'nativewind';
-import React from 'react';
+import React, { useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -15,6 +16,8 @@ export interface PoiMarkerProps {
   poiImage?: string;
   /** Legacy ImagePath field (null for POIs, but used as fallback) */
   imagePath?: string;
+  /** Uploaded POI-type icon URL; shown in place of the shape + icon when it loads. */
+  iconUrl?: string | null;
   /** The hex color for the SVG shape fill, e.g. "#2563eb" */
   color?: string;
   /** The marker shape type, e.g. "MAP_PIN", "SHIELD" */
@@ -40,7 +43,7 @@ export interface PoiMarkerProps {
  *   - White icon centered horizontally, 10px from top
  *   - Title label below the marker
  */
-const PoiMarker: React.FC<PoiMarkerProps> = React.memo(({ poiImage, imagePath, color, marker, title, size = 36, onPress }) => {
+const PoiMarker: React.FC<PoiMarkerProps> = React.memo(({ poiImage, imagePath, iconUrl, color, marker, title, size = 36, onPress }) => {
   // Resolve rendering properties (with defaults per the reference document)
   const shapePath = getPoiMarkerShapePath(marker);
   const fillColor = getPoiMarkerColor(color);
@@ -55,32 +58,43 @@ const PoiMarker: React.FC<PoiMarkerProps> = React.memo(({ poiImage, imagePath, c
   const iconTop = (POI_ICON_LAYOUT.topOffset / POI_MARKER_DIMENSIONS.height) * svgHeight;
   const iconFontSize = (POI_ICON_LAYOUT.fontSize / POI_MARKER_DIMENSIONS.width) * svgWidth;
 
+  // Uploaded POI-type icon replaces the shape + icon in the same footprint; if it fails to load, the shape
+  // comes back. Remember which URL failed (not a bare flag) so a changed icon gets a fresh attempt.
+  const [failedIconUrl, setFailedIconUrl] = useState<string | null>(null);
+  const remoteIconUrl = iconUrl?.trim() || null;
+
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
-      {/* SVG background shape with drop shadow */}
-      <View style={styles.shapeContainer}>
-        <Svg width={svgWidth} height={svgHeight} viewBox="-24 -48 48 48" aria-hidden={true}>
-          <Path
-            d={shapePath}
-            fill={fillColor}
-            // Drop shadow: offset(0,1) blur=2 color=rgba(17,24,39,0.35)
-            // react-native-svg on iOS/Android supports filter via props
-          />
-        </Svg>
-
-        {/* White icon overlaid on the shape */}
-        <View
-          style={[
-            styles.iconContainer,
-            {
-              top: iconTop,
-            },
-          ]}
-          pointerEvents="none"
-        >
-          <PoiMarkerIcon iconKey={iconKey} size={iconFontSize} />
+      {remoteIconUrl && remoteIconUrl !== failedIconUrl ? (
+        <View style={styles.shapeContainer}>
+          <ExpoImage cachePolicy="memory-disk" contentFit="contain" onError={() => setFailedIconUrl(remoteIconUrl)} source={{ uri: remoteIconUrl }} style={{ width: svgWidth, height: svgHeight }} testID="poi-type-icon" />
         </View>
-      </View>
+      ) : (
+        /* SVG background shape with drop shadow */
+        <View style={styles.shapeContainer}>
+          <Svg width={svgWidth} height={svgHeight} viewBox="-24 -48 48 48" aria-hidden={true}>
+            <Path
+              d={shapePath}
+              fill={fillColor}
+              // Drop shadow: offset(0,1) blur=2 color=rgba(17,24,39,0.35)
+              // react-native-svg on iOS/Android supports filter via props
+            />
+          </Svg>
+
+          {/* White icon overlaid on the shape */}
+          <View
+            style={[
+              styles.iconContainer,
+              {
+                top: iconTop,
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <PoiMarkerIcon iconKey={iconKey} size={iconFontSize} />
+          </View>
+        </View>
+      )}
       <TitleLabel title={title} />
     </TouchableOpacity>
   );

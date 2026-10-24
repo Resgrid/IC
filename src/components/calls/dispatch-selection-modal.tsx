@@ -13,6 +13,7 @@ import { Input, InputField } from '@/components/ui/input';
 import { CheckIcon, SearchIcon, UsersIcon, X } from '@/components/ui/lucide-icons';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { UnitTypeIcon } from '@/components/units/unit-type-icon';
 import { type DispatchSelection, useDispatchStore } from '@/stores/dispatch/store';
 import { TermKeys, useTerm } from '@/stores/terminology/store';
 
@@ -193,9 +194,10 @@ export const DispatchSelectionModal: React.FC<DispatchSelectionModalProps> = ({ 
                         <Box className={`size-5 items-center justify-center rounded border-2 ${selection.units.includes(unit.Id) ? 'border-blue-500 bg-blue-500' : 'border-gray-300 dark:border-gray-600'}`}>
                           {selection.units.includes(unit.Id) ? <CheckIcon size={12} color="#ffffff" /> : null}
                         </Box>
-                        <VStack className="flex-1">
-                          <Text className="pl-4 font-medium">{unit.Name}</Text>
-                        </VStack>
+                        <HStack className="flex-1 items-center pl-4" space="sm">
+                          <UnitTypeIcon iconUrl={unit.TypeIconUrl} mapIcon={unit.TypeMapIcon} size={24} testID={`dispatch-unit-type-icon-${unit.Id}`} />
+                          <Text className="flex-1 font-medium">{unit.Name}</Text>
+                        </HStack>
                       </HStack>
                     </TouchableOpacity>
                   </Card>

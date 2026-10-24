@@ -1,5 +1,6 @@
+import { Image as ExpoImage } from 'expo-image';
 import { useColorScheme } from 'nativewind';
-import React from 'react';
+import React, { useState } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity } from 'react-native';
 
 import type { PointAnnotation } from '@/components/maps/mapbox';
@@ -10,6 +11,11 @@ type MapIconKey = keyof typeof MAP_ICONS;
 interface PinMarkerProps {
   imagePath?: MapIconKey;
   poiImage?: MapIconKey;
+  /**
+   * Uploaded icon URL — the call/unit type's icon, or for a personnel pin the person's role icon; shown in place of
+   * the bundled icon when it loads.
+   */
+  iconUrl?: string | null;
   title: string;
   /** Command lane name — shown under the title when the resource is on the active board. */
   laneLabel?: string;
@@ -20,7 +26,7 @@ interface PinMarkerProps {
   onPress?: () => void;
 }
 
-const PinMarker: React.FC<PinMarkerProps> = React.memo(({ imagePath, poiImage, title, laneLabel, accentColor, size = 32, onPress }) => {
+const PinMarker: React.FC<PinMarkerProps> = React.memo(({ imagePath, poiImage, iconUrl, title, laneLabel, accentColor, size = 32, onPress }) => {
   const { colorScheme } = useColorScheme();
 
   // Prefer poiImage (new field) over imagePath (null for POIs after backend fix),
@@ -28,10 +34,27 @@ const PinMarker: React.FC<PinMarkerProps> = React.memo(({ imagePath, poiImage, t
   const resolvedPath = poiImage || imagePath;
   const iconKey = resolvedPath?.toLowerCase() as MapIconKey;
   const icon = iconKey && MAP_ICONS[iconKey] ? MAP_ICONS[iconKey] : MAP_ICONS['call'];
+  const ringStyle = accentColor ? { ...styles.accentRing, borderColor: accentColor, borderRadius: size / 2 } : null;
+
+  // Uploaded type / role icon: same square footprint as the bundled pin, and back to the bundled pin if it fails
+  // to load. Remember which URL failed (not a bare flag) so a changed icon gets a fresh attempt.
+  const [failedIconUrl, setFailedIconUrl] = useState<string | null>(null);
+  const remoteIconUrl = iconUrl?.trim() || null;
 
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
-      <Image fadeDuration={0} source={icon.uri} style={[styles.image, { width: size, height: size }, accentColor ? { ...styles.accentRing, borderColor: accentColor, borderRadius: size / 2 } : null]} />
+      {remoteIconUrl && remoteIconUrl !== failedIconUrl ? (
+        <ExpoImage
+          cachePolicy="memory-disk"
+          contentFit="contain"
+          onError={() => setFailedIconUrl(remoteIconUrl)}
+          source={{ uri: remoteIconUrl }}
+          style={[{ width: size, height: size }, ringStyle]}
+          testID="pin-type-icon"
+        />
+      ) : (
+        <Image fadeDuration={0} source={icon.uri} style={[styles.image, { width: size, height: size }, ringStyle]} />
+      )}
       <Text style={[styles.title, { color: colorScheme === 'dark' ? '#FFFFFF' : '#000000' }]} numberOfLines={2}>
         {title}
       </Text>

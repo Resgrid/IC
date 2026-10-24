@@ -11,6 +11,7 @@ import { Icon } from '@/components/ui/icon';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { UnitTypeIcon, type UnitTypeIconSource } from '@/components/units/unit-type-icon';
 import { getCommandNodeTypeName } from '@/lib/incident-command-utils';
 import { type CommandStructureNode, type ResourceAssignment } from '@/models/v4/incidentCommand/incidentCommandModels';
 
@@ -20,6 +21,8 @@ interface StructureSectionProps {
   nodes: CommandStructureNode[];
   assignments: ResourceAssignment[];
   resolveResourceName: (kind: number, resourceId: string) => string;
+  /** Unit type icon for a resource (department units only); omitted or null = no icon. */
+  resolveResourceIcon?: (kind: number, resourceId: string) => UnitTypeIconSource | null;
   /** Display name for a lane lead slot (resolves user ids to names); external leads pass through. */
   resolveLeadName?: (userId?: string | null, externalName?: string | null) => string | null;
   onAddLane: () => void;
@@ -38,6 +41,7 @@ export const StructureSection: React.FC<StructureSectionProps> = ({
   nodes,
   assignments,
   resolveResourceName,
+  resolveResourceIcon,
   resolveLeadName,
   onAddLane,
   onEditLane,
@@ -160,6 +164,7 @@ export const StructureSection: React.FC<StructureSectionProps> = ({
                   <VStack space="xs">
                     {laneAssignments.map((assignment) => {
                       const isSelected = selectedAssignmentId === assignment.ResourceAssignmentId;
+                      const typeIcon = resolveResourceIcon?.(assignment.ResourceKind, assignment.ResourceId);
                       return (
                         <Pressable
                           key={assignment.ResourceAssignmentId}
@@ -171,6 +176,7 @@ export const StructureSection: React.FC<StructureSectionProps> = ({
                         >
                           <HStack className="items-center justify-between">
                             <HStack space="sm" className="flex-1 items-center">
+                              <UnitTypeIcon iconUrl={typeIcon?.iconUrl} mapIcon={typeIcon?.mapIcon} size={20} testID={`lane-resource-type-icon-${assignment.ResourceAssignmentId}`} />
                               <Text className="text-sm text-gray-900 dark:text-white">{resolveResourceName(assignment.ResourceKind, assignment.ResourceId)}</Text>
                               {assignment.ResourceAssignmentId.startsWith('local-') ? <Icon as={CloudOff} size="sm" className="text-amber-500" /> : null}
                               {assignment.RequirementsWarning ? (

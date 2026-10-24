@@ -104,6 +104,11 @@ jest.mock('expo-clipboard', () => ({
   setStringAsync: jest.fn(),
 }));
 
+// Dispatched rows show the unit type icon (expo-image); the native module can't load under the react-native mock.
+jest.mock('expo-image', () => ({
+  Image: () => null,
+}));
+
 jest.mock('expo-constants', () => ({
   expoConfig: {
     extra: {

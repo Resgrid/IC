@@ -32,12 +32,17 @@ jest.mock('@/components/maps/mapbox', () => {
   };
 });
 
+// Last props MapPins rendered with, so a test can check what reached the pins (not just which ids).
+const mockMapPinsProps: { current: { pins: Record<string, unknown>[]; commandOverlay?: unknown } | null } = { current: null };
 jest.mock('@/components/maps/map-pins', () => {
   const React = require('react');
   const { View } = require('react-native');
   return {
     __esModule: true,
-    default: ({ pins }: { pins: { Id: string }[] }) => React.createElement(View, { testID: 'mock-map-pins', accessibilityLabel: pins.map((p) => p.Id).join(',') }),
+    default: (props: { pins: { Id: string }[]; commandOverlay?: unknown }) => {
+      mockMapPinsProps.current = props;
+      return React.createElement(View, { testID: 'mock-map-pins', accessibilityLabel: props.pins.map((p) => p.Id).join(',') });
+    },
   };
 });
 
@@ -146,6 +151,32 @@ describe('IncidentMapCard', () => {
     expect((pins as { Id: string }[]).map((pin) => pin.Id)).toEqual(['u5', 'u7']);
     expect(typeof setPins).toBe('function');
     expect(requestRefresh).toBe(mockRequestPinsRefresh);
+
+    unmount();
+  });
+
+  it('keeps the uploaded icons on the pins it narrows to this incident (personnel role icon included)', async () => {
+    const roleIconUrl = 'https://api.resgrid.dev/api/v4/PersonnelRoles/Icon/medic.png';
+    const unitIconUrl = 'https://api.resgrid.dev/api/v4/UnitTypes/Icon/engine.png';
+    mockOverlay['u5'] = { callId: '101' };
+    mockOverlay['pabc-123'] = { callId: '101' };
+    mockGetMapDataAndMarkers.mockResolvedValue({
+      Data: {
+        MapMakerInfos: [
+          { Id: 'u5', Type: 1, Latitude: 34, Longitude: -118, Title: 'Engine 5', ImagePath: 'Engine_Responding', IconUrl: unitIconUrl },
+          { Id: 'pabc-123', Type: 3, Latitude: 34.1, Longitude: -118.1, Title: 'Alex Reed', ImagePath: 'Person_RespondingCall', IconUrl: roleIconUrl },
+          { Id: 'pdef-456', Type: 3, Latitude: 34.2, Longitude: -118.2, Title: 'No Icon', ImagePath: 'Person_RespondingCall', IconUrl: null },
+        ],
+      },
+    });
+
+    const { getByTestId, unmount } = render(<IncidentMapCard callId="101" command={command()} annotations={[]} />);
+
+    await waitFor(() => expect(getByTestId('mock-map-pins').props.accessibilityLabel).toBe('u5,pabc-123'));
+
+    expect(mockMapPinsProps.current?.pins).toEqual([expect.objectContaining({ Id: 'u5', IconUrl: unitIconUrl }), expect.objectContaining({ Id: 'pabc-123', Type: 3, IconUrl: roleIconUrl, ImagePath: 'Person_RespondingCall' })]);
+    // The overlay rides alongside, keyed by marker id, so the lane label/ring is added without rebuilding the pin.
+    expect(mockMapPinsProps.current?.commandOverlay).toBe(mockOverlay);
 
     unmount();
   });

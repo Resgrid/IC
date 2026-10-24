@@ -26,4 +26,10 @@ export class MapMakerInfoData {
   public Note?: string = '';
   public LayerId?: string = '';
   public LayerName?: string = '';
+  /**
+   * Uploaded icon URL — wins over the bundled icon / POI shape when present: the type's icon for call (Type 0), unit
+   * (Type 1) and POI (Type 4) pins; for personnel (Type 3) pins the icon of the first role the person holds, in the
+   * department's role order, that has one. Null when there is no upload, undefined from older servers.
+   */
+  public IconUrl?: string | null = null;
 }

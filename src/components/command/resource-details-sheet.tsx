@@ -16,6 +16,7 @@ import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { View } from '@/components/ui/view';
 import { VStack } from '@/components/ui/vstack';
+import { UnitTypeIcon } from '@/components/units/unit-type-icon';
 import { parseUtcMs, readableColors } from '@/lib/utils';
 import type { MapMakerInfoData } from '@/models/v4/mapping/getMapDataAndMarkersData';
 import type { PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
@@ -188,7 +189,11 @@ export const ResourceDetailsSheet: React.FC<ResourceDetailsSheetProps> = ({
       <ScrollView className="w-full" showsVerticalScrollIndicator={false}>
         <VStack space="md" className="w-full pb-6">
           <HStack space="sm" className="items-center">
-            <Icon as={kind === 'unit' ? Truck : User} className="text-gray-500" size="md" />
+            {kind === 'unit' ? (
+              <UnitTypeIcon fallback={<Icon as={Truck} className="text-gray-500" size="md" />} iconUrl={unit?.TypeIconUrl} mapIcon={unit?.TypeMapIcon} size={24} testID="resource-details-type-icon" />
+            ) : (
+              <Icon as={User} className="text-gray-500" size="md" />
+            )}
             <Heading size="md">{kind === 'unit' ? t('command.unit_details_title') : t('command.person_details_title')}</Heading>
           </HStack>
 

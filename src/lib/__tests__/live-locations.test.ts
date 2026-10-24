@@ -164,6 +164,20 @@ describe('applyLiveLocations', () => {
     expect(result.unknownPinIds).toEqual([]);
   });
 
+  it('keeps the uploaded icon on a moved pin (personnel role icon, unit type icon)', () => {
+    const roleIconUrl = 'https://api.resgrid.dev/api/v4/PersonnelRoles/Icon/medic.png';
+    const unitIconUrl = 'https://api.resgrid.dev/api/v4/UnitTypes/Icon/engine.png';
+    const iconPins = [
+      { ...unit, IconUrl: unitIconUrl },
+      { ...person, IconUrl: roleIconUrl },
+    ];
+
+    const result = applyLiveLocations(iconPins, { u12: live('u12', 10.5, 20.5), [`p${GUID}`]: live(`p${GUID}`, 11.5, 21.5) });
+
+    expect(result.pins[0]).toEqual(expect.objectContaining({ IconUrl: unitIconUrl, Latitude: 10.5 }));
+    expect(result.pins[1]).toEqual(expect.objectContaining({ Type: 3, IconUrl: roleIconUrl, Latitude: 11.5, Longitude: 21.5 }));
+  });
+
   it('never adds a pin and reports it as unknown instead', () => {
     const result = applyLiveLocations(pins, { u99: live('u99', 1, 1) });
 

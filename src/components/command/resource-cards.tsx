@@ -11,6 +11,7 @@ import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { View } from '@/components/ui/view';
 import { VStack } from '@/components/ui/vstack';
+import { TypeIcon, UnitTypeIcon } from '@/components/units/unit-type-icon';
 import { isWeb } from '@/lib/platform';
 import { readableColors } from '@/lib/utils';
 import type { PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
@@ -94,7 +95,7 @@ export const UnitResourceCard: React.FC<UnitResourceCardProps> = ({ name, unit, 
     <CardShell isLocal={isLocal} onView={onView} testID={testID} viewTestID={viewTestID}>
       <HStack className="items-center" space="sm">
         <Box className="size-8 items-center justify-center rounded-lg bg-primary-50">
-          <Icon as={Truck} className="text-blue-600 dark:text-blue-400" size={16} />
+          <UnitTypeIcon fallback={<Icon as={Truck} className="text-blue-600 dark:text-blue-400" size={16} />} iconUrl={unit?.TypeIconUrl} mapIcon={unit?.TypeMapIcon} size={24} testID={`${testID}-type-icon`} />
         </Box>
         <VStack className="min-w-0 flex-1">
           <Text className="text-base font-semibold text-gray-900 dark:text-white" {...oneLine}>
@@ -161,7 +162,8 @@ export const PersonnelResourceCard: React.FC<PersonnelResourceCardProps> = ({ na
     <CardShell isLocal={isLocal} onView={onView} testID={testID} viewTestID={viewTestID}>
       <HStack className="items-center" space="sm">
         <Box className="size-8 items-center justify-center rounded-full bg-primary-50">
-          <Text className="text-xs font-bold text-primary-600">{initials}</Text>
+          {/* The person's role icon (the same one as their map pin) stands in for the initials; initials when they have none or it fails to load. */}
+          <TypeIcon fallback={<Text className="text-xs font-bold text-primary-600">{initials}</Text>} iconUrl={person?.RoleIconUrl} size={24} testID={`${testID}-role-icon`} />
           {statusDot ? <View style={[styles.statusDot, { backgroundColor: statusDot }]} /> : null}
         </Box>
         <VStack className="min-w-0 flex-1">

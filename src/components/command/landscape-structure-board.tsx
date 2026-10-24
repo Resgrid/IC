@@ -12,6 +12,7 @@ import { Icon } from '@/components/ui/icon';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { UnitTypeIcon, type UnitTypeIconSource } from '@/components/units/unit-type-icon';
 import { getCommandNodeTypeName } from '@/lib/incident-command-utils';
 import { isWeb } from '@/lib/platform';
 import { parseUtcMs } from '@/lib/utils';
@@ -115,6 +116,8 @@ interface LandscapeStructureBoardProps {
   viewportHeight: number;
   viewportWidth: number;
   resolveResourceName: (kind: number, resourceId: string) => string;
+  /** Unit type icon for a resource (department units only); omitted or null = no icon. */
+  resolveResourceIcon?: (kind: number, resourceId: string) => UnitTypeIconSource | null;
   onAddLane: () => void;
   /** Open the lane details editor (leads, linked objectives/need, delete). */
   onEditLane?: (nodeId: string) => void;
@@ -129,6 +132,8 @@ interface LandscapeStructureBoardProps {
 interface DraggableResourceCardProps {
   assignment: ResourceAssignment;
   name: string;
+  /** Department unit's type icon, when the resource is one and its type has an icon. */
+  typeIcon?: UnitTypeIconSource | null;
   /** Lane MaxTimeInRole (minutes) — flags the resource rotation-due when exceeded. */
   rotationAfterMinutes?: number;
   /** Lane work-time amber threshold (0 = amber disabled; unset = 20). */
@@ -152,7 +157,7 @@ interface LaneRect {
 }
 
 const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo(
-  ({ assignment, name, rotationAfterMinutes, amberAfterMinutes, redAfterMinutes, isSelected, onSelect, onDragStart, onDragEnd, onDrop, onView }) => {
+  ({ assignment, name, typeIcon, rotationAfterMinutes, amberAfterMinutes, redAfterMinutes, isSelected, onSelect, onDragStart, onDragEnd, onDrop, onView }) => {
     const { t } = useTranslation();
     const translation = useRef(new Animated.ValueXY()).current;
     const dragReadyRef = useRef(false);
@@ -244,6 +249,7 @@ const DraggableResourceCard: React.FC<DraggableResourceCardProps> = React.memo(
           <HStack className="items-center justify-between" space="xs">
             <HStack className="flex-1 items-center" space="xs">
               <Icon as={GripVertical} aria-hidden={true} className="text-gray-500 dark:text-gray-400" size={16} />
+              <UnitTypeIcon iconUrl={typeIcon?.iconUrl} mapIcon={typeIcon?.mapIcon} size={20} testID={`landscape-resource-type-icon-${assignment.ResourceAssignmentId}`} />
               <Text className="flex-1 text-sm font-medium text-gray-900 web:line-clamp-2 dark:text-white" {...twoLine}>
                 {name}
               </Text>
@@ -289,6 +295,7 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
   viewportHeight,
   viewportWidth,
   resolveResourceName,
+  resolveResourceIcon,
   onAddLane,
   onEditLane,
   onOpenLaneChat,
@@ -476,6 +483,7 @@ export const LandscapeStructureBoard: React.FC<LandscapeStructureBoardProps> = (
                               redAfterMinutes={node.WorkTimeRedMinutes}
                               isSelected={selectedAssignmentId === assignment.ResourceAssignmentId}
                               name={resolveResourceName(assignment.ResourceKind, assignment.ResourceId)}
+                              typeIcon={resolveResourceIcon?.(assignment.ResourceKind, assignment.ResourceId)}
                               onDragEnd={() => setDraggingAssignmentId(null)}
                               onDragStart={setDraggingAssignmentId}
                               onDrop={(assignmentId, pageX, pageY) => void handleDrop(assignmentId, pageX, pageY)}
