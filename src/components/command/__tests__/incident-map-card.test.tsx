@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import React from 'react';
 
 const mockPush = jest.fn();
@@ -177,6 +177,30 @@ describe('IncidentMapCard', () => {
     expect(mockMapPinsProps.current?.pins).toEqual([expect.objectContaining({ Id: 'u5', IconUrl: unitIconUrl }), expect.objectContaining({ Id: 'pabc-123', Type: 3, IconUrl: roleIconUrl, ImagePath: 'Person_RespondingCall' })]);
     // The overlay rides alongside, keyed by marker id, so the lane label/ring is added without rebuilding the pin.
     expect(mockMapPinsProps.current?.commandOverlay).toBe(mockOverlay);
+
+    unmount();
+  });
+
+  it('keeps the status pin on the incident pins, and a realtime refetch that only changes it reaches the map', async () => {
+    const respondingPin = 'https://api.resgrid.dev/api/v4/TypeIcons/Pins/engine-responding?v=1';
+    const onScenePin = 'https://api.resgrid.dev/api/v4/TypeIcons/Pins/engine-onscene?v=1';
+    mockOverlay['u5'] = { callId: '101' };
+    const engine = { Id: 'u5', Type: 1, Latitude: 34, Longitude: -118, Title: 'Engine 5', ImagePath: 'Engine_Responding', IconUrl: null, PinIconUrl: respondingPin, IconStyle: 'responding' };
+    mockGetMapDataAndMarkers.mockResolvedValue({ Data: { MapMakerInfos: [engine, { Id: 'u7', Type: 1, Latitude: 34.2, Longitude: -118.2, Title: 'Unassigned Unit', PinIconUrl: respondingPin }] } });
+
+    const { getByTestId, unmount } = render(<IncidentMapCard callId="101" command={command()} annotations={[]} />);
+
+    await waitFor(() => expect(getByTestId('mock-map-pins').props.accessibilityLabel).toBe('u5'));
+    expect(mockMapPinsProps.current?.pins).toEqual([expect.objectContaining({ Id: 'u5', PinIconUrl: respondingPin, IconStyle: 'responding' })]);
+
+    // The status-change refetch replaces the snapshot through the setter the realtime hook was handed.
+    const { useMapSignalRUpdates } = jest.requireMock('@/hooks/use-map-signalr-updates') as { useMapSignalRUpdates: jest.Mock };
+    const [setPins] = useMapSignalRUpdates.mock.calls[useMapSignalRUpdates.mock.calls.length - 1];
+    act(() => {
+      setPins([{ ...engine, PinIconUrl: onScenePin, IconStyle: 'onscene' }]);
+    });
+
+    expect(mockMapPinsProps.current?.pins).toEqual([expect.objectContaining({ Id: 'u5', PinIconUrl: onScenePin, IconStyle: 'onscene' })]);
 
     unmount();
   });

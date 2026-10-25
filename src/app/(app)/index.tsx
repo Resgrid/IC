@@ -9,6 +9,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getMapDataAndMarkers } from '@/api/mapping/mapping';
 import { Loading } from '@/components/common/loading';
 import { MapLayersSheet } from '@/components/maps/map-layers-sheet';
+import { MapLegendButton } from '@/components/maps/map-legend-button';
+import { MapLegendSheet } from '@/components/maps/map-legend-sheet';
 import MapPins from '@/components/maps/map-pins';
 import Mapbox from '@/components/maps/mapbox';
 import PinDetailModal from '@/components/maps/pin-detail-modal';
@@ -21,7 +23,7 @@ import { useMapGeolocationUpdates, withLiveLocationsSince } from '@/hooks/use-ma
 import { useMapSignalRUpdates } from '@/hooks/use-map-signalr-updates';
 import { logger } from '@/lib/logging';
 import { useDepartmentMapCenter } from '@/lib/map-center';
-import { getPinEntityId } from '@/lib/map-pin-ids';
+import { getPinEntityId, MapPinType } from '@/lib/map-pin-ids';
 import { useDepartmentMapStyle } from '@/lib/map-style';
 import { getMapboxAccessToken } from '@/lib/mapbox-token';
 import { type MapMakerInfoData } from '@/models/v4/mapping/getMapDataAndMarkersData';
@@ -99,6 +101,9 @@ function MapContent() {
   const commandOverlay = useCommandMapOverlay();
 
   const [isLayersSheetOpen, setIsLayersSheetOpen] = useState(false);
+  const [isLegendSheetOpen, setIsLegendSheetOpen] = useState(false);
+  // The legend lists hydrants only when this map is drawing some (hydrants module on and visible to this user).
+  const hasHydrantPins = useMemo(() => mapPins.some((pin) => pin.Type === MapPinType.Hydrant), [mapPins]);
 
   // Stable initial camera settings so the native Camera renders at the
   // correct position from the very first frame (fixes Android/iOS centering).
@@ -408,6 +413,25 @@ function MapContent() {
   // Create dynamic styles based on theme - useMemo to avoid new objects every render
   const themedStyles = useMemo(() => {
     const isDark = colorScheme === 'dark';
+    // The round map controls stack up the right edge above the bottom safe area: recenter (when shown), layers, legend.
+    const mapControl = {
+      position: 'absolute' as const,
+      right: 20,
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: '#3b82f6',
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+      elevation: 5,
+      shadowColor: isDark ? '#ffffff' : '#000000',
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+      shadowOpacity: isDark ? 0.1 : 0.25,
+      shadowRadius: 3.84,
+    };
     return {
       markerInnerContainer: {
         width: 24,
@@ -428,23 +452,12 @@ function MapContent() {
         shadowRadius: 3.84,
       },
       recenterButton: {
-        position: 'absolute' as const,
+        ...mapControl,
         bottom: 20 + insets.bottom,
-        right: 20,
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: '#3b82f6',
-        justifyContent: 'center' as const,
-        alignItems: 'center' as const,
-        elevation: 5,
-        shadowColor: isDark ? '#ffffff' : '#000000',
-        shadowOffset: {
-          width: 0,
-          height: 2,
-        },
-        shadowOpacity: isDark ? 0.1 : 0.25,
-        shadowRadius: 3.84,
+      },
+      layersButton: {
+        ...mapControl,
+        bottom: 76 + insets.bottom,
       },
     };
   }, [colorScheme, insets.bottom]);
@@ -535,9 +548,12 @@ function MapContent() {
         ) : null}
 
         {/* Layers / maps browser control */}
-        <TouchableOpacity style={[styles.layersButton, themedStyles.recenterButton]} onPress={() => setIsLayersSheetOpen(true)} testID="layers-button">
+        <TouchableOpacity style={[styles.layersButton, themedStyles.layersButton]} onPress={() => setIsLayersSheetOpen(true)} testID="layers-button">
           <LayersIcon size={20} color="#ffffff" />
         </TouchableOpacity>
+
+        {/* Map icon legend control, stacked above the layers button */}
+        <MapLegendButton onPress={() => setIsLegendSheetOpen(true)} bottomOffset={132} />
 
         {/* Recenter Button - only show when map is not locked and user has moved the map */}
         {showRecenterButton ? (
@@ -552,6 +568,9 @@ function MapContent() {
 
       {/* Layer toggles + custom/indoor maps browser */}
       <MapLayersSheet isOpen={isLayersSheetOpen} onClose={() => setIsLayersSheetOpen(false)} />
+
+      {/* Map icon legend, fetched each time it opens */}
+      <MapLegendSheet isOpen={isLegendSheetOpen} onClose={() => setIsLegendSheetOpen(false)} showHydrant={hasHydrantPins} />
     </>
   );
 }

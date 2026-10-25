@@ -114,3 +114,72 @@ describe('MapPins personnel role icons (Type 3)', () => {
     expect(anchors).toEqual({ 'pin-poi1': { x: 0.5, y: 1.0 }, 'pin-pabc-123': { x: 0.5, y: 0.5 }, 'pin-u1': { x: 0.5, y: 0.5 } });
   });
 });
+
+describe('MapPins status / priority pins (PinIconUrl)', () => {
+  const CALL_HIGH = 'https://api.resgrid.dev/api/v4/TypeIcons/Pins/call-high?v=1';
+  const ENGINE_RESPONDING = 'https://api.resgrid.dev/api/v4/TypeIcons/Pins/engine-responding?v=1';
+  const ENGINE_ONSCENE = 'https://api.resgrid.dev/api/v4/TypeIcons/Pins/engine-onscene?v=1';
+  const PERSON_RESPONDING = 'https://api.resgrid.dev/api/v4/TypeIcons/Pins/person-responding?v=1';
+
+  beforeEach(() => {
+    mockPinMarker.mockClear();
+    mockPoiMarker.mockClear();
+    mockMarkerView.mockClear();
+  });
+
+  it('hands the status / priority pin to call, unit and person markers, centre-anchored like the bundled pin', () => {
+    render(
+      <MapPins
+        pins={[
+          pin({ Id: 'c1', Type: 0, ImagePath: 'Call', PinIconUrl: CALL_HIGH, IconStyle: 'high' }),
+          pin({ Id: 'u1', Type: 1, ImagePath: 'Engine_Responding', PinIconUrl: ENGINE_RESPONDING, IconStyle: 'responding' }),
+          pin({ Id: 'pabc-123', Type: 3, ImagePath: 'Person_RespondingCall', PinIconUrl: PERSON_RESPONDING, IconStyle: 'responding' }),
+        ]}
+      />
+    );
+
+    const byImage = Object.fromEntries(mockPinMarker.mock.calls.map(([props]) => [props.imagePath, props]));
+    expect(byImage.Call).toEqual(expect.objectContaining({ pinIconUrl: CALL_HIGH, iconUrl: undefined, size: 32 }));
+    expect(byImage.Engine_Responding).toEqual(expect.objectContaining({ pinIconUrl: ENGINE_RESPONDING, size: 32 }));
+    expect(byImage.Person_RespondingCall).toEqual(expect.objectContaining({ pinIconUrl: PERSON_RESPONDING, size: 32 }));
+    for (const [props] of mockMarkerView.mock.calls) {
+      expect(props.anchor).toEqual({ x: 0.5, y: 0.5 });
+    }
+  });
+
+  it('passes the uploaded icon and the status pin side by side, leaving the precedence to the marker', () => {
+    const uploadUrl = 'https://api.resgrid.dev/api/v4/UnitTypes/Icon/engine.png?s=responding&v=1';
+    render(<MapPins pins={[pin({ Id: 'u1', Type: 1, ImagePath: 'Engine_Responding', IconUrl: uploadUrl, PinIconUrl: ENGINE_RESPONDING })]} />);
+
+    expect(mockPinMarker).toHaveBeenCalledWith(expect.objectContaining({ iconUrl: uploadUrl, pinIconUrl: ENGINE_RESPONDING }));
+  });
+
+  it('leaves POI markers alone and passes nothing when the server sends no pin (stations, older servers)', () => {
+    render(
+      <MapPins pins={[pin({ Id: 'poi1', Type: 4, PoiImage: 'map-icon-hospital', PinIconUrl: null }), pin({ Id: 's1', Type: 2, ImagePath: 'Station', PinIconUrl: null }), pin({ Id: 'c2', Type: 0, ImagePath: 'fire' })]} />
+    );
+
+    expect(mockPoiMarker).toHaveBeenCalledTimes(1);
+    expect(mockPoiMarker.mock.calls[0][0]).not.toHaveProperty('pinIconUrl');
+    expect(mockPinMarker).toHaveBeenCalledTimes(2);
+    for (const [props] of mockPinMarker.mock.calls) {
+      expect(props.pinIconUrl ?? null).toBeNull();
+    }
+  });
+
+  it('redraws a marker when a refetch changes only its status pin', () => {
+    const responding = pin({ Id: 'u1', Type: 1, ImagePath: 'Engine_Responding', PinIconUrl: ENGINE_RESPONDING, IconStyle: 'responding' });
+    const { rerender } = render(<MapPins pins={[responding]} />);
+    expect(mockPinMarker).toHaveBeenLastCalledWith(expect.objectContaining({ pinIconUrl: ENGINE_RESPONDING }));
+
+    // Same pin object (e.g. an unrelated pin moved): the memoised marker is not redrawn.
+    mockPinMarker.mockClear();
+    rerender(<MapPins pins={[responding]} />);
+    expect(mockPinMarker).not.toHaveBeenCalled();
+
+    // The refetch after a status change hands over a new pin that differs only in its pin URL / style.
+    rerender(<MapPins pins={[{ ...responding, PinIconUrl: ENGINE_ONSCENE, IconStyle: 'onscene' }]} />);
+    expect(mockPinMarker).toHaveBeenCalledTimes(1);
+    expect(mockPinMarker).toHaveBeenLastCalledWith(expect.objectContaining({ pinIconUrl: ENGINE_ONSCENE, imagePath: 'Engine_Responding' }));
+  });
+});

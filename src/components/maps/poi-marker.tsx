@@ -44,10 +44,42 @@ export interface PoiMarkerProps {
  *   - Title label below the marker
  */
 const PoiMarker: React.FC<PoiMarkerProps> = React.memo(({ poiImage, imagePath, iconUrl, color, marker, title, size = 36, onPress }) => {
+  return (
+    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
+      <PoiMarkerShape poiImage={poiImage} imagePath={imagePath} iconUrl={iconUrl} color={color} marker={marker} size={size} />
+      <TitleLabel title={title} />
+    </TouchableOpacity>
+  );
+});
+
+PoiMarker.displayName = 'PoiMarker';
+
+/**
+ * Props for the PoiMarkerShape component.
+ */
+export interface PoiMarkerShapeProps {
+  poiImage?: string | null;
+  imagePath?: string | null;
+  iconUrl?: string | null;
+  color?: string | null;
+  marker?: string | null;
+  /** Overall shape width in pixels; height scales proportionally (36 → 48). */
+  size?: number;
+  /** Screen-reader label for the icon; map markers leave it unset (their title is the label). */
+  accessibilityLabel?: string;
+  /** Test id base: `${testID}-upload` on the uploaded icon, `${testID}-shape` on the shape. Default: `poi-type-icon` on the upload. */
+  testID?: string;
+}
+
+/**
+ * The POI marker's icon, without its title: the uploaded POI-type icon, else the coloured shape with the white glyph
+ * (a failed upload falls back to the shape). The map's POI markers and the map legend both draw through this.
+ */
+export const PoiMarkerShape: React.FC<PoiMarkerShapeProps> = React.memo(({ poiImage, imagePath, iconUrl, color, marker, size = 36, accessibilityLabel, testID }) => {
   // Resolve rendering properties (with defaults per the reference document)
   const shapePath = getPoiMarkerShapePath(marker);
   const fillColor = getPoiMarkerColor(color);
-  const iconClass = getPoiMarkerIconClass({ PoiImage: poiImage, ImagePath: imagePath });
+  const iconClass = getPoiMarkerIconClass({ PoiImage: poiImage ?? undefined, ImagePath: imagePath ?? undefined });
   const iconKey = getMapIconKey(iconClass);
 
   // Height scales proportionally: width 36 → height 48, so height = width * (48/36) = width * 4/3
@@ -62,45 +94,48 @@ const PoiMarker: React.FC<PoiMarkerProps> = React.memo(({ poiImage, imagePath, i
   // comes back. Remember which URL failed (not a bare flag) so a changed icon gets a fresh attempt.
   const [failedIconUrl, setFailedIconUrl] = useState<string | null>(null);
   const remoteIconUrl = iconUrl?.trim() || null;
+  const a11y = accessibilityLabel ? { accessible: true, accessibilityLabel, accessibilityRole: 'image' as const } : null;
 
-  return (
-    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
-      {remoteIconUrl && remoteIconUrl !== failedIconUrl ? (
-        <View style={styles.shapeContainer}>
-          <ExpoImage cachePolicy="memory-disk" contentFit="contain" onError={() => setFailedIconUrl(remoteIconUrl)} source={{ uri: remoteIconUrl }} style={{ width: svgWidth, height: svgHeight }} testID="poi-type-icon" />
-        </View>
-      ) : (
-        /* SVG background shape with drop shadow */
-        <View style={styles.shapeContainer}>
-          <Svg width={svgWidth} height={svgHeight} viewBox="-24 -48 48 48" aria-hidden={true}>
-            <Path
-              d={shapePath}
-              fill={fillColor}
-              // Drop shadow: offset(0,1) blur=2 color=rgba(17,24,39,0.35)
-              // react-native-svg on iOS/Android supports filter via props
-            />
-          </Svg>
+  return remoteIconUrl && remoteIconUrl !== failedIconUrl ? (
+    <View style={styles.shapeContainer} {...a11y}>
+      <ExpoImage
+        cachePolicy="memory-disk"
+        contentFit="contain"
+        onError={() => setFailedIconUrl(remoteIconUrl)}
+        source={{ uri: remoteIconUrl }}
+        style={{ width: svgWidth, height: svgHeight }}
+        testID={testID ? `${testID}-upload` : 'poi-type-icon'}
+      />
+    </View>
+  ) : (
+    /* SVG background shape with drop shadow */
+    <View style={styles.shapeContainer} testID={testID ? `${testID}-shape` : undefined} {...a11y}>
+      <Svg width={svgWidth} height={svgHeight} viewBox="-24 -48 48 48" aria-hidden={true}>
+        <Path
+          d={shapePath}
+          fill={fillColor}
+          // Drop shadow: offset(0,1) blur=2 color=rgba(17,24,39,0.35)
+          // react-native-svg on iOS/Android supports filter via props
+        />
+      </Svg>
 
-          {/* White icon overlaid on the shape */}
-          <View
-            style={[
-              styles.iconContainer,
-              {
-                top: iconTop,
-              },
-            ]}
-            pointerEvents="none"
-          >
-            <PoiMarkerIcon iconKey={iconKey} size={iconFontSize} />
-          </View>
-        </View>
-      )}
-      <TitleLabel title={title} />
-    </TouchableOpacity>
+      {/* White icon overlaid on the shape */}
+      <View
+        style={[
+          styles.iconContainer,
+          {
+            top: iconTop,
+          },
+        ]}
+        pointerEvents="none"
+      >
+        <PoiMarkerIcon iconKey={iconKey} size={iconFontSize} />
+      </View>
+    </View>
   );
 });
 
-PoiMarker.displayName = 'PoiMarker';
+PoiMarkerShape.displayName = 'PoiMarkerShape';
 
 /**
  * Renders the title label below the POI marker shape.
