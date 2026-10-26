@@ -716,8 +716,11 @@ export const PointAnnotation: React.FC<PointAnnotationProps> = ({ id, coordinate
   const markerRef = useRef<any | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const containerRootRef = useRef<any>(null);
+  // mapbox-gl only takes the anchor when the marker is constructed, so a changed anchor rebuilds the marker. Keyed on
+  // the named anchor (a string), not the anchor object, which callers allocate afresh on every render.
+  const markerAnchor = toMarkerAnchor(anchor);
 
-  // Create marker once when map/id are available
+  // Create marker when map/id/anchor are available
   useEffect(() => {
     if (!map || !coordinate) return;
 
@@ -728,7 +731,7 @@ export const PointAnnotation: React.FC<PointAnnotationProps> = ({ id, coordinate
     const root = createRoot(container);
     containerRootRef.current = root;
 
-    const markerOptions: any = { element: container, anchor: toMarkerAnchor(anchor) };
+    const markerOptions: any = { element: container, anchor: markerAnchor };
 
     markerRef.current = new mapboxgl.Marker(markerOptions).setLngLat(coordinate).addTo(map);
 
@@ -746,7 +749,7 @@ export const PointAnnotation: React.FC<PointAnnotationProps> = ({ id, coordinate
       containerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, id]);
+  }, [map, id, markerAnchor]);
 
   // Update coordinate when it changes
   useEffect(() => {
@@ -756,14 +759,14 @@ export const PointAnnotation: React.FC<PointAnnotationProps> = ({ id, coordinate
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coordinate?.[0], coordinate?.[1]]);
 
-  // Render children into the marker's React root
+  // Render children into the marker's React root (again into a rebuilt marker's fresh root)
   useEffect(() => {
     if (containerRootRef.current && children) {
       containerRootRef.current.render(<>{children}</>);
     }
-  }, [children]);
+  }, [children, map, id, markerAnchor]);
 
-  // Update click handler
+  // Update click handler (and bind it to a rebuilt marker's new element)
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !onSelected) return;
@@ -772,7 +775,7 @@ export const PointAnnotation: React.FC<PointAnnotationProps> = ({ id, coordinate
     return () => {
       container.removeEventListener('click', onSelected);
     };
-  }, [onSelected]);
+  }, [onSelected, map, id, markerAnchor]);
 
   return null;
 };

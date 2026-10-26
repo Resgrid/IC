@@ -1,5 +1,5 @@
 import { RefreshCw } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { getMapIconLegend } from '@/api/mapping/mapping';
@@ -66,6 +66,7 @@ export const MapLegendSheet: React.FC<MapLegendSheetProps> = ({ isOpen, onClose,
   const [hasError, setHasError] = useState(false);
   // Bumped by Retry: re-runs the fetch effect while the sheet stays open.
   const [attempt, setAttempt] = useState(0);
+  const handleRetry = useCallback(() => setAttempt((value) => value + 1), []);
 
   // Every open (and every retry) fetches afresh; closing or unmounting abandons a request still in flight.
   useEffect(() => {
@@ -113,7 +114,7 @@ export const MapLegendSheet: React.FC<MapLegendSheetProps> = ({ isOpen, onClose,
         ) : hasError ? (
           <VStack space="md" className="items-center py-8" testID="map-legend-error">
             <Text className="text-center text-sm text-red-600 dark:text-red-400">{t('maps.legend.error')}</Text>
-            <Button size="sm" variant="outline" onPress={() => setAttempt((value) => value + 1)} testID="map-legend-retry">
+            <Button size="sm" variant="outline" onPress={handleRetry} testID="map-legend-retry">
               <ButtonIcon as={RefreshCw} />
               <ButtonText>{t('common.retry')}</ButtonText>
             </Button>
@@ -126,7 +127,12 @@ export const MapLegendSheet: React.FC<MapLegendSheetProps> = ({ isOpen, onClose,
   );
 };
 
-const MapLegendContent: React.FC<{ legend: GetMapIconLegendResultData; showHydrant: boolean }> = ({ legend, showHydrant }) => {
+interface MapLegendContentProps {
+  legend: GetMapIconLegendResultData;
+  showHydrant: boolean;
+}
+
+const MapLegendContent: React.FC<MapLegendContentProps> = ({ legend, showHydrant }) => {
   const { t } = useTranslation();
   // Module names follow the department's terminology (e.g. "Incidents" for calls), else the app's own words.
   const callsTerm = useTerm(TermKeys.Calls, t('maps.legend.calls'));
@@ -247,7 +253,14 @@ const MapLegendContent: React.FC<{ legend: GetMapIconLegendResultData; showHydra
   );
 };
 
-const LegendSection: React.FC<{ title: string; note?: string; testID: string; children: React.ReactNode }> = ({ title, note, testID, children }) => (
+interface LegendSectionProps {
+  title: string;
+  note?: string;
+  testID: string;
+  children: React.ReactNode;
+}
+
+const LegendSection: React.FC<LegendSectionProps> = ({ title, note, testID, children }) => (
   <VStack space="sm" testID={testID}>
     <Heading size="sm" className="text-gray-900 dark:text-white">
       {title}
@@ -257,7 +270,15 @@ const LegendSection: React.FC<{ title: string; note?: string; testID: string; ch
   </VStack>
 );
 
-const LegendStyleRow: React.FC<{ style: MapLegendStyleData; label: string; lines: (string | null)[]; icons: React.ReactNode; testID: string }> = ({ style, label, lines, icons, testID }) => {
+interface LegendStyleRowProps {
+  style: MapLegendStyleData;
+  label: string;
+  lines: (string | null)[];
+  icons: React.ReactNode;
+  testID: string;
+}
+
+const LegendStyleRow: React.FC<LegendStyleRowProps> = ({ style, label, lines, icons, testID }) => {
   const color = validColor(style.Color);
   return (
     <HStack space="sm" className="items-center rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-800" testID={testID}>
@@ -279,7 +300,14 @@ const LegendStyleRow: React.FC<{ style: MapLegendStyleData; label: string; lines
   );
 };
 
-const LegendRowCard: React.FC<{ row: MapLegendRowData; name: string; subtitle?: string; testID: string }> = ({ row, name, subtitle, testID }) => {
+interface LegendRowCardProps {
+  row: MapLegendRowData;
+  name: string;
+  subtitle?: string;
+  testID: string;
+}
+
+const LegendRowCard: React.FC<LegendRowCardProps> = ({ row, name, subtitle, testID }) => {
   const states = list(row.States);
   return (
     <VStack space="sm" className="rounded-lg bg-gray-50 p-3 dark:bg-gray-800" testID={testID}>
@@ -312,7 +340,14 @@ const LegendRowCard: React.FC<{ row: MapLegendRowData; name: string; subtitle?: 
   );
 };
 
-const LegendTile: React.FC<{ label: string; dot?: React.ReactNode; testID: string; children: React.ReactNode }> = ({ label, dot, testID, children }) => (
+interface LegendTileProps {
+  label: string;
+  dot?: React.ReactNode;
+  testID: string;
+  children: React.ReactNode;
+}
+
+const LegendTile: React.FC<LegendTileProps> = ({ label, dot, testID, children }) => (
   <VStack className="w-20 items-center px-1 py-1.5" testID={testID}>
     {children}
     <HStack space="xs" className="mt-1 max-w-full items-center justify-center">
@@ -324,7 +359,11 @@ const LegendTile: React.FC<{ label: string; dot?: React.ReactNode; testID: strin
   </VStack>
 );
 
-const LegendPoiTypeTile: React.FC<{ poiType: MapLegendPoiTypeData }> = ({ poiType }) => {
+interface LegendPoiTypeTileProps {
+  poiType: MapLegendPoiTypeData;
+}
+
+const LegendPoiTypeTile: React.FC<LegendPoiTypeTileProps> = ({ poiType }) => {
   const testID = `map-legend-poi-${poiType.PoiTypeId}`;
   return (
     <LegendTile label={poiType.Name} testID={testID}>

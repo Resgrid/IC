@@ -376,6 +376,11 @@ function MapContent() {
     setIsPinDetailModalOpen(true);
   }, []);
 
+  const handleOpenLayersSheet = useCallback(() => setIsLayersSheetOpen(true), []);
+  const handleCloseLayersSheet = useCallback(() => setIsLayersSheetOpen(false), []);
+  const handleOpenLegendSheet = useCallback(() => setIsLegendSheetOpen(true), []);
+  const handleCloseLegendSheet = useCallback(() => setIsLegendSheetOpen(false), []);
+
   const handleSetAsCurrentCall = async (pin: MapMakerInfoData) => {
     try {
       logger.info({
@@ -548,12 +553,12 @@ function MapContent() {
         ) : null}
 
         {/* Layers / maps browser control */}
-        <TouchableOpacity style={[styles.layersButton, themedStyles.layersButton]} onPress={() => setIsLayersSheetOpen(true)} testID="layers-button">
+        <TouchableOpacity style={[styles.layersButton, themedStyles.layersButton]} onPress={handleOpenLayersSheet} testID="layers-button">
           <LayersIcon size={20} color="#ffffff" />
         </TouchableOpacity>
 
         {/* Map icon legend control, stacked above the layers button */}
-        <MapLegendButton onPress={() => setIsLegendSheetOpen(true)} bottomOffset={132} />
+        <MapLegendButton onPress={handleOpenLegendSheet} bottomOffset={132} />
 
         {/* Recenter Button - only show when map is not locked and user has moved the map */}
         {showRecenterButton ? (
@@ -567,10 +572,10 @@ function MapContent() {
       <PinDetailModal pin={selectedPin} isOpen={isPinDetailModalOpen} onClose={handleClosePinDetail} onSetAsCurrentCall={handleSetAsCurrentCall} />
 
       {/* Layer toggles + custom/indoor maps browser */}
-      <MapLayersSheet isOpen={isLayersSheetOpen} onClose={() => setIsLayersSheetOpen(false)} />
+      <MapLayersSheet isOpen={isLayersSheetOpen} onClose={handleCloseLayersSheet} />
 
       {/* Map icon legend, fetched each time it opens */}
-      <MapLegendSheet isOpen={isLegendSheetOpen} onClose={() => setIsLegendSheetOpen(false)} showHydrant={hasHydrantPins} />
+      <MapLegendSheet isOpen={isLegendSheetOpen} onClose={handleCloseLegendSheet} showHydrant={hasHydrantPins} />
     </>
   );
 }

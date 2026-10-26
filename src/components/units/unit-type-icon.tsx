@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 
 import { MAP_ICONS } from '@/constants/map-icons';
 
@@ -35,6 +35,7 @@ export const UnitTypeIcon: React.FC<UnitTypeIconProps> = ({ iconUrl, mapIcon, si
   const remoteUrl = iconUrl?.trim() || null;
   const showRemote = !!remoteUrl && remoteUrl !== failedUrl;
   const bundled = getUnitTypeMapIconAsset(mapIcon);
+  const handleRemoteError = useCallback(() => setFailedUrl(remoteUrl), [remoteUrl]);
 
   const source = showRemote && remoteUrl ? { uri: remoteUrl } : bundled;
   if (!source) {
@@ -48,7 +49,7 @@ export const UnitTypeIcon: React.FC<UnitTypeIconProps> = ({ iconUrl, mapIcon, si
       cachePolicy="memory-disk"
       contentFit="contain"
       importantForAccessibility="no-hide-descendants"
-      onError={showRemote ? () => setFailedUrl(remoteUrl) : undefined}
+      onError={showRemote ? handleRemoteError : undefined}
       source={source}
       style={{ width: size, height: size }}
       testID={testID}

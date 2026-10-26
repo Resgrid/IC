@@ -1,6 +1,6 @@
 import { Image as ExpoImage } from 'expo-image';
 import { useColorScheme } from 'nativewind';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
@@ -95,13 +95,14 @@ export const PoiMarkerShape: React.FC<PoiMarkerShapeProps> = React.memo(({ poiIm
   const [failedIconUrl, setFailedIconUrl] = useState<string | null>(null);
   const remoteIconUrl = iconUrl?.trim() || null;
   const a11y = accessibilityLabel ? { accessible: true, accessibilityLabel, accessibilityRole: 'image' as const } : null;
+  const handleIconError = useCallback(() => setFailedIconUrl(remoteIconUrl), [remoteIconUrl]);
 
   return remoteIconUrl && remoteIconUrl !== failedIconUrl ? (
     <View style={styles.shapeContainer} {...a11y}>
       <ExpoImage
         cachePolicy="memory-disk"
         contentFit="contain"
-        onError={() => setFailedIconUrl(remoteIconUrl)}
+        onError={handleIconError}
         source={{ uri: remoteIconUrl }}
         style={{ width: svgWidth, height: svgHeight }}
         testID={testID ? `${testID}-upload` : 'poi-type-icon'}

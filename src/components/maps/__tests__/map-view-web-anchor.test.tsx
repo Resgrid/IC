@@ -79,4 +79,50 @@ describe('web MarkerView anchor', () => {
     expect(lastMarkerOptions()).toEqual(expect.objectContaining({ anchor: 'top-right' }));
     second.unmount();
   });
+
+  it('keeps the marker across re-renders that hand over an equal anchor object', () => {
+    const { rerender, unmount } = renderMarker(<MarkerView anchor={{ x: 0.5, y: 1.0 }} coordinate={[4.35, 50.85]} id="pin-poi1" />);
+
+    rerender(
+      <MapContext.Provider value={fakeMap}>
+        <MarkerView anchor={{ x: 0.5, y: 1.0 }} coordinate={[4.35, 50.85]} id="pin-poi1" />
+      </MapContext.Provider>
+    );
+
+    expect(MockMarker).toHaveBeenCalledTimes(1);
+
+    unmount();
+  });
+
+  it('rebuilds the marker at the new anchor when the anchor changes for the same id, with its children and click handler', () => {
+    const onSelected = jest.fn();
+    const { rerender, unmount } = renderMarker(
+      <PointAnnotation anchor={{ x: 0.5, y: 0.5 }} coordinate={[4.35, 50.85]} id="pin-1" onSelected={onSelected}>
+        <></>
+      </PointAnnotation>
+    );
+    const firstMarker = MockMarker.mock.results[0].value;
+    const firstElement = lastMarkerOptions().element as HTMLDivElement;
+
+    rerender(
+      <MapContext.Provider value={fakeMap}>
+        <PointAnnotation anchor={{ x: 0.5, y: 1.0 }} coordinate={[4.35, 50.85]} id="pin-1" onSelected={onSelected}>
+          <></>
+        </PointAnnotation>
+      </MapContext.Provider>
+    );
+
+    expect(MockMarker).toHaveBeenCalledTimes(2);
+    expect(firstMarker.remove).toHaveBeenCalled();
+    expect(lastMarkerOptions()).toEqual(expect.objectContaining({ anchor: 'bottom' }));
+
+    // The click handler follows the marker onto its new element and is gone from the old one.
+    const secondElement = lastMarkerOptions().element as HTMLDivElement;
+    firstElement.dispatchEvent(new MouseEvent('click'));
+    expect(onSelected).not.toHaveBeenCalled();
+    secondElement.dispatchEvent(new MouseEvent('click'));
+    expect(onSelected).toHaveBeenCalledTimes(1);
+
+    unmount();
+  });
 });

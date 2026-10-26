@@ -272,6 +272,9 @@ export default function CommandMapScreen() {
     showToast(ok ? 'success' : 'error', ok ? t('command.incident_map_markup_removed') : t('command.incident_map_markup_error'));
   }, [pendingDeleteId, callId, deleteMapAnnotationEntry, showToast, t]);
 
+  const handleOpenLegend = useCallback(() => setIsLegendOpen(true), []);
+  const handleCloseLegend = useCallback(() => setIsLegendOpen(false), []);
+
   const draftShape = useMemo<GeoJSON.FeatureCollection>(() => {
     const features: GeoJSON.Feature[] = [];
     if (draftPoints.length >= 2) {
@@ -348,7 +351,7 @@ export default function CommandMapScreen() {
       </View>
 
       {/* Map icon legend control */}
-      <MapLegendButton onPress={() => setIsLegendOpen(true)} />
+      <MapLegendButton onPress={handleOpenLegend} />
 
       {/* Text label input */}
       <CustomBottomSheet isOpen={pendingTextCoord !== null} onClose={resetDraft} snapPoints={[35]} testID="command-map-text-sheet">
@@ -364,7 +367,7 @@ export default function CommandMapScreen() {
       </CustomBottomSheet>
 
       {/* Map icon legend, fetched each time it opens */}
-      <MapLegendSheet isOpen={isLegendOpen} onClose={() => setIsLegendOpen(false)} />
+      <MapLegendSheet isOpen={isLegendOpen} onClose={handleCloseLegend} />
 
       {/* Delete markup confirmation */}
       <AlertDialog isOpen={pendingDeleteId !== null} onClose={() => setPendingDeleteId(null)}>

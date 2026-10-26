@@ -166,6 +166,46 @@ describe('PinMarker status / priority pin (PinIconUrl)', () => {
     expect(screen.UNSAFE_getByType(Image).props.source).toBe(MAP_ICONS.engine_responding.uri);
   });
 
+  it('retries a status pin that failed once its status comes back, but not while it is still the one asked for', () => {
+    const { rerender } = render(<PinMarker imagePath={ENGINE_IMAGE} pinIconUrl={RESPONDING_PIN} title="Engine 1" />);
+
+    act(() => {
+      fireEvent(screen.getByTestId('pin-status-icon'), 'error', { error: 'HTTP 500' });
+    });
+    expect(screen.queryByTestId('pin-status-icon')).toBeNull();
+
+    // Same status, same URL (a refetch hands over a new pin object): the known-bad pin is not hammered.
+    rerender(<PinMarker imagePath={ENGINE_IMAGE} pinIconUrl={RESPONDING_PIN} title="Engine 1" />);
+    expect(screen.queryByTestId('pin-status-icon')).toBeNull();
+
+    // On scene, then responding again: the transient failure is forgotten and the responding pin gets a fresh attempt.
+    rerender(<PinMarker imagePath={ENGINE_IMAGE} pinIconUrl={ONSCENE_PIN} title="Engine 1" />);
+    rerender(<PinMarker imagePath={ENGINE_IMAGE} pinIconUrl={RESPONDING_PIN} title="Engine 1" />);
+    expect(screen.getByTestId('pin-status-icon').props.source).toEqual({ uri: RESPONDING_PIN });
+
+    // Likewise after a spell with no status pin at all.
+    act(() => {
+      fireEvent(screen.getByTestId('pin-status-icon'), 'error', { error: 'HTTP 500' });
+    });
+    rerender(<PinMarker imagePath={ENGINE_IMAGE} pinIconUrl={null} title="Engine 1" />);
+    rerender(<PinMarker imagePath={ENGINE_IMAGE} pinIconUrl={RESPONDING_PIN} title="Engine 1" />);
+    expect(screen.getByTestId('pin-status-icon').props.source).toEqual({ uri: RESPONDING_PIN });
+  });
+
+  it('retries an uploaded icon that failed once it is replaced and then restored', () => {
+    const { rerender } = render(<PinMarker iconUrl={ICON_URL} imagePath={ENGINE_IMAGE} pinIconUrl={RESPONDING_PIN} title="Engine 1" />);
+
+    act(() => {
+      fireEvent(screen.getByTestId('pin-type-icon'), 'error', { error: 'HTTP 404' });
+    });
+    expect(screen.queryByTestId('pin-type-icon')).toBeNull();
+    expect(screen.getByTestId('pin-status-icon').props.source).toEqual({ uri: RESPONDING_PIN });
+
+    rerender(<PinMarker iconUrl={null} imagePath={ENGINE_IMAGE} pinIconUrl={RESPONDING_PIN} title="Engine 1" />);
+    rerender(<PinMarker iconUrl={ICON_URL} imagePath={ENGINE_IMAGE} pinIconUrl={RESPONDING_PIN} title="Engine 1" />);
+    expect(screen.getByTestId('pin-type-icon').props.source).toEqual({ uri: ICON_URL });
+  });
+
   it.each(['/api/v4/TypeIcons/Pins/engine-responding?v=1', 'javascript:alert(1)', 'data:image/png;base64,AAAA', 'ftp://api.resgrid.dev/pin.png', '   '])(
     'ignores a status pin that is not an absolute http(s) URL (%s)',
     (pinIconUrl) => {

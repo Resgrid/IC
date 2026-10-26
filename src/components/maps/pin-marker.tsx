@@ -1,6 +1,6 @@
 import { Image as ExpoImage } from 'expo-image';
 import { useColorScheme } from 'nativewind';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import type { PointAnnotation } from '@/components/maps/mapbox';
@@ -85,12 +85,24 @@ export const PinMarkerIcon: React.FC<PinMarkerIconProps> = React.memo(({ imagePa
   const statusPinUrl = getPinIconUrl(pinIconUrl);
   const showStatusPin = !showUploadedIcon && !!statusPinUrl && statusPinUrl !== failedPinIconUrl;
 
+  // A failure is only remembered while that URL is still the one asked for: once it changes (a new status, or no pin
+  // at all) the failure is dropped, so a URL that failed transiently (404 / 500 / offline) is retried when it returns.
+  if (failedIconUrl !== null && failedIconUrl !== remoteIconUrl) {
+    setFailedIconUrl(null);
+  }
+  if (failedPinIconUrl !== null && failedPinIconUrl !== statusPinUrl) {
+    setFailedPinIconUrl(null);
+  }
+
+  const handleIconError = useCallback(() => setFailedIconUrl(remoteIconUrl), [remoteIconUrl]);
+  const handlePinIconError = useCallback(() => setFailedPinIconUrl(statusPinUrl), [statusPinUrl]);
+
   if (showUploadedIcon && remoteIconUrl) {
     return (
       <ExpoImage
         cachePolicy="memory-disk"
         contentFit="contain"
-        onError={() => setFailedIconUrl(remoteIconUrl)}
+        onError={handleIconError}
         source={{ uri: remoteIconUrl }}
         style={[{ width: size, height: size }, ringStyle]}
         testID={testID ? `${testID}-upload` : 'pin-type-icon'}
@@ -104,7 +116,7 @@ export const PinMarkerIcon: React.FC<PinMarkerIconProps> = React.memo(({ imagePa
       <ExpoImage
         cachePolicy="memory-disk"
         contentFit="cover"
-        onError={() => setFailedPinIconUrl(statusPinUrl)}
+        onError={handlePinIconError}
         source={{ uri: statusPinUrl }}
         style={[styles.image, { width: size, height: size }, ringStyle]}
         testID={testID ? `${testID}-pin` : 'pin-status-icon'}
