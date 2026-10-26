@@ -8,8 +8,10 @@ import { type PoiResultData, type PoiTypeResultData } from '@/models/v4/mapping/
 import { CustomBottomSheet } from '../ui/bottom-sheet';
 import { Box } from '../ui/box';
 import { Button, ButtonText } from '../ui/button';
+import { HStack } from '../ui/hstack';
 import { Text } from '../ui/text';
 import { VStack } from '../ui/vstack';
+import { TypeIcon } from '../units/unit-type-icon';
 
 interface DestinationPoiSelectorProps {
   destinationPois: PoiResultData[];
@@ -61,7 +63,10 @@ export const DestinationPoiSelector: React.FC<DestinationPoiSelectorProps> = ({ 
             {groupedDestinationPois.length > 0 ? (
               groupedDestinationPois.map((group) => (
                 <VStack key={group.poiTypeId} space="sm" className="mb-4">
-                  <Text className="px-1 text-xs font-semibold uppercase text-gray-500">{group.title}</Text>
+                  <HStack className="items-center px-1" space="xs">
+                    <TypeIcon iconUrl={poiTypesById[group.poiTypeId]?.IconUrl ?? group.items[0]?.IconUrl} size={16} testID={`destination-poi-type-icon-${group.poiTypeId}`} />
+                    <Text className="text-xs font-semibold uppercase text-gray-500">{group.title}</Text>
+                  </HStack>
                   {group.items.map((poi) => (
                     <Button key={poi.PoiId} variant={selectedPoiId === poi.PoiId ? 'solid' : 'outline'} className="w-full justify-start" onPress={() => handleSelect(poi.PoiId)}>
                       <ButtonText className="flex-1 text-left" numberOfLines={2}>

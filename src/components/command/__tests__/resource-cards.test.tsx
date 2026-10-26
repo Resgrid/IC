@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
 
 jest.mock('react-i18next', () => ({
@@ -16,6 +16,11 @@ jest.mock('lucide-react-native', () => {
     MapPin: icon('map-pin'),
     Truck: icon('truck'),
   };
+});
+
+jest.mock('expo-image', () => {
+  const React = require('react');
+  return { Image: (props: any) => React.createElement('View', props) };
 });
 
 import type { PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
@@ -79,6 +84,23 @@ describe('UnitResourceCard', () => {
 
     unmount();
   });
+
+  it('shows the unit type icon in place of the truck glyph when the type has one, and the truck otherwise', () => {
+    const iconUrl = 'https://api.resgrid.dev/api/v4/UnitTypes/Icon/mug.png';
+    const typed = { ...unit, TypeIconUrl: iconUrl, TypeMapIcon: 'ambulance' } as UnitResultData;
+    const { getByTestId, queryByTestId, rerender, unmount } = render(<UnitResourceCard isLocal={false} laneLabel="Division A" name="MUG 1" onView={jest.fn()} roles={[]} testID="card-5" unit={typed} viewTestID="view-5" />);
+
+    // Decorative image, hidden from assistive tech — so the query has to opt in to hidden elements.
+    expect(getByTestId('card-5-type-icon', { includeHiddenElements: true }).props.source).toEqual({ uri: iconUrl });
+    expect(queryByTestId('mock-truck-icon')).toBeNull();
+
+    // Older servers omit the fields: the truck glyph stays.
+    rerender(<UnitResourceCard isLocal={false} laneLabel="Division A" name="Engine 1" onView={jest.fn()} roles={[]} testID="card-5" unit={unit} viewTestID="view-5" />);
+    expect(queryByTestId('card-5-type-icon', { includeHiddenElements: true })).toBeNull();
+    expect(getByTestId('mock-truck-icon')).toBeTruthy();
+
+    unmount();
+  });
 });
 
 describe('PersonnelResourceCard', () => {
@@ -104,6 +126,53 @@ describe('PersonnelResourceCard', () => {
     expect(getByText('Available')).toHaveStyle({ color: '#FFFFFF' });
     expect(getByTestId('card-4-staffing')).toHaveStyle({ backgroundColor: 'rgb(255, 255, 0)' });
     expect(getByText('On Shift')).toHaveStyle({ color: '#000000' });
+
+    unmount();
+  });
+
+  it('shows the role icon in place of the initials when the person has one', () => {
+    const iconUrl = 'https://api.resgrid.dev/api/v4/PersonnelRoles/Icon/medic.png';
+    const withIcon = { ...person, RoleIconUrl: iconUrl } as PersonnelInfoResultData;
+    const { getByTestId, getByText, queryByText, unmount } = render(<PersonnelResourceCard isLocal={false} laneLabel="Rehab" name="Alex Reed" onView={jest.fn()} person={withIcon} testID="card-6" viewTestID="view-6" />);
+
+    // Decorative image, hidden from assistive tech — so the query has to opt in to hidden elements.
+    const icon = getByTestId('card-6-role-icon', { includeHiddenElements: true });
+    expect(icon.props.source).toEqual({ uri: iconUrl });
+    expect(icon).toHaveStyle({ width: 24, height: 24 });
+    expect(queryByText('AR')).toBeNull();
+    // Everything else on the card, accessibility labels included, is unchanged.
+    expect(getByText('Alex Reed')).toBeTruthy();
+    expect(getByText('Medic')).toBeTruthy();
+    expect(getByTestId('view-6').props.accessibilityLabel).toBe('command.view_details');
+
+    unmount();
+  });
+
+  it('falls back to the initials when the role icon fails to load', () => {
+    const withIcon = { ...person, RoleIconUrl: 'https://api.resgrid.dev/api/v4/PersonnelRoles/Icon/gone.png' } as PersonnelInfoResultData;
+    const { getByTestId, getByText, queryByTestId, unmount } = render(<PersonnelResourceCard isLocal={false} laneLabel="Rehab" name="Alex Reed" onView={jest.fn()} person={withIcon} testID="card-7" viewTestID="view-7" />);
+
+    act(() => {
+      fireEvent(getByTestId('card-7-role-icon', { includeHiddenElements: true }), 'error', { error: 'HTTP 404' });
+    });
+
+    expect(queryByTestId('card-7-role-icon', { includeHiddenElements: true })).toBeNull();
+    expect(getByText('AR')).toBeTruthy();
+
+    unmount();
+  });
+
+  it('keeps the initials when the person has no role icon (null, or omitted by older servers)', () => {
+    const { getByText, queryByTestId, rerender, unmount } = render(
+      <PersonnelResourceCard isLocal={false} laneLabel="Rehab" name="Alex Reed" onView={jest.fn()} person={{ ...person, RoleIconUrl: null } as PersonnelInfoResultData} testID="card-8" viewTestID="view-8" />
+    );
+
+    expect(queryByTestId('card-8-role-icon', { includeHiddenElements: true })).toBeNull();
+    expect(getByText('AR')).toBeTruthy();
+
+    rerender(<PersonnelResourceCard isLocal={false} laneLabel="Rehab" name="Alex Reed" onView={jest.fn()} person={person} testID="card-8" viewTestID="view-8" />);
+    expect(queryByTestId('card-8-role-icon', { includeHiddenElements: true })).toBeNull();
+    expect(getByText('AR')).toBeTruthy();
 
     unmount();
   });

@@ -692,14 +692,35 @@ interface PointAnnotationProps {
   onSelected?: () => void;
 }
 
+/**
+ * Native anchors are fractional {x, y} offsets into the marker box; mapbox-gl takes a named anchor instead
+ * ('center', 'bottom', 'top-left', ...). Measuring the element to turn the fraction into a pixel offset (the
+ * previous approach) always read 0×0, because the marker's React root has not rendered when the marker is
+ * created — so every pin ended up centered on its coordinate on web while native sat it on its bottom edge.
+ * A string passes straight through (it is already a mapbox-gl anchor).
+ */
+export function toMarkerAnchor(anchor: string | { x: number; y: number } | undefined | null): string {
+  if (typeof anchor === 'string') return anchor;
+  if (!anchor || typeof anchor.x !== 'number' || typeof anchor.y !== 'number') return 'center';
+
+  const vertical = anchor.y >= 0.75 ? 'bottom' : anchor.y <= 0.25 ? 'top' : '';
+  const horizontal = anchor.x >= 0.75 ? 'right' : anchor.x <= 0.25 ? 'left' : '';
+
+  if (vertical && horizontal) return `${vertical}-${horizontal}`;
+  return vertical || horizontal || 'center';
+}
+
 // PointAnnotation component
 export const PointAnnotation: React.FC<PointAnnotationProps> = ({ id, coordinate, title, children, anchor = { x: 0.5, y: 0.5 }, onSelected }) => {
   const map = useContext(MapContext);
   const markerRef = useRef<any | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const containerRootRef = useRef<any>(null);
+  // mapbox-gl only takes the anchor when the marker is constructed, so a changed anchor rebuilds the marker. Keyed on
+  // the named anchor (a string), not the anchor object, which callers allocate afresh on every render.
+  const markerAnchor = toMarkerAnchor(anchor);
 
-  // Create marker once when map/id are available
+  // Create marker when map/id/anchor are available
   useEffect(() => {
     if (!map || !coordinate) return;
 
@@ -710,20 +731,9 @@ export const PointAnnotation: React.FC<PointAnnotationProps> = ({ id, coordinate
     const root = createRoot(container);
     containerRootRef.current = root;
 
-    const markerOptions: any = { element: container };
-
-    if (typeof anchor === 'string') {
-      markerOptions.anchor = anchor as any;
-    }
+    const markerOptions: any = { element: container, anchor: markerAnchor };
 
     markerRef.current = new mapboxgl.Marker(markerOptions).setLngLat(coordinate).addTo(map);
-
-    if (typeof anchor === 'object' && anchor !== null && 'x' in anchor && 'y' in anchor) {
-      const rect = container.getBoundingClientRect();
-      const xOffset = (anchor.x - 0.5) * rect.width;
-      const yOffset = (anchor.y - 0.5) * rect.height;
-      markerRef.current.setOffset([xOffset, yOffset]);
-    }
 
     if (title) {
       markerRef.current.setPopup(new mapboxgl.Popup().setText(title));
@@ -739,7 +749,7 @@ export const PointAnnotation: React.FC<PointAnnotationProps> = ({ id, coordinate
       containerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, id]);
+  }, [map, id, markerAnchor]);
 
   // Update coordinate when it changes
   useEffect(() => {
@@ -749,14 +759,14 @@ export const PointAnnotation: React.FC<PointAnnotationProps> = ({ id, coordinate
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coordinate?.[0], coordinate?.[1]]);
 
-  // Render children into the marker's React root
+  // Render children into the marker's React root (again into a rebuilt marker's fresh root)
   useEffect(() => {
     if (containerRootRef.current && children) {
       containerRootRef.current.render(<>{children}</>);
     }
-  }, [children]);
+  }, [children, map, id, markerAnchor]);
 
-  // Update click handler
+  // Update click handler (and bind it to a rebuilt marker's new element)
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !onSelected) return;
@@ -765,7 +775,7 @@ export const PointAnnotation: React.FC<PointAnnotationProps> = ({ id, coordinate
     return () => {
       container.removeEventListener('click', onSelected);
     };
-  }, [onSelected]);
+  }, [onSelected, map, id, markerAnchor]);
 
   return null;
 };
@@ -815,14 +825,24 @@ export const UserLocation: React.FC<{ visible?: boolean; showsUserHeadingIndicat
   return null;
 };
 
+interface MarkerViewProps {
+  id?: string;
+  coordinate: [number, number];
+  children?: React.ReactNode;
+  /** Same fractional anchor as native MarkerView ({ x: 0.5, y: 1 } = bottom-center on the coordinate); default center. */
+  anchor?: { x: number; y: number };
+  /** Native-only collision flag; DOM markers always overlap, so it is accepted and ignored here. */
+  allowOverlap?: boolean;
+}
+
 // MarkerView component
-export const MarkerView: React.FC<{ id?: string; coordinate: [number, number]; children?: React.ReactNode }> = ({ id, coordinate, children }) => {
+export const MarkerView: React.FC<MarkerViewProps> = ({ id, coordinate, children, anchor }) => {
   // The id keys the underlying mapbox-gl marker, so it has to stay stable while the marker moves:
   // PointAnnotation then just calls setLngLat. An id derived from the coordinate tore the marker
   // (and its React root) down and rebuilt it on every live position update.
   const fallbackId = useId();
   return (
-    <PointAnnotation id={id ?? `marker-${fallbackId}`} coordinate={coordinate}>
+    <PointAnnotation id={id ?? `marker-${fallbackId}`} coordinate={coordinate} anchor={anchor}>
       {children}
     </PointAnnotation>
   );

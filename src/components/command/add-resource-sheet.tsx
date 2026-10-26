@@ -14,6 +14,7 @@ import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { View } from '@/components/ui/view';
 import { VStack } from '@/components/ui/vstack';
+import { UnitTypeIcon } from '@/components/units/unit-type-icon';
 import type { PersonnelInfoResultData } from '@/models/v4/personnel/personnelInfoResultData';
 import type { UnitResultData } from '@/models/v4/units/unitResultData';
 import type { UnitStatusResultData } from '@/models/v4/unitStatus/unitStatusResultData';
@@ -127,6 +128,7 @@ export const AddResourceSheet: React.FC<AddResourceSheetProps> = ({ isOpen, onCl
                           testID={`roster-unit-${unit.UnitId}`}
                         >
                           <HStack className="items-center justify-between" space="sm">
+                            <UnitTypeIcon iconUrl={unit.TypeIconUrl} mapIcon={unit.TypeMapIcon} size={28} testID={`roster-unit-type-icon-${unit.UnitId}`} />
                             <VStack className="min-w-0 flex-1">
                               <Text className="font-medium text-gray-900 dark:text-white">{unit.Name}</Text>
                               {subtitle ? <Text className="text-sm text-gray-500 dark:text-gray-400">{subtitle}</Text> : null}

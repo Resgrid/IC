@@ -26,4 +26,22 @@ export class MapMakerInfoData {
   public Note?: string = '';
   public LayerId?: string = '';
   public LayerName?: string = '';
+  /**
+   * Uploaded icon URL — wins over the bundled icon / POI shape when present: the type's icon for call (Type 0), unit
+   * (Type 1) and POI (Type 4) pins; for personnel (Type 3) pins the icon of the first role the person holds, in the
+   * department's role order, that has one. Null when there is no upload, undefined from older servers.
+   */
+  public IconUrl?: string | null = null;
+  /**
+   * Absolute URL of the built-in pin recoloured to the call's priority or the unit's / person's status: a 32 x 37 PNG
+   * with the bundled pin's shape, size and tip, drawn in place of the bundled `ImagePath` pin when there is no upload.
+   * Null when the priority/status has no meaning and always for stations, POIs and hydrants; undefined from older servers.
+   */
+  public PinIconUrl?: string | null = null;
+  /**
+   * Style key behind `PinIconUrl` and the badge on `IconUrl`: a status (`available`, `dispatched`, `responding`, `onscene`,
+   * `transporting`, `returning`, `staging`, `delayed`, `unavailable`) or a priority (`low`, `medium`, `high`, `emergency`).
+   * Null / undefined as for `PinIconUrl`.
+   */
+  public IconStyle?: string | null = null;
 }

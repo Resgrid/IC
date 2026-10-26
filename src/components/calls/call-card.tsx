@@ -10,6 +10,7 @@ import { HtmlRenderer } from '@/components/ui/html-renderer';
 import { Icon } from '@/components/ui/icon';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { TypeIcon, UnitTypeIcon } from '@/components/units/unit-type-icon';
 import { getTimeAgoUtc, readableColors } from '@/lib/utils';
 import { type CallPriorityResultData } from '@/models/v4/callPriorities/callPriorityResultData';
 import type { CallResultData } from '@/models/v4/calls/callResultData';
@@ -69,7 +70,7 @@ export const CallCard: React.FC<CallCardProps> = ({ call, priority, showTimerIco
       {/* Header with Call Number and Priority */}
       <HStack className="mb-4 items-center justify-between">
         <HStack className="items-center space-x-2">
-          <AlertTriangle size={20} color={textColor} />
+          <TypeIcon fallback={<AlertTriangle size={20} color={textColor} />} iconUrl={call.TypeIconUrl} mapIcon={call.TypeMapIcon} size={24} testID={`call-card-type-icon-${call.CallId}`} />
           <Text
             style={{
               color: textColor,
@@ -166,9 +167,18 @@ export const CallCard: React.FC<CallCardProps> = ({ call, priority, showTimerIco
               return (
                 <HStack key={`${d.Id || 'noid'}-${d.Name}-${index}`} style={{ backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 6, overflow: 'hidden' }} className="items-center">
                   <Box style={{ backgroundColor: typeBgColor, minWidth: 24, height: 24 }} className="items-center justify-center">
-                    <Text style={{ color: '#fff' }} className="text-xs font-bold">
-                      {typeLetter}
-                    </Text>
+                    {/* Units show their type icon when the department gave the type one; the letter stays the fallback. */}
+                    <UnitTypeIcon
+                      fallback={
+                        <Text style={{ color: '#fff' }} className="text-xs font-bold">
+                          {typeLetter}
+                        </Text>
+                      }
+                      iconUrl={typeLetter === 'U' ? d.TypeIconUrl : null}
+                      mapIcon={typeLetter === 'U' ? d.TypeMapIcon : null}
+                      size={20}
+                      testID={`dispatch-chip-type-icon-${index}`}
+                    />
                   </Box>
                   <Text style={{ color: textColor, paddingHorizontal: 6 }} className="text-xs font-medium" numberOfLines={1}>
                     {d.Name}

@@ -13,6 +13,7 @@ import { Input, InputField } from '@/components/ui/input';
 import { Pressable } from '@/components/ui/pressable';
 import { Text } from '@/components/ui/text';
 import { VStack } from '@/components/ui/vstack';
+import { UnitTypeIcon } from '@/components/units/unit-type-icon';
 import { ResourceAssignmentKind } from '@/models/v4/incidentCommand/incidentCommandModels';
 import { terminologyStore, TermKeys } from '@/stores/terminology/store';
 
@@ -26,6 +27,9 @@ export interface AssignableResourceOption {
   chips?: string[];
   /** Live status text (units), rendered as a badge. */
   statusLabel?: string;
+  /** Department units only: the unit type's uploaded icon URL / built-in map icon name. */
+  typeIconUrl?: string | null;
+  typeMapIcon?: string | null;
   /** Lane the resource currently sits in: undefined = untracked, '' = unassigned pool, else node id. */
   assignedNodeId?: string | null;
 }
@@ -106,6 +110,7 @@ export const AssignResourceSheet: React.FC<AssignResourceSheetProps> = ({ isOpen
                   onPress={() => setSelected(option)}
                 >
                   <HStack className="items-center justify-between" space="sm">
+                    <UnitTypeIcon iconUrl={option.typeIconUrl} mapIcon={option.typeMapIcon} size={28} testID={`resource-option-type-icon-${option.kind}-${option.id}`} />
                     <VStack className="min-w-0 flex-1">
                       <Text className={isSelected ? 'font-medium text-white' : 'font-medium text-gray-900 dark:text-white'}>{option.name}</Text>
                       {option.detail ? <Text className={`text-xs ${isSelected ? 'text-primary-100' : 'text-gray-500 dark:text-gray-400'}`}>{option.detail}</Text> : null}

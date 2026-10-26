@@ -416,6 +416,18 @@ export default function CommandBoard() {
     [units, users, boards, activeBoardCallId]
   );
 
+  // Unit type icon for a lane resource — department units only (ad-hoc units have no department type).
+  const resolveResourceIcon = useCallback(
+    (kind: number, resourceId: string) => {
+      if (kind !== ResourceAssignmentKind.RealUnit && kind !== ResourceAssignmentKind.LinkedDeptUnit) {
+        return null;
+      }
+      const unit = units.find((u) => u.UnitId === resourceId);
+      return unit ? { iconUrl: unit.TypeIconUrl, mapIcon: unit.TypeMapIcon } : null;
+    },
+    [units]
+  );
+
   const resourceOptions = useMemo<AssignableResourceOption[]>(() => {
     const entry = activeBoardCallId ? boards[activeBoardCallId] : undefined;
     const activeAssignments = (entry?.board?.Assignments ?? []).filter((a) => !a.ReleasedOn);
@@ -427,6 +439,8 @@ export default function CommandBoard() {
       name: u.Name,
       detail: [u.Type, u.GroupName].filter(Boolean).join(' • '),
       statusLabel: unitCurrentStatuses.find((s) => s.UnitId === u.UnitId)?.State,
+      typeIconUrl: u.TypeIconUrl,
+      typeMapIcon: u.TypeMapIcon,
       assignedNodeId: assignedNodeOf(ResourceAssignmentKind.RealUnit, u.UnitId),
     }));
     const personnelOptions = users.map((u) => ({
@@ -853,6 +867,7 @@ export default function CommandBoard() {
               onOpenLaneChat={handleOpenLaneChat}
               onMoveResource={handleMoveResource}
               onViewResource={(assignment) => setViewResource({ assignment, context: 'lane' })}
+              resolveResourceIcon={resolveResourceIcon}
               resolveResourceName={resolveResourceName}
               viewportHeight={viewportHeight}
               viewportWidth={viewportWidth}
@@ -868,6 +883,7 @@ export default function CommandBoard() {
               onMoveResource={handleMoveResource}
               onViewResource={(assignment) => setViewResource({ assignment, context: 'lane' })}
               resolveLeadName={resolveLeadName}
+              resolveResourceIcon={resolveResourceIcon}
               resolveResourceName={resolveResourceName}
             />
           )}

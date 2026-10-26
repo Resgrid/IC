@@ -46,9 +46,24 @@ const MapPin = React.memo(({ pin, commandInfo, onPinPress }: { pin: MapMakerInfo
       allowOverlap={true}
     >
       {poi ? (
-        <PoiMarker poiImage={pin.PoiImage} imagePath={pin.ImagePath} color={pin.Color} marker={pin.Marker} title={pin.Title} size={36} onPress={handlePress} />
+        <PoiMarker poiImage={pin.PoiImage} imagePath={pin.ImagePath} iconUrl={pin.IconUrl} color={pin.Color} marker={pin.Marker} title={pin.Title} size={36} onPress={handlePress} />
       ) : (
-        <PinMarker imagePath={pin.ImagePath as MapIconKey} poiImage={pin.PoiImage as MapIconKey} title={pin.Title} laneLabel={laneLabel} accentColor={commandInfo?.laneColor} size={32} onPress={handlePress} />
+        <PinMarker
+          imagePath={pin.ImagePath as MapIconKey}
+          poiImage={pin.PoiImage as MapIconKey}
+          // Uploaded icon wins over the bundled icon: call and unit pins carry their type's upload, personnel pins
+          // the icon of the person's first role (in department role order) that has one.
+          iconUrl={pin.IconUrl}
+          // Otherwise the built-in pin recoloured to the call's priority / the unit's or person's status (null for
+          // stations); MapPin is memoised on the pin object, and a refetch hands over new objects, so a status change
+          // that only changes this URL still redraws the marker.
+          pinIconUrl={pin.PinIconUrl}
+          title={pin.Title}
+          laneLabel={laneLabel}
+          accentColor={commandInfo?.laneColor}
+          size={32}
+          onPress={handlePress}
+        />
       )}
     </Mapbox.MarkerView>
   );

@@ -7,6 +7,8 @@ import { StyleSheet, View } from 'react-native';
 import { getMapDataAndMarkers } from '@/api/mapping/mapping';
 import { AnnotationLayers, IncidentLocationMarkers } from '@/components/command/incident-map-layers';
 import ZeroState from '@/components/common/zero-state';
+import { MapLegendButton } from '@/components/maps/map-legend-button';
+import { MapLegendSheet } from '@/components/maps/map-legend-sheet';
 import MapPins from '@/components/maps/map-pins';
 import Mapbox from '@/components/maps/mapbox';
 import { AlertDialog, AlertDialogBackdrop, AlertDialogBody, AlertDialogContent, AlertDialogFooter, AlertDialogHeader } from '@/components/ui/alert-dialog';
@@ -67,6 +69,7 @@ export default function CommandMapScreen() {
   const [pendingTextCoord, setPendingTextCoord] = useState<[number, number] | null>(null);
   const [textLabel, setTextLabel] = useState('');
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [isLegendOpen, setIsLegendOpen] = useState(false);
 
   // Latest camera framing, captured from map movement so "Save View" pins exactly what's on screen.
   const cameraStateRef = useRef<{ center: [number, number]; zoom: number } | null>(null);
@@ -269,6 +272,9 @@ export default function CommandMapScreen() {
     showToast(ok ? 'success' : 'error', ok ? t('command.incident_map_markup_removed') : t('command.incident_map_markup_error'));
   }, [pendingDeleteId, callId, deleteMapAnnotationEntry, showToast, t]);
 
+  const handleOpenLegend = useCallback(() => setIsLegendOpen(true), []);
+  const handleCloseLegend = useCallback(() => setIsLegendOpen(false), []);
+
   const draftShape = useMemo<GeoJSON.FeatureCollection>(() => {
     const features: GeoJSON.Feature[] = [];
     if (draftPoints.length >= 2) {
@@ -344,6 +350,9 @@ export default function CommandMapScreen() {
         )}
       </View>
 
+      {/* Map icon legend control */}
+      <MapLegendButton onPress={handleOpenLegend} />
+
       {/* Text label input */}
       <CustomBottomSheet isOpen={pendingTextCoord !== null} onClose={resetDraft} snapPoints={[35]} testID="command-map-text-sheet">
         <VStack space="md" className="w-full">
@@ -356,6 +365,9 @@ export default function CommandMapScreen() {
           </Button>
         </VStack>
       </CustomBottomSheet>
+
+      {/* Map icon legend, fetched each time it opens */}
+      <MapLegendSheet isOpen={isLegendOpen} onClose={handleCloseLegend} />
 
       {/* Delete markup confirmation */}
       <AlertDialog isOpen={pendingDeleteId !== null} onClose={() => setPendingDeleteId(null)}>
