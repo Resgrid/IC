@@ -39,14 +39,25 @@ describe('sign-in logging', () => {
     expect(logged()).not.toContain(USERNAME);
   });
 
-  it('logs a failed request without the username', async () => {
+  it('logs a failed request without the username, and answers with the reason instead of throwing', async () => {
     const failure = Object.assign(new Error('Network Error'), { isAxiosError: true, config: { data: requestBody } });
     mockPost.mockRejectedValue(failure);
 
-    await expect(loginRequest({ username: USERNAME, password: PASSWORD })).rejects.toBe(failure);
+    await expect(loginRequest({ username: USERNAME, password: PASSWORD })).resolves.toMatchObject({ successful: false, message: 'server_unreachable', failure: { code: 'server_unreachable' } });
 
-    expect(mockLogger.error).toHaveBeenCalledWith({ message: 'Login failed', context: { error: failure } });
+    expect(mockLogger.error).toHaveBeenCalledWith({ message: 'Login failed', context: { error: failure, loginFailure: 'server_unreachable' } });
     expect(mockLogger.error.mock.calls[0][0].context).not.toHaveProperty('username');
+  });
+
+  it("passes on the server's reason for refusing the password", async () => {
+    mockPost.mockRejectedValue({
+      isAxiosError: true,
+      message: 'Request failed with status code 400',
+      response: { status: 400, data: { error: 'invalid_grant', error_description: 'The account is locked out.', login_error: 'account_locked_out', lockout_minutes_remaining: 14.2 } },
+    });
+
+    await expect(loginRequest({ username: USERNAME, password: PASSWORD })).resolves.toMatchObject({ successful: false, failure: { code: 'account_locked_out', lockoutMinutes: 15 } });
+    expect(mockLogger.error.mock.calls[0][0].context).toMatchObject({ loginFailure: 'account_locked_out' });
   });
 
   it('logs the SSO exchange with the provider, never the username', async () => {
