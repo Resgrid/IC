@@ -3,13 +3,12 @@ import { useColorScheme } from 'nativewind';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { Select, SelectBackdrop, SelectContent, SelectDragIndicator, SelectDragIndicatorWrapper, SelectIcon, SelectInput, SelectItem, SelectPortal, SelectTrigger } from '@/components/ui/select';
+import { Text } from '@/components/ui/text';
+import { View } from '@/components/ui/view';
+import { VStack } from '@/components/ui/vstack';
 import { useNavigationApp } from '@/lib/hooks/use-navigation-app';
 import { getNavigationAppOptions, type NavigationApp } from '@/lib/storage/navigation-app';
-
-import { Select, SelectBackdrop, SelectContent, SelectDragIndicator, SelectDragIndicatorWrapper, SelectIcon, SelectInput, SelectItem, SelectPortal, SelectTrigger } from '../ui/select';
-import { Text } from '../ui/text';
-import { View } from '../ui/view';
-import { VStack } from '../ui/vstack';
 
 const OPTION_LABEL_KEYS: Record<NavigationApp, string> = {
   default: 'settings.navigation_app.default',

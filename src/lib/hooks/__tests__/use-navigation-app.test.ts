@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react-native';
 
-import { useNavigationApp } from '../use-navigation-app';
+import { useNavigationApp } from '@/lib/hooks/use-navigation-app';
 
 const mockSetStoredApp = jest.fn();
 let mockStoredApp: string | undefined;

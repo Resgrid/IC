@@ -323,6 +323,12 @@ const buildNavigationAttempts = (destination: NavigationDestination, app: Naviga
   return [webFallback];
 };
 
+/**
+ * The error's name only. `Linking` rejections carry the URL in their message ("Unable to open URL: …" on iOS,
+ * "Could not open URL '…'" on Android), and the logger forwards an error's message to Sentry.
+ */
+const toErrorName = (error: unknown): string => (error instanceof Error ? error.name : typeof error);
+
 /** Opens the first attempt that works. True when one opened. */
 const openFirstAvailable = async (attempts: NavigationAttempt[], navigationApp: NavigationApp): Promise<boolean> => {
   let lastError: unknown;
@@ -342,11 +348,12 @@ const openFirstAvailable = async (attempts: NavigationAttempt[], navigationApp: 
   // Only the schemes are logged: the URLs carry the incident address and location.
   logger.error({
     message: 'Failed to open a navigation app',
-    context: { error: lastError, navigationApp, platform: Platform.OS, schemes: attempts.map((attempt) => attempt.url.split(':')[0]) },
+    context: { errorName: toErrorName(lastError), navigationApp, platform: Platform.OS, schemes: attempts.map((attempt) => attempt.url.split(':')[0]) },
   });
   return false;
 };
 
+/** Never rejects: every failure is logged and resolves false, so callers only need to check the result. */
 const openNavigation = async (destination: NavigationDestination): Promise<boolean> => {
   if (!destination.coordinates && !destination.address) {
     logger.warn({ message: 'Navigation requested without usable coordinates or an address' });
@@ -354,14 +361,24 @@ const openNavigation = async (destination: NavigationDestination): Promise<boole
   }
 
   const navigationApp = getNavigationApp();
-  return openFirstAvailable(buildNavigationAttempts(destination, navigationApp, Platform.OS), navigationApp);
+
+  let attempts: NavigationAttempt[];
+  try {
+    attempts = buildNavigationAttempts(destination, navigationApp, Platform.OS);
+  } catch (error) {
+    // encodeURIComponent throws a URIError on a lone surrogate in the address or label.
+    logger.error({ message: 'Failed to build navigation URLs', context: { errorName: toErrorName(error), navigationApp, platform: Platform.OS } });
+    return false;
+  }
+
+  return openFirstAvailable(attempts, navigationApp);
 };
 
 /**
  * Starts navigation to an address in the navigation app chosen in Settings.
  *
  * @param address - The destination address
- * @returns Promise<boolean> - True if a navigation or maps app was opened; false for a blank address
+ * @returns Promise<boolean> - True if a navigation or maps app was opened; false for a blank address or when nothing opened. Never rejects.
  */
 export const openMapsWithAddress = async (address: string): Promise<boolean> => {
   const destinationAddress = toNonEmpty(address);
@@ -382,7 +399,7 @@ export const openMapsWithAddress = async (address: string): Promise<boolean> => 
  * @param originLatitude - Optional latitude of the starting point (if not provided, current location is used)
  * @param originLongitude - Optional longitude of the starting point (if not provided, current location is used)
  * @param fallbackAddress - Optional destination address, used when the coordinates are not navigable
- * @returns Promise<boolean> - True if a navigation or maps app was opened
+ * @returns Promise<boolean> - True if a navigation or maps app was opened; false when nothing opened. Never rejects.
  */
 export const openMapsWithDirections = async (
   destinationLatitude: number | string | null | undefined,

@@ -9,8 +9,7 @@ jest.mock('@/lib/storage', () => ({
 }));
 
 import { storage } from '@/lib/storage';
-
-import { getNavigationApp, getNavigationAppOptions, NAVIGATION_APP_STORAGE_KEY, normalizeNavigationApp, setNavigationApp } from '../navigation-app';
+import { getNavigationApp, getNavigationAppOptions, NAVIGATION_APP_STORAGE_KEY, normalizeNavigationApp, setNavigationApp } from '@/lib/storage/navigation-app';
 
 describe('navigation app preference', () => {
   beforeEach(() => {

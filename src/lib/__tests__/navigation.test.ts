@@ -426,6 +426,34 @@ describe('Navigation Functions', () => {
       // The incident address stays out of the logs (and so out of Sentry).
       expect(JSON.stringify(mockedLogger.error.mock.calls)).not.toContain('Bruxelles');
     });
+
+    it('logs only the error name when the native rejection carries the URL', async () => {
+      setPlatform('android');
+      MockedLinking.openURL.mockImplementation((url: string) => Promise.reject(new Error(`Could not open URL '${url}': No Activity found to handle Intent`)));
+
+      const result = await openMapsWithAddress(ADDRESS);
+
+      expect(result).toBe(false);
+      expect(mockedLogger.error).toHaveBeenCalledWith({
+        message: 'Failed to open a navigation app',
+        context: { errorName: 'Error', navigationApp: 'default', platform: 'android', schemes: ['geo', 'https'] },
+      });
+      const logged = JSON.stringify(mockedLogger.error.mock.calls);
+      expect(logged).not.toContain(ENCODED_ADDRESS);
+      expect(logged).not.toContain('Could not open URL');
+    });
+
+    it('resolves false instead of rejecting when the destination cannot be encoded into a URL', async () => {
+      // A lone surrogate makes encodeURIComponent throw a URIError.
+      const result = await openMapsWithAddress('\uD800 Main St');
+
+      expect(result).toBe(false);
+      expect(MockedLinking.openURL).not.toHaveBeenCalled();
+      expect(mockedLogger.error).toHaveBeenCalledWith({
+        message: 'Failed to build navigation URLs',
+        context: { errorName: 'URIError', navigationApp: 'default', platform: 'ios' },
+      });
+    });
   });
 
   describe('openMapsWithAddress', () => {
