@@ -55,8 +55,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       UIViewControllerBasedStatusBarAppearance: false,
       NSBluetoothAlwaysUsageDescription:
         'Resgrid IC uses Bluetooth to connect to wireless headsets and speaker-microphone accessories for Push-to-Talk audio. For example, when you pair a Bluetooth speaker-mic, pressing its talk button transmits your voice to your department audio channel.',
-      // Allow the app to open its own custom-scheme deep links (needed for SSO callbacks)
-      LSApplicationQueriesSchemes: ['resgridic'],
+      // Allow the app to open its own custom-scheme deep links (needed for SSO callbacks).
+      // The navigation apps the Navigation App setting can hand directions to are detected with
+      // canOpenURL, which only answers for declared schemes (src/lib/navigation.ts).
+      LSApplicationQueriesSchemes: ['resgridic', 'waze', 'comgooglemaps'],
     },
     entitlements: {
       // Required for APNs registration. Previously added by the withForegroundNotifications

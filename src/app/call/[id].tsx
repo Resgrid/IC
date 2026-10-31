@@ -271,14 +271,18 @@ export default function CallDetail() {
    * Opens the device's native maps application with directions to the call location
    */
   const handleRoute = async () => {
-    if (coordinates.latitude === null || coordinates.longitude === null) {
+    // A withheld address must not leave the app in a navigation URL; coordinates still route.
+    const routableAddress = call?.Address && !isFieldRedacted(call.RedactedFields, ProtectedFieldIds.callAddress, call.Address) ? call.Address.trim() : '';
+
+    if ((coordinates.latitude === null || coordinates.longitude === null) && !routableAddress) {
       showToast('error', t('call_detail.no_location_for_routing'));
       return;
     }
 
     try {
-      const destinationName = call?.Address || t('call_detail.call_location');
-      const success = await openMapsWithDirections(coordinates.latitude, coordinates.longitude, destinationName, userLatitude || undefined, userLongitude || undefined);
+      const destinationName = routableAddress || t('call_detail.call_location');
+      // Without usable coordinates the helper navigates to the address instead.
+      const success = await openMapsWithDirections(coordinates.latitude, coordinates.longitude, destinationName, userLatitude || undefined, userLongitude || undefined, routableAddress);
 
       if (!success) {
         showToast('error', t('call_detail.failed_to_open_maps'));

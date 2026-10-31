@@ -13,6 +13,7 @@ import { clearMapboxToken } from '@/lib/mapbox-token';
 import { SHARED_INSTALLATION_STORAGE_KEY } from '@/lib/mfa/shared-installation';
 import { storage } from '@/lib/storage';
 import { BASE_API_URL_STORAGE_KEY, removeActiveCallId, removeDeviceUuid } from '@/lib/storage/app';
+import { NAVIGATION_APP_STORAGE_KEY } from '@/lib/storage/navigation-app';
 import { locationService } from '@/services/location';
 import { pushNotificationService } from '@/services/push-notification';
 import { signalRService } from '@/services/signalr.service';
@@ -189,7 +190,8 @@ export const INITIAL_PUSH_NOTIFICATION_MODAL_STATE = {
 // Keys to preserve during storage clear. The selected server URL is an install-level
 // preference: wiping it on logout would silently send the next sign-in to the default server.
 // A shared command device stays shared across operators: signing out is exactly when the next one signs in.
-const STORAGE_KEYS_TO_PRESERVE = ['IS_FIRST_TIME', BASE_API_URL_STORAGE_KEY, SHARED_INSTALLATION_STORAGE_KEY];
+// The navigation app names an app installed on this device, so the next operator needs it too.
+const STORAGE_KEYS_TO_PRESERVE = ['IS_FIRST_TIME', BASE_API_URL_STORAGE_KEY, SHARED_INSTALLATION_STORAGE_KEY, NAVIGATION_APP_STORAGE_KEY];
 
 /**
  * Clears all persisted storage items except those in the preserve list
