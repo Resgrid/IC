@@ -346,6 +346,7 @@ const useAuthStore = create<AuthState>()(
             status: 'signedOut',
             // Why the session ended, when the screen should say (a shared shift that ran out); otherwise nothing.
             error: typeof reason === 'string' ? reason : null,
+            loginFailure: null,
             profile: null,
             // Clearing the user id drops the API cache scope (see the subscription below); leaving it set
             // keeps this user's cache keys live for whoever signs in next on the same device.
@@ -543,8 +544,13 @@ const useAuthStore = create<AuthState>()(
       // is the refresh timer (a handle that means nothing after a restart).
       partialize: ({ mfaChallenge: _mfaChallenge, pendingRecoveryCodes: _pendingRecoveryCodes, loginFailure: _loginFailure, refreshTimeoutId: _refreshTimeoutId, ...persisted }) => persisted,
       // The pending SSO exchange and the login transaction live in module memory and die with the process, so a
-      // rehydrated pending state would open a prompt with nothing to finish. Force them back.
-      merge: (persisted, current) => ({ ...current, ...(persisted as Partial<AuthState>), isSsoMfaPending: false, mfaChallenge: null, pendingRecoveryCodes: null }),
+      // rehydrated pending state would open a prompt with nothing to finish. Force them back. A failed sign-in's reason is
+      // not stored either, so the failure restarts signed out rather than reopening with nothing to explain it.
+      merge: (persisted, current) => {
+        const restored = (persisted ?? {}) as Partial<AuthState>;
+        const failedSignIn = isLoginErrorCode(restored.error) ? { status: restored.status === 'error' ? ('signedOut' as const) : (restored.status ?? current.status), error: null } : {};
+        return { ...current, ...restored, ...failedSignIn, isSsoMfaPending: false, mfaChallenge: null, pendingRecoveryCodes: null };
+      },
       onRehydrateStorage: () => {
         return (state, error) => {
           if (error) {
