@@ -10,6 +10,7 @@ import { Item } from '@/components/settings/item';
 import { KeepAliveItem } from '@/components/settings/keep-alive-item';
 import { LanguageItem } from '@/components/settings/language-item';
 import { LoginInfoBottomSheet } from '@/components/settings/login-info-bottom-sheet';
+import { NavigationAppItem } from '@/components/settings/navigation-app-item';
 import { ServerUrlBottomSheet } from '@/components/settings/server-url-bottom-sheet';
 import { ThemeItem } from '@/components/settings/theme-item';
 import { ToggleItem } from '@/components/settings/toggle-item';
@@ -145,6 +146,7 @@ export default function Settings() {
             <VStack space="sm">
               <ThemeItem />
               <LanguageItem />
+              <NavigationAppItem />
               <KeepAliveItem />
               <BluetoothDeviceItem />
             </VStack>

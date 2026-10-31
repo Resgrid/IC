@@ -328,6 +328,17 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
+// Route hands the destination to the navigation helper, which src/lib/__tests__/navigation.test.ts covers.
+const mockOpenMapsWithDirections = jest.fn();
+jest.mock('@/lib/navigation', () => ({
+  openMapsWithDirections: (...args: unknown[]) => mockOpenMapsWithDirections(...args),
+}));
+
+// How a withheld value is drawn is ProtectedText's concern; a plain stand-in suits this suite's light UI mocks.
+jest.mock('@/components/data-protection/protected-text', () => ({
+  ProtectedText: ({ value }: { value?: string | null }) => value ?? null,
+}));
+
 // React Native mocks
 jest.mock('react-native', () => ({
   View: jest.fn().mockImplementation(({ children, ...props }) => children),
@@ -776,6 +787,99 @@ describe('CallDetail', () => {
 
       await waitFor(() => {
         expect(mockShowToast).toHaveBeenCalledWith('error', 'command.start_error');
+      });
+    });
+  });
+
+  describe('Route', () => {
+    const routableCall = {
+      CallId: 'test-call-id',
+      Name: 'Test Call',
+      Number: 'C2024001',
+      Priority: 2,
+      Type: 'Emergency',
+      Address: ' 123 Main St ',
+      Latitude: '40.7128',
+      Longitude: '-74.0060',
+      NotesCount: 0,
+      ImgagesCount: 0,
+      FileCount: 0,
+    };
+
+    const mockShowToast = jest.fn();
+
+    const setCall = (call: Record<string, unknown>) => {
+      mockUseCallDetailStore.mockImplementation((selector: any) => {
+        const store = { call, callExtraData: null, callPriority: null, isLoading: false, error: null, fetchCallDetail: jest.fn(), reset: jest.fn() };
+        return selector ? selector(store) : store;
+      });
+    };
+
+    beforeEach(() => {
+      mockOpenMapsWithDirections.mockReset();
+      mockOpenMapsWithDirections.mockResolvedValue(true);
+      mockShowToast.mockReset();
+      mockUseToastStore.mockImplementation((selector: any) => {
+        const store = { showToast: mockShowToast };
+        return selector ? selector(store) : store;
+      });
+    });
+
+    it('routes to the call coordinates, named by the trimmed address, with the address as the fallback', async () => {
+      setCall(routableCall);
+
+      const { getByTestId } = render(<CallDetail />);
+      fireEvent.press(getByTestId('button--common.route'));
+
+      await waitFor(() => {
+        expect(mockOpenMapsWithDirections).toHaveBeenCalledWith(40.7128, -74.006, '123 Main St', 40.7128, -74.006, '123 Main St');
+      });
+    });
+
+    it('routes to the address when the call has no usable coordinates', async () => {
+      setCall({ ...routableCall, Latitude: '0', Longitude: '0' });
+
+      const { getByTestId } = render(<CallDetail />);
+      fireEvent.press(getByTestId('button--common.route'));
+
+      await waitFor(() => {
+        expect(mockOpenMapsWithDirections).toHaveBeenCalledWith(null, null, '123 Main St', 40.7128, -74.006, '123 Main St');
+      });
+      expect(mockShowToast).not.toHaveBeenCalled();
+    });
+
+    it('keeps a withheld address out of the navigation app', async () => {
+      setCall({ ...routableCall, RedactedFields: ['calls.address'] });
+
+      const { getByTestId } = render(<CallDetail />);
+      fireEvent.press(getByTestId('button--common.route'));
+
+      await waitFor(() => {
+        expect(mockOpenMapsWithDirections).toHaveBeenCalledWith(40.7128, -74.006, 'call_detail.call_location', 40.7128, -74.006, '');
+      });
+    });
+
+    it('opens nothing and explains why without coordinates or a usable address', async () => {
+      setCall({ ...routableCall, Latitude: '0', Longitude: '0', RedactedFields: ['calls.address'] });
+
+      const { getByTestId } = render(<CallDetail />);
+      fireEvent.press(getByTestId('button--common.route'));
+
+      await waitFor(() => {
+        expect(mockShowToast).toHaveBeenCalledWith('error', 'call_detail.no_location_for_routing');
+      });
+      expect(mockOpenMapsWithDirections).not.toHaveBeenCalled();
+    });
+
+    it('tells the user when no navigation app opened', async () => {
+      mockOpenMapsWithDirections.mockResolvedValue(false);
+      setCall(routableCall);
+
+      const { getByTestId } = render(<CallDetail />);
+      fireEvent.press(getByTestId('button--common.route'));
+
+      await waitFor(() => {
+        expect(mockShowToast).toHaveBeenCalledWith('error', 'call_detail.failed_to_open_maps');
       });
     });
   });
