@@ -239,6 +239,37 @@ describe('Login', () => {
     expect(screen.getByText('Login failed')).toBeTruthy();
   });
 
+  describe('a refused password sign-in', () => {
+    const { default: useAuthStore } = jest.requireActual('@/stores/auth/store') as typeof import('@/stores/auth/store');
+    afterEach(() => useAuthStore.setState({ loginFailure: null }));
+
+    it('says why and what to do next, in the modal and on the form, never as the raw code', () => {
+      useAuthStore.setState({ loginFailure: { code: 'invalid_credentials' } });
+      mockUseAuth.mockReturnValue({ login: jest.fn(), ssoLogin: jest.fn(), status: 'error', error: 'invalid_credentials', isAuthenticated: false });
+
+      render(<Login />);
+
+      expect(screen.getByText('login.errors.invalid_credentials.title')).toBeTruthy();
+      // Once in the modal and once on the form under the sign-in button.
+      expect(screen.getAllByText('login.errors.invalid_credentials.message')).toHaveLength(2);
+      expect(screen.queryByText('invalid_credentials')).toBeNull();
+      expect(screen.queryByText('Login failed')).toBeNull();
+    });
+
+    it('tells a temporary lockout from one only an administrator can lift', () => {
+      mockUseAuth.mockReturnValue({ login: jest.fn(), ssoLogin: jest.fn(), status: 'error', error: 'account_locked_out', isAuthenticated: false });
+
+      useAuthStore.setState({ loginFailure: { code: 'account_locked_out', lockoutMinutes: 5 } });
+      const { unmount } = render(<Login />);
+      expect(screen.getByText('login.errors.account_locked_out.title')).toBeTruthy();
+      unmount();
+
+      useAuthStore.setState({ loginFailure: null });
+      render(<Login />);
+      expect(screen.getByText('login.errors.account_locked.title')).toBeTruthy();
+    });
+  });
+
   it('redirects to app when authenticated', async () => {
     mockUseAuth.mockReturnValue({
       login: jest.fn(),

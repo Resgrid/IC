@@ -10,6 +10,7 @@ import { clearCacheScope, getCacheScope, setCacheScope } from '@/lib/cache/cache
 import { logger } from '@/lib/logging';
 
 import { loginRequest, refreshTokenSingleFlight, ssoExternalTokenRequest } from '../../lib/auth/api';
+import { isLoginErrorCode } from '../../lib/auth/login-errors';
 import { isSharedSessionLockedRefresh } from '../../lib/auth/token-refresh';
 import type { AuthResponse, AuthState, LoginCredentials, SsoLoginCredentials } from '../../lib/auth/types';
 import { type ProfileModel } from '../../lib/auth/types';
@@ -110,6 +111,7 @@ const useAuthStore = create<AuthState>()(
       refreshTokenExpiresOn: null,
       status: 'idle',
       error: null,
+      loginFailure: null,
       profile: null,
       userId: null,
       isFirstTime: true,
@@ -119,7 +121,8 @@ const useAuthStore = create<AuthState>()(
       pendingRecoveryCodes: null,
       login: async (credentials: LoginCredentials) => {
         try {
-          set({ status: 'loading' });
+          // A previous password failure's reason goes with it; an MFA code (invalid_totp) stays until the retry answers.
+          set({ status: 'loading', loginFailure: null, ...(isLoginErrorCode(get().error) ? { error: null } : {}) });
           const response = await loginRequest(credentials);
 
           if (response.successful) {
@@ -186,15 +189,23 @@ const useAuthStore = create<AuthState>()(
               mfaChallenge: { kind: 'legacy', methods: ['totp'], enrolled: ['totp'], preferred: 'totp', expiresAt: null, source: 'password' },
             });
           } else {
+            const failure = response.failure ?? { code: 'login_failed' };
             set({
               status: 'error',
-              error: response.message,
+              error: failure.code,
+              loginFailure: failure,
             });
           }
         } catch (error) {
+          // An unreadable token response is the server's fault, not the member's; the detail stays in the log.
+          logger.error({
+            message: 'Login: Exception caught',
+            context: { error: error instanceof Error ? error.message : String(error) },
+          });
           set({
             status: 'error',
-            error: error instanceof Error ? error.message : 'Login failed',
+            error: 'login_failed',
+            loginFailure: { code: 'login_failed' },
           });
         }
       },
@@ -335,6 +346,7 @@ const useAuthStore = create<AuthState>()(
             status: 'signedOut',
             // Why the session ended, when the screen should say (a shared shift that ran out); otherwise nothing.
             error: typeof reason === 'string' ? reason : null,
+            loginFailure: null,
             profile: null,
             // Clearing the user id drops the API cache scope (see the subscription below); leaving it set
             // keeps this user's cache keys live for whoever signs in next on the same device.
@@ -528,12 +540,17 @@ const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => zustandStorage),
-      // A pending sign-in and recovery codes shown once are never written to storage, and neither is the refresh timer
-      // (a handle that means nothing after a restart).
-      partialize: ({ mfaChallenge: _mfaChallenge, pendingRecoveryCodes: _pendingRecoveryCodes, refreshTimeoutId: _refreshTimeoutId, ...persisted }) => persisted,
+      // A pending sign-in, recovery codes shown once and the last failed sign-in are never written to storage, and neither
+      // is the refresh timer (a handle that means nothing after a restart).
+      partialize: ({ mfaChallenge: _mfaChallenge, pendingRecoveryCodes: _pendingRecoveryCodes, loginFailure: _loginFailure, refreshTimeoutId: _refreshTimeoutId, ...persisted }) => persisted,
       // The pending SSO exchange and the login transaction live in module memory and die with the process, so a
-      // rehydrated pending state would open a prompt with nothing to finish. Force them back.
-      merge: (persisted, current) => ({ ...current, ...(persisted as Partial<AuthState>), isSsoMfaPending: false, mfaChallenge: null, pendingRecoveryCodes: null }),
+      // rehydrated pending state would open a prompt with nothing to finish. Force them back. A failed sign-in's reason is
+      // not stored either, so the failure restarts signed out rather than reopening with nothing to explain it.
+      merge: (persisted, current) => {
+        const restored = (persisted ?? {}) as Partial<AuthState>;
+        const failedSignIn = isLoginErrorCode(restored.error) ? { status: restored.status === 'error' ? ('signedOut' as const) : (restored.status ?? current.status), error: null } : {};
+        return { ...current, ...restored, ...failedSignIn, isSsoMfaPending: false, mfaChallenge: null, pendingRecoveryCodes: null };
+      },
       onRehydrateStorage: () => {
         return (state, error) => {
           if (error) {

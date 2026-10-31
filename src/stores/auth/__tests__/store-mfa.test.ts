@@ -163,3 +163,53 @@ describe('auth store: login transaction and shared sessions', () => {
     expect(saved.accessToken).toBe('a');
   });
 });
+
+describe('auth store: a refused password sign-in', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useAuthStore.setState({ status: 'signedOut', error: null, loginFailure: null, mfaChallenge: null });
+  });
+
+  it('keeps the reason and the lockout minutes for the login screen, never in storage', async () => {
+    mockLoginRequest.mockResolvedValue({ successful: false, message: 'account_locked_out', authResponse: null, failure: { code: 'account_locked_out', lockoutMinutes: 9 } });
+
+    await useAuthStore.getState().login({ username: 'pat', password: 'pw' });
+
+    expect(useAuthStore.getState()).toMatchObject({ status: 'error', error: 'account_locked_out', loginFailure: { code: 'account_locked_out', lockoutMinutes: 9 } });
+    const persist = (useAuthStore as unknown as { persist: { getOptions: () => { partialize: (s: unknown) => Record<string, unknown> } } }).persist;
+    expect(persist.getOptions().partialize(useAuthStore.getState())).not.toHaveProperty('loginFailure');
+  });
+
+  it('restarts a failed sign-in signed out, without a reason it no longer has', () => {
+    const persist = (useAuthStore as unknown as { persist: { getOptions: () => { merge: (persisted: unknown, current: unknown) => Record<string, unknown> } } }).persist;
+
+    expect(persist.getOptions().merge({ status: 'error', error: 'account_locked_out', userId: 'u1' }, useAuthStore.getState())).toMatchObject({ status: 'signedOut', error: null, userId: 'u1' });
+    // Why a session ended is not a sign-in failure and still reaches the login screen after a restart.
+    expect(persist.getOptions().merge({ status: 'signedOut', error: 'shift_ended' }, useAuthStore.getState())).toMatchObject({ status: 'signedOut', error: 'shift_ended' });
+    expect(persist.getOptions().merge({ status: 'signedIn', error: null }, useAuthStore.getState())).toMatchObject({ status: 'signedIn' });
+  });
+
+  it('drops the last failed sign-in on sign-out', async () => {
+    useAuthStore.setState({ loginFailure: { code: 'account_locked_out', lockoutMinutes: 9 } });
+    await useAuthStore.getState().logout();
+    expect(useAuthStore.getState().loginFailure).toBeNull();
+  });
+
+  it('forgets the last reason when the next sign-in starts', async () => {
+    useAuthStore.setState({ status: 'error', error: 'invalid_credentials', loginFailure: { code: 'invalid_credentials' } });
+    mockLoginRequest.mockResolvedValue({ successful: false, message: '', authResponse: null, mfaRequired: true, mfaTransaction: { secret: 'txn-secret', challenge } });
+
+    await useAuthStore.getState().login({ username: 'pat', password: 'pw' });
+
+    expect(useAuthStore.getState()).toMatchObject({ status: 'mfaRequired', error: null, loginFailure: null });
+    useAuthStore.getState().cancelLoginMfa();
+  });
+
+  it('reports a sign-in it could not finish as a general failure, not the exception text', async () => {
+    mockLoginRequest.mockResolvedValue({ successful: true, message: 'Login successful', authResponse: { ...tokens, id_token: 'not-a-jwt' } });
+
+    await useAuthStore.getState().login({ username: 'pat', password: 'pw' });
+
+    expect(useAuthStore.getState()).toMatchObject({ status: 'error', error: 'login_failed', loginFailure: { code: 'login_failed' } });
+  });
+});
