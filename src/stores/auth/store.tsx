@@ -434,7 +434,7 @@ const useAuthStore = create<AuthState>()(
           }
           if (isRefreshCredentialRejection(error)) {
             // The token endpoint explicitly rejected the refresh token
-            // (400 invalid_grant / 401) — credentials are known-bad, log out.
+            // (a 400/401 invalid_grant) — credentials are known-bad, log out.
             logger.error({
               message: 'Token refresh rejected by server, logging out user',
               context: { error: error instanceof Error ? error.message : String(error) },
@@ -443,7 +443,7 @@ const useAuthStore = create<AuthState>()(
             return;
           }
 
-          // Everything else is transient (offline, timeout, 5xx, 429) — keep the
+          // Everything else is transient (offline, timeout, 5xx, 429, other OAuth errors) — keep the
           // session and retry, otherwise a backend incident logs out every
           // active user at once.
           logger.warn({

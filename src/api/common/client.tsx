@@ -149,7 +149,7 @@ axiosInstance.interceptors.response.use(
           // Locked while this request was out: keep the tokens and show the lock screen.
           markSharedSessionLocked(null);
         } else if (isRefreshCredentialRejection(refreshError) || !useAuthStore.getState().refreshToken) {
-          // Log out only when the token endpoint rejected the refresh token (400 invalid_grant / 401), or there is
+          // Log out only when the token endpoint rejected the refresh token (a 400/401 invalid_grant), or there is
           // no refresh token to try again with.
           logger.warn({
             message: 'Token refresh rejected, logging out user',
@@ -157,7 +157,8 @@ axiosInstance.interceptors.response.use(
           });
           useAuthStore.getState().logout();
         } else {
-          // Offline, timeout, 5xx, 429: transient. Keep the session; the next request or the proactive timer retries.
+          // Offline, timeout, 5xx, 429, other OAuth errors: transient. Keep the session; the next request or the
+          // proactive timer retries.
           logger.warn({
             message: 'Token refresh failed transiently, keeping the session',
             context: { error: refreshError },

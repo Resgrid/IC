@@ -217,7 +217,7 @@ describe('auth store logout paths', () => {
   });
 
   it('a server error from the token endpoint keeps the session and its stored token', async () => {
-    // A 5xx is an outage, not a rejected refresh token: only 400/401 sign the user out.
+    // A 5xx is an outage, not a rejected refresh token: only a 400/401 invalid_grant signs the user out.
     jest.useFakeTimers();
     signIn();
     mockRefreshTokenSingleFlight.mockRejectedValueOnce(
@@ -267,7 +267,7 @@ describe('auth store logout paths', () => {
     mockRefreshTokenSingleFlight.mockImplementationOnce(() => {
       const config = { headers: {} } as InternalAxiosRequestConfig;
       return Promise.reject(
-        new AxiosError('Request failed with status code 400', 'ERR_BAD_REQUEST', config, null, { status: 400, statusText: 'Bad Request', data: {}, headers: {}, config } as AxiosResponse)
+        new AxiosError('Request failed with status code 400', 'ERR_BAD_REQUEST', config, null, { status: 400, statusText: 'Bad Request', data: { error: 'invalid_grant' }, headers: {}, config } as AxiosResponse)
       );
     });
 
