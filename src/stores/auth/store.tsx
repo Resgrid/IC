@@ -11,7 +11,7 @@ import { logger } from '@/lib/logging';
 
 import { loginRequest, refreshTokenSingleFlight, ssoExternalTokenRequest } from '../../lib/auth/api';
 import { isLoginErrorCode } from '../../lib/auth/login-errors';
-import { isSharedSessionLockedRefresh } from '../../lib/auth/token-refresh';
+import { isRefreshCredentialRejection, isSharedSessionLockedRefresh } from '../../lib/auth/token-refresh';
 import type { AuthResponse, AuthState, LoginCredentials, SsoLoginCredentials } from '../../lib/auth/types';
 import { type ProfileModel } from '../../lib/auth/types';
 import { getAuth } from '../../lib/auth/utils';
@@ -432,31 +432,32 @@ const useAuthStore = create<AuthState>()(
             markSharedSessionLocked(null);
             return;
           }
-          // Check if it's a network error vs an invalid refresh token
-          const isNetworkError = error instanceof Error && (error.message.includes('Network Error') || error.message.includes('timeout') || error.message.includes('ECONNREFUSED') || error.message.includes('ETIMEDOUT'));
-
-          if (isNetworkError) {
-            // Network error - retry after a delay, don't logout
-            logger.warn({
-              message: 'Token refresh failed due to network error, will retry',
-              context: { error: error instanceof Error ? error.message : String(error) },
-            });
-            // Clear any existing refresh timer before scheduling retry
-            const existingTimeoutId = get().refreshTimeoutId;
-            if (existingTimeoutId !== null) {
-              clearTimeout(existingTimeoutId);
-            }
-            // Retry after 30 seconds for network errors
-            const retryTimeoutId = setTimeout(() => get().refreshAccessToken(), 30000);
-            set({ refreshTimeoutId: retryTimeoutId });
-          } else {
-            // Invalid refresh token or server rejected it - logout user
+          if (isRefreshCredentialRejection(error)) {
+            // The token endpoint explicitly rejected the refresh token
+            // (a 400/401 invalid_grant) — credentials are known-bad, log out.
             logger.error({
-              message: 'Token refresh failed with non-recoverable error, logging out user',
+              message: 'Token refresh rejected by server, logging out user',
               context: { error: error instanceof Error ? error.message : String(error) },
             });
             await get().logout();
+            return;
           }
+
+          // Everything else is transient (offline, timeout, 5xx, 429, other OAuth errors) — keep the
+          // session and retry, otherwise a backend incident logs out every
+          // active user at once.
+          logger.warn({
+            message: 'Token refresh failed transiently, will retry',
+            context: { error: error instanceof Error ? error.message : String(error) },
+          });
+          // Clear any existing refresh timer before scheduling retry
+          const existingTimeoutId = get().refreshTimeoutId;
+          if (existingTimeoutId !== null) {
+            clearTimeout(existingTimeoutId);
+          }
+          // Retry after 30 seconds for transient errors
+          const retryTimeoutId = setTimeout(() => get().refreshAccessToken(), 30000);
+          set({ refreshTimeoutId: retryTimeoutId });
         }
       },
       hydrate: () => {

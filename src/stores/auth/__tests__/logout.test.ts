@@ -207,11 +207,32 @@ describe('auth store logout paths', () => {
 
   it('a rejected refresh token goes through the full logout', async () => {
     signIn();
-    mockRefreshTokenSingleFlight.mockRejectedValueOnce(new Error('Request failed with status code 400'));
+    mockRefreshTokenSingleFlight.mockRejectedValueOnce(
+      new AxiosError('Request failed with status code 400', 'ERR_BAD_REQUEST', undefined, null, { status: 400, statusText: 'Bad Request', headers: {}, config: {} as InternalAxiosRequestConfig, data: { error: 'invalid_grant' } })
+    );
 
     await useAuthStore.getState().refreshAccessToken();
 
     expectFullySignedOut();
+  });
+
+  it('a server error from the token endpoint keeps the session and its stored token', async () => {
+    // A 5xx is an outage, not a rejected refresh token: only a 400/401 invalid_grant signs the user out.
+    jest.useFakeTimers();
+    signIn();
+    mockRefreshTokenSingleFlight.mockRejectedValueOnce(
+      new AxiosError('Request failed with status code 502', 'ERR_BAD_RESPONSE', undefined, null, { status: 502, statusText: 'Bad Gateway', headers: {}, config: {} as InternalAxiosRequestConfig, data: '' })
+    );
+
+    await useAuthStore.getState().refreshAccessToken();
+
+    expect(useAuthStore.getState().status).toBe('signedIn');
+    expect(storedValues().has('authResponse')).toBe(true);
+    expect(mockCleanup).not.toHaveBeenCalled();
+
+    jest.clearAllTimers();
+    useAuthStore.setState({ refreshTimeoutId: null });
+    jest.useRealTimers();
   });
 
   it('a network failure during refresh keeps the session and its stored token', async () => {
@@ -246,7 +267,7 @@ describe('auth store logout paths', () => {
     mockRefreshTokenSingleFlight.mockImplementationOnce(() => {
       const config = { headers: {} } as InternalAxiosRequestConfig;
       return Promise.reject(
-        new AxiosError('Request failed with status code 400', 'ERR_BAD_REQUEST', config, null, { status: 400, statusText: 'Bad Request', data: {}, headers: {}, config } as AxiosResponse)
+        new AxiosError('Request failed with status code 400', 'ERR_BAD_REQUEST', config, null, { status: 400, statusText: 'Bad Request', data: { error: 'invalid_grant' }, headers: {}, config } as AxiosResponse)
       );
     });
 

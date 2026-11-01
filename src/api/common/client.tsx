@@ -1,7 +1,7 @@
-import axios, { type AxiosError, type AxiosInstance, type InternalAxiosRequestConfig, isAxiosError } from 'axios';
+import axios, { type AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 
 import { refreshTokenSingleFlight } from '@/lib/auth/api';
-import { isSharedSessionLockedRefresh, sharedSession401 } from '@/lib/auth/token-refresh';
+import { isRefreshCredentialRejection, isSharedSessionLockedRefresh, sharedSession401 } from '@/lib/auth/token-refresh';
 import { readProtectedGrantHeaders } from '@/lib/data-protection/grant-provider';
 import { logger } from '@/lib/logging';
 import { CLIENT_HEADER, RESGRID_CLIENT } from '@/lib/mfa/client-app';
@@ -145,22 +145,22 @@ axiosInstance.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError as Error);
 
-        // Check if it's a network error vs an invalid refresh token
-        const isNetworkError = isAxiosError(refreshError) && !refreshError.response;
-
         if (isSharedSessionLockedRefresh(refreshError)) {
           // Locked while this request was out: keep the tokens and show the lock screen.
           markSharedSessionLocked(null);
-        } else if (!isNetworkError) {
-          // Only logout for non-network errors (e.g., invalid refresh token, 400/401 from token endpoint)
+        } else if (isRefreshCredentialRejection(refreshError) || !useAuthStore.getState().refreshToken) {
+          // Log out only when the token endpoint rejected the refresh token (a 400/401 invalid_grant), or there is
+          // no refresh token to try again with.
           logger.warn({
-            message: 'Token refresh failed with non-recoverable error, logging out user',
+            message: 'Token refresh rejected, logging out user',
             context: { error: refreshError },
           });
           useAuthStore.getState().logout();
         } else {
+          // Offline, timeout, 5xx, 429, other OAuth errors: transient. Keep the session; the next request or the
+          // proactive timer retries.
           logger.warn({
-            message: 'Token refresh failed due to network error',
+            message: 'Token refresh failed transiently, keeping the session',
             context: { error: refreshError },
           });
         }
